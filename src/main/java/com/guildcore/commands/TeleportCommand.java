@@ -9,7 +9,9 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.World;
+import org.bukkit.block.Block;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabExecutor;
@@ -24,6 +26,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 
 public class TeleportCommand implements TabExecutor {
     private final DatabaseManager dbManager;
@@ -56,7 +59,6 @@ public class TeleportCommand implements TabExecutor {
             return true;
         }
 
-        // Use command.getName() to reliably match namespaced commands (/guildcore:tpa, /guildcore:rtp)
         String cmd = command.getName().toLowerCase();
 
         // 1. /tpa <player>
@@ -135,25 +137,19 @@ public class TeleportCommand implements TabExecutor {
             return true;
         }
 
-        // 4. /rtp (Folia Chunk Load & Async Safe)
+        // 4. /rtp (Guaranteed Safe Surface Location)
         if (cmd.equals("rtp")) {
-            World world = player.getWorld();
-            int x = (random.nextInt(5000) - 2500);
-            int z = (random.nextInt(5000) - 2500);
-            int chunkX = x >> 4;
-            int chunkZ = z >> 4;
-
-            player.sendMessage(TextUtil.format("<yellow>Finding safe wilderness location...</yellow>"));
-
-            world.getChunkAtAsync(chunkX, chunkZ).thenAccept(chunk -> {
-                int y = world.getHighestBlockYAt(x, z) + 1;
-                Location targetLoc = new Location(world, x + 0.5, y, z + 0.5);
-
-                player.teleportAsync(targetLoc).thenAccept(success -> {
-                    if (success) {
-                        player.sendMessage(TextUtil.format("<green>🎲 Randomly teleported to (" + x + ", " + y + ", " + z + ")!</green>"));
-                    }
-                });
+            player.sendMessage(TextUtil.format("<yellow>Searching for safe surface location in wilderness...</yellow>"));
+            findSafeRTPLocation(player.getWorld(), 0, loc -> {
+                if (loc != null) {
+                    player.teleportAsync(loc).thenAccept(success -> {
+                        if (success) {
+                            player.sendMessage(TextUtil.format("<green>🎲 Randomly teleported to safe surface at (" + loc.getBlockX() + ", " + loc.getBlockY() + ", " + loc.getBlockZ() + ")!</green>"));
+                        }
+                    });
+                } else {
+                    player.sendMessage(TextUtil.format("<red>Could not find a safe surface location. Please try /rtp again!</red>"));
+                }
             });
             return true;
         }
@@ -312,5 +308,37 @@ public class TeleportCommand implements TabExecutor {
         }
 
         return true;
+    }
+
+    private void findSafeRTPLocation(World world, int attempts, Consumer<Location> callback) {
+        if (attempts >= 15) {
+            callback.accept(null);
+            return;
+        }
+
+        int x = (random.nextInt(5000) - 2500);
+        int z = (random.nextInt(5000) - 2500);
+        int chunkX = x >> 4;
+        int chunkZ = z >> 4;
+
+        world.getChunkAtAsync(chunkX, chunkZ).thenAccept(chunk -> {
+            int highestY = world.getHighestBlockYAt(x, z);
+            if (highestY <= world.getMinHeight() + 5) {
+                findSafeRTPLocation(world, attempts + 1, callback);
+                return;
+            }
+
+            Block ground = world.getBlockAt(x, highestY, z);
+            Block feet = world.getBlockAt(x, highestY + 1, z);
+            Block head = world.getBlockAt(x, highestY + 2, z);
+
+            Material gMat = ground.getType();
+            if (gMat.isSolid() && gMat != Material.LAVA && gMat != Material.WATER && gMat != Material.MAGMA_BLOCK && gMat != Material.FIRE && feet.isPassable() && head.isPassable()) {
+                Location safeLoc = new Location(world, x + 0.5, highestY + 1.0, z + 0.5);
+                callback.accept(safeLoc);
+            } else {
+                findSafeRTPLocation(world, attempts + 1, callback);
+            }
+        });
     }
 }

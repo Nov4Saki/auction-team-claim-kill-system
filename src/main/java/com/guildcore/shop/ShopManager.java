@@ -89,13 +89,13 @@ public class ShopManager {
             try (PreparedStatement ps = conn.prepareStatement("INSERT INTO shop_categories (name, icon_material, slot) VALUES (?, ?, ?)", Statement.RETURN_GENERATED_KEYS)) {
                 ps.setString(1, defaultCats[i]);
                 ps.setString(2, mats[i].name());
-                ps.setInt(3, 11 + (i * 2));
+                ps.setInt(3, 10 + (i * 2));
                 ps.executeUpdate();
 
                 try (ResultSet rs = ps.getGeneratedKeys()) {
                     if (rs.next()) {
                         int id = rs.getInt(1);
-                        categories.put(id, new ShopCategory(id, defaultCats[i], mats[i], 11 + (i * 2)));
+                        categories.put(id, new ShopCategory(id, defaultCats[i], mats[i], 10 + (i * 2)));
                     }
                 }
             }
@@ -181,9 +181,22 @@ public class ShopManager {
     public void openShopMainMenu(Player player) {
         Inventory inv = Bukkit.createInventory(new ShopGUIHolder(0), 27, TextUtil.format("<gold>🛒 Server Shop</gold>"));
 
-        for (ShopCategory cat : categories.values()) {
-            inv.setItem(cat.getSlot(), new GUIItemBuilder(cat.getIcon()).name("<gold>" + cat.getName() + "</gold>")
-                    .lore(List.of("<yellow>Click to view items</yellow>")).build());
+        // Fill background border
+        for (int i = 0; i < 27; i++) {
+            inv.setItem(i, new GUIItemBuilder(Material.BLACK_STAINED_GLASS_PANE).name("<gray> </gray>").build());
+        }
+
+        // Dynamically center category slots
+        List<ShopCategory> list = new ArrayList<>(categories.values());
+        int count = Math.min(7, list.size());
+        int startSlot = 10 + (7 - count) / 2;
+
+        for (int i = 0; i < count; i++) {
+            ShopCategory cat = list.get(i);
+            int targetSlot = startSlot + i;
+            cat.setSlot(targetSlot);
+            inv.setItem(targetSlot, new GUIItemBuilder(cat.getIcon()).name("<gold>" + cat.getName() + "</gold>")
+                    .lore(List.of("<yellow>Click to browse items</yellow>")).build());
         }
 
         scheduler.runSync(player, () -> player.openInventory(inv));
@@ -194,9 +207,29 @@ public class ShopManager {
         if (cat == null) return;
 
         Inventory inv = Bukkit.createInventory(new ShopGUIHolder(categoryId), 54, TextUtil.format("<gold>🛒 Shop: " + cat.getName() + "</gold>"));
+
+        // Fill border
+        for (int i = 0; i < 54; i++) {
+            if (i < 9 || i >= 45 || i % 9 == 0 || i % 9 == 8) {
+                inv.setItem(i, new GUIItemBuilder(Material.BLACK_STAINED_GLASS_PANE).name("<gray> </gray>").build());
+            }
+        }
+
         List<ShopItem> items = categoryItems.getOrDefault(categoryId, new ArrayList<>());
 
-        for (ShopItem shopItem : items) {
+        // Centered grid slots inside 6-row inventory (Slots 10-16, 19-25, 28-34, 37-43)
+        int[] innerSlots = {
+                10, 11, 12, 13, 14, 15, 16,
+                19, 20, 21, 22, 23, 24, 25,
+                28, 29, 30, 31, 32, 33, 34,
+                37, 38, 39, 40, 41, 42, 43
+        };
+
+        for (int i = 0; i < Math.min(items.size(), innerSlots.length); i++) {
+            ShopItem shopItem = items.get(i);
+            int slot = innerSlots[i];
+            shopItem.setSlot(slot);
+
             ItemStack display = shopItem.getItem().clone();
             ItemMeta meta = display.getItemMeta();
             if (meta != null) {
@@ -208,7 +241,7 @@ public class ShopManager {
                 meta.setLore(lore);
                 display.setItemMeta(meta);
             }
-            inv.setItem(shopItem.getSlot(), display);
+            inv.setItem(slot, display);
         }
 
         inv.setItem(49, new GUIItemBuilder(Material.BARRIER).name("<red>◀ Back to Shop Categories</red>").build());
