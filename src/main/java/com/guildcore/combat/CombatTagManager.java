@@ -6,6 +6,7 @@ import com.guildcore.debug.DebugManager;
 import com.guildcore.scheduler.SchedulerWrapper;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -29,6 +30,19 @@ public class CombatTagManager implements Listener {
     public CombatTagManager(SettingsManager settingsManager, SchedulerWrapper scheduler) {
         this.settingsManager = settingsManager;
         this.scheduler = scheduler;
+        startContinuousActionBarTask();
+    }
+
+    private void startContinuousActionBarTask() {
+        scheduler.runTaskTimer(() -> {
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                if (isTagged(player)) {
+                    int remaining = getRemainingSeconds(player);
+                    scheduler.runSync(player, () -> player.sendActionBar(Component.text("⚔ COMBAT TAGGED: " + remaining + "s", NamedTextColor.RED)));
+                }
+            }
+            return true;
+        }, 0L, 20L); // Every 1 second (20 ticks)
     }
 
     public void tag(Player player) {
@@ -41,7 +55,7 @@ public class CombatTagManager implements Listener {
         taggedPlayers.put(player.getUniqueId(), expiry);
 
         if (newlyTagged) {
-            scheduler.runSync(player, () -> player.sendActionBar(Component.text("⚔ Combat Tagged! (" + duration + "s)", NamedTextColor.RED)));
+            scheduler.runSync(player, () -> player.sendActionBar(Component.text("⚔ COMBAT TAGGED: " + duration + "s", NamedTextColor.RED)));
             DebugManager.log(DebugFlag.COMBAT_TAGGING, "Tagged player " + player.getName() + " for " + duration + "s");
         }
     }

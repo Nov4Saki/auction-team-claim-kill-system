@@ -8,6 +8,7 @@ import com.guildcore.config.SettingsManager;
 import com.guildcore.debug.DebugFlag;
 import com.guildcore.debug.DebugManager;
 import com.guildcore.gui.holders.*;
+import com.guildcore.scoreboard.ScoreboardManager;
 import com.guildcore.stats.StatsManager;
 import com.guildcore.teams.Team;
 import com.guildcore.teams.TeamManager;
@@ -135,7 +136,7 @@ public class GUIManager {
         Inventory inv = Bukkit.createInventory(new AdminScoreboardHolder(), 27, TextUtil.format("<aqua>📊 Scoreboard Config</aqua>"));
         int refresh = settingsManager.getInt("scoreboard.update_ticks", 20);
         inv.setItem(11, new GUIItemBuilder(Material.NAME_TAG).name("<yellow>Scoreboard Refresh: " + (refresh / 20) + "s</yellow>").lore(List.of("<gray>Click to cycle 1s / 2s / 5s</gray>")).build());
-        inv.setItem(13, new GUIItemBuilder(Material.TNT).name("<red>🧹 Clear All Server Scoreboards & Objectives</red>").lore(List.of("<gray>Click to wipe all scoreboards & objectives cleanly</gray>")).build());
+        inv.setItem(13, new GUIItemBuilder(Material.TNT).name("<red>🧹 Wipe & Disable All Server Scoreboards</red>").lore(List.of("<gray>Click to remove scoreboards & objectives from ALL players</gray>")).build());
         inv.setItem(26, new GUIItemBuilder(Material.BARRIER).name("<red>◀ Back to Admin Panel</red>").build());
         player.openInventory(inv);
     }

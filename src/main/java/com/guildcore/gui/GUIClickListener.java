@@ -262,9 +262,14 @@ public class GUIClickListener implements Listener {
 
             if (slot == 11) {
                 ChatInputListener.requestInput(player, "scoreboard.update_ticks", p -> guiManager.openAdminScoreboardSettings(p));
-            } else if (slot == 13) { // Clear all scoreboards & objectives
-                scoreboardManager.clearServerScoreboards();
-                player.sendMessage(TextUtil.format("<green>🧹 Successfully wiped all server scoreboards & objectives!</green>"));
+            } else if (slot == 13) {
+                if (scoreboardManager.isScoreboardsDisabled()) {
+                    scoreboardManager.enableScoreboards();
+                    player.sendMessage(TextUtil.format("<green>Enabled server scoreboards!</green>"));
+                } else {
+                    scoreboardManager.clearServerScoreboards();
+                    player.sendMessage(TextUtil.format("<green>🧹 Wiped & disabled all server scoreboards across all players!</green>"));
+                }
                 guiManager.openAdminScoreboardSettings(player);
             } else if (slot == 26) {
                 guiManager.openAdminSettings(player);

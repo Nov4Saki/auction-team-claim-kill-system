@@ -39,6 +39,8 @@ public class ScoreboardManager {
     private final SettingsManager settingsManager;
     private final SchedulerWrapper scheduler;
 
+    private boolean scoreboardsDisabled = false;
+
     public ScoreboardManager(EconomyManager economyManager, StatsManager statsManager, BountyManager bountyManager, TeamManager teamManager, ClaimManager claimManager, CombatTagManager combatTagManager, RaidManager raidManager, SettingsManager settingsManager, SchedulerWrapper scheduler) {
         this.economyManager = economyManager;
         this.statsManager = statsManager;
@@ -52,6 +54,7 @@ public class ScoreboardManager {
     }
 
     public void clearServerScoreboards() {
+        this.scoreboardsDisabled = true;
         try {
             Scoreboard mainBoard = Bukkit.getScoreboardManager().getMainScoreboard();
 
@@ -69,12 +72,12 @@ public class ScoreboardManager {
             for (Player player : Bukkit.getOnlinePlayers()) {
                 scheduler.runSync(player, () -> {
                     try {
-                        Scoreboard board = player.getScoreboard();
-                        if (board != null) {
+                        Scoreboard pBoard = player.getScoreboard();
+                        if (pBoard != null) {
                             for (DisplaySlot slot : DisplaySlot.values()) {
-                                try { board.clearSlot(slot); } catch (Exception ignored) {}
+                                try { pBoard.clearSlot(slot); } catch (Exception ignored) {}
                             }
-                            for (Objective obj : new ArrayList<>(board.getObjectives())) {
+                            for (Objective obj : new ArrayList<>(pBoard.getObjectives())) {
                                 try { obj.unregister(); } catch (Exception ignored) {}
                             }
                         }
@@ -88,8 +91,16 @@ public class ScoreboardManager {
         }
     }
 
+    public void enableScoreboards() {
+        this.scoreboardsDisabled = false;
+    }
+
+    public boolean isScoreboardsDisabled() {
+        return scoreboardsDisabled;
+    }
+
     public void updateBoard(Player player) {
-        if (player == null || !player.isOnline()) return;
+        if (player == null || !player.isOnline() || scoreboardsDisabled) return;
 
         scheduler.runSync(player, () -> {
             try {
@@ -163,8 +174,10 @@ public class ScoreboardManager {
     public void startUpdateTask() {
         int ticks = settingsManager.getInt("scoreboard.update_ticks", 20);
         scheduler.runTaskTimer(() -> {
-            for (Player player : Bukkit.getOnlinePlayers()) {
-                updateBoard(player);
+            if (!scoreboardsDisabled) {
+                for (Player player : Bukkit.getOnlinePlayers()) {
+                    updateBoard(player);
+                }
             }
             return true;
         }, 0L, ticks);
