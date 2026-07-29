@@ -49,9 +49,9 @@ public class GUIManager {
 
         inv.setItem(10, new GUIItemBuilder(Material.GOLD_INGOT).name("<yellow>💰 Economy Settings</yellow>").lore(List.of("<gray>Click to edit starting balance, kill rewards, tax%</gray>")).build());
         inv.setItem(11, new GUIItemBuilder(Material.DIAMOND_SWORD).name("<red>⚔ Kill Counter Settings</red>").lore(List.of("<gray>Click to edit mob and PvP kill rewards</gray>")).build());
-        inv.setItem(12, new GUIItemBuilder(Material.GRASS_BLOCK).name("<green>🏠 Claim Settings</green>").lore(List.of("<gray>Click to edit claim block earn rate and flags</gray>")).build());
+        inv.setItem(12, new GUIItemBuilder(Material.GRASS_BLOCK).name("<green>🏠 Claim & World Settings</green>").lore(List.of("<gray>Click to edit claim blocks & world explosion rules</gray>")).build());
         inv.setItem(13, new GUIItemBuilder(Material.SHIELD).name("<blue>🏰 Team Settings</blue>").lore(List.of("<gray>Click to edit team creation cost and base caps</gray>")).build());
-        inv.setItem(14, new GUIItemBuilder(Material.GOLDEN_APPLE).name("<dark_purple>⚔ Combat & Items</dark_purple>").lore(List.of("<gray>Click to edit combat tag duration and weapon rules</gray>")).build());
+        inv.setItem(14, new GUIItemBuilder(Material.GOLDEN_APPLE).name("<dark_purple>⚔ Combat & Item Controls</dark_purple>").lore(List.of("<gray>Click to edit combat tags, command blocks, & item rules</gray>")).build());
         inv.setItem(15, new GUIItemBuilder(Material.NAME_TAG).name("<aqua>📊 Scoreboard Settings</aqua>").lore(List.of("<gray>Click to edit scoreboard refresh rate and titles</gray>")).build());
         inv.setItem(16, new GUIItemBuilder(Material.CHEST).name("<gold>🏪 Auction Settings</gold>").lore(List.of("<gray>Click to edit listing fees, max listings, and cooldowns</gray>")).build());
         inv.setItem(22, new GUIItemBuilder(Material.LEVER).name("<red>🐞 Debug Panel (18 Flags)</red>").lore(List.of("<gray>Click to toggle 18 surgical debug flags</gray>")).build());
@@ -84,10 +84,13 @@ public class GUIManager {
     }
 
     public void openAdminClaimSettings(Player player) {
-        Inventory inv = Bukkit.createInventory(new AdminClaimHolder(), 27, TextUtil.format("<green>🏠 Claim Config</green>"));
+        Inventory inv = Bukkit.createInventory(new AdminClaimHolder(), 27, TextUtil.format("<green>🏠 Claim & World Config</green>"));
         int earnRate = settingsManager.getInt("claims.blocks_per_hour", 50);
-        inv.setItem(11, new GUIItemBuilder(Material.GOLDEN_SHOVEL).name("<yellow>Claim Blocks Per Hour: " + earnRate + "</yellow>").lore(List.of("<gray>Click to cycle 25 / 50 / 100</gray>")).build());
-        inv.setItem(15, new GUIItemBuilder(Material.GRASS_BLOCK).name("<green>Default Chunk Protection: STRICT 16x16</green>").build());
+        boolean disableExplosions = settingsManager.getBoolean("world.disable_explosions", false);
+
+        inv.setItem(10, new GUIItemBuilder(Material.GOLDEN_SHOVEL).name("<yellow>Claim Blocks Per Hour: " + earnRate + "</yellow>").lore(List.of("<gray>Click to cycle 25 / 50 / 100</gray>")).build());
+        inv.setItem(12, new GUIItemBuilder(Material.GRASS_BLOCK).name("<green>Default Chunk Protection: STRICT 16x16</green>").lore(List.of("<gray>All claims are 100% immune to explosion damage</gray>")).build());
+        inv.setItem(14, new GUIItemBuilder(Material.TNT).name("<red>Global World Explosions: " + (disableExplosions ? "<red>DISABLED</red>" : "<green>ENABLED</green>") + "</red>").lore(List.of("<yellow>Click to toggle all TNT/Creeper/Crystal explosions server-wide</yellow>")).build());
         inv.setItem(26, new GUIItemBuilder(Material.BARRIER).name("<red>◀ Back to Admin Panel</red>").build());
         player.openInventory(inv);
     }
@@ -103,22 +106,26 @@ public class GUIManager {
     }
 
     public void openAdminCombatSettings(Player player) {
-        Inventory inv = Bukkit.createInventory(new AdminCombatHolder(), 27, TextUtil.format("<dark_purple>⚔ Combat & Weapon Rules Config</dark_purple>"));
+        Inventory inv = Bukkit.createInventory(new AdminCombatHolder(), 27, TextUtil.format("<dark_purple>⚔ Combat & Item Controls</dark_purple>"));
         int duration = settingsManager.getInt("combat.tag_duration", 15);
         int pearlCd = settingsManager.getInt("combat.enderpearl_cooldown", 15);
         int windCd = settingsManager.getInt("combat.windcharge_cooldown", 10);
         int maceCd = settingsManager.getInt("combat.mace_cooldown", 12);
+        boolean disableCmds = settingsManager.getBoolean("combat.disable_commands", true);
+        boolean shieldGlobal = settingsManager.getBoolean("item.disabled_global.shield", false);
         boolean riptide = settingsManager.getBoolean("combat.riptide_enabled", false);
         boolean crystal = settingsManager.getBoolean("combat.crystal_enabled", false);
         boolean anchor = settingsManager.getBoolean("combat.anchor_enabled", false);
 
-        inv.setItem(10, new GUIItemBuilder(Material.CLOCK).name("<yellow>Combat Tag Duration: " + duration + "s</yellow>").lore(List.of("<gray>Click to cycle 10s / 15s / 30s</gray>")).build());
+        inv.setItem(9, new GUIItemBuilder(Material.CLOCK).name("<yellow>Combat Tag Duration: " + duration + "s</yellow>").lore(List.of("<gray>Click to cycle 10s / 15s / 30s</gray>")).build());
+        inv.setItem(10, new GUIItemBuilder(Material.COMMAND_BLOCK).name("<red>Commands in Combat: " + (disableCmds ? "<red>DISABLED</red>" : "<green>ENABLED</green>") + "</red>").lore(List.of("<yellow>Click to toggle</yellow>")).build());
         inv.setItem(11, new GUIItemBuilder(Material.ENDER_PEARL).name("<purple>Ender Pearl Cooldown: " + pearlCd + "s</purple>").lore(List.of("<gray>Click to cycle 10s / 15s / 30s</gray>")).build());
         inv.setItem(12, new GUIItemBuilder(Material.FEATHER).name("<aqua>Wind Charge Cooldown: " + windCd + "s</aqua>").lore(List.of("<gray>Click to cycle 5s / 10s / 20s</gray>")).build());
         inv.setItem(13, new GUIItemBuilder(Material.HEAVY_CORE).name("<gold>Mace Cooldown: " + maceCd + "s</gold>").lore(List.of("<gray>Click to cycle 5s / 12s / 20s</gray>")).build());
-        inv.setItem(14, new GUIItemBuilder(Material.TRIDENT).name("<blue>Riptide Trident in Combat: " + (riptide ? "<green>ENABLED</green>" : "<red>DISABLED</red>") + "</blue>").lore(List.of("<yellow>Click to toggle</yellow>")).build());
-        inv.setItem(15, new GUIItemBuilder(Material.END_CRYSTAL).name("<light_purple>End Crystal in Combat: " + (crystal ? "<green>ENABLED</green>" : "<red>DISABLED</red>") + "</light_purple>").lore(List.of("<yellow>Click to toggle</yellow>")).build());
-        inv.setItem(16, new GUIItemBuilder(Material.RESPAWN_ANCHOR).name("<red>Respawn Anchor in Combat: " + (anchor ? "<green>ENABLED</green>" : "<red>DISABLED</red>") + "</red>").lore(List.of("<yellow>Click to toggle</yellow>")).build());
+        inv.setItem(14, new GUIItemBuilder(Material.SHIELD).name("<blue>Shields Server-Wide: " + (shieldGlobal ? "<red>DISABLED</red>" : "<green>ENABLED</green>") + "</blue>").lore(List.of("<yellow>Click to toggle server-wide shield use</yellow>")).build());
+        inv.setItem(15, new GUIItemBuilder(Material.TRIDENT).name("<blue>Riptide Trident in Combat: " + (riptide ? "<green>ENABLED</green>" : "<red>DISABLED</red>") + "</blue>").lore(List.of("<yellow>Click to toggle</yellow>")).build());
+        inv.setItem(16, new GUIItemBuilder(Material.END_CRYSTAL).name("<light_purple>End Crystals: " + (crystal ? "<green>ENABLED</green>" : "<red>DISABLED</red>") + "</light_purple>").lore(List.of("<yellow>Click to toggle</yellow>")).build());
+        inv.setItem(17, new GUIItemBuilder(Material.RESPAWN_ANCHOR).name("<red>Respawn Anchors: " + (anchor ? "<green>ENABLED</green>" : "<red>DISABLED</red>") + "</red>").lore(List.of("<yellow>Click to toggle</yellow>")).build());
         inv.setItem(26, new GUIItemBuilder(Material.BARRIER).name("<red>◀ Back to Admin Panel</red>").build());
 
         player.openInventory(inv);

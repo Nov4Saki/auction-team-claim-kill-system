@@ -202,16 +202,41 @@ public class GUIClickListener implements Listener {
             return;
         }
 
-        // 5. Admin Combat Sub-GUI
-        if (holder instanceof AdminCombatHolder) {
+        // 5. Admin Claim Sub-GUI
+        if (holder instanceof AdminClaimHolder) {
             event.setCancelled(true);
             SoundUtil.playClick(player);
             int slot = event.getSlot();
 
             if (slot == 10) {
+                int rate = settingsManager.getInt("claims.blocks_per_hour", 50);
+                int next = rate == 25 ? 50 : (rate == 50 ? 100 : 25);
+                settingsManager.set("claims.blocks_per_hour", String.valueOf(next));
+                guiManager.openAdminClaimSettings(player);
+            } else if (slot == 14) {
+                boolean disableExplosions = settingsManager.getBoolean("world.disable_explosions", false);
+                settingsManager.set("world.disable_explosions", String.valueOf(!disableExplosions));
+                guiManager.openAdminClaimSettings(player);
+            } else if (slot == 26) {
+                guiManager.openAdminSettings(player);
+            }
+            return;
+        }
+
+        // 6. Admin Combat Sub-GUI
+        if (holder instanceof AdminCombatHolder) {
+            event.setCancelled(true);
+            SoundUtil.playClick(player);
+            int slot = event.getSlot();
+
+            if (slot == 9) {
                 int tag = settingsManager.getInt("combat.tag_duration", 15);
                 int next = tag == 10 ? 15 : (tag == 15 ? 30 : 10);
                 settingsManager.set("combat.tag_duration", String.valueOf(next));
+                guiManager.openAdminCombatSettings(player);
+            } else if (slot == 10) {
+                boolean disableCmds = settingsManager.getBoolean("combat.disable_commands", true);
+                settingsManager.set("combat.disable_commands", String.valueOf(!disableCmds));
                 guiManager.openAdminCombatSettings(player);
             } else if (slot == 11) {
                 int cd = settingsManager.getInt("combat.enderpearl_cooldown", 15);
@@ -229,14 +254,18 @@ public class GUIClickListener implements Listener {
                 settingsManager.set("combat.mace_cooldown", String.valueOf(next));
                 guiManager.openAdminCombatSettings(player);
             } else if (slot == 14) {
+                boolean val = settingsManager.getBoolean("item.disabled_global.shield", false);
+                settingsManager.set("item.disabled_global.shield", String.valueOf(!val));
+                guiManager.openAdminCombatSettings(player);
+            } else if (slot == 15) {
                 boolean val = settingsManager.getBoolean("combat.riptide_enabled", false);
                 settingsManager.set("combat.riptide_enabled", String.valueOf(!val));
                 guiManager.openAdminCombatSettings(player);
-            } else if (slot == 15) {
+            } else if (slot == 16) {
                 boolean val = settingsManager.getBoolean("combat.crystal_enabled", false);
                 settingsManager.set("combat.crystal_enabled", String.valueOf(!val));
                 guiManager.openAdminCombatSettings(player);
-            } else if (slot == 16) {
+            } else if (slot == 17) {
                 boolean val = settingsManager.getBoolean("combat.anchor_enabled", false);
                 settingsManager.set("combat.anchor_enabled", String.valueOf(!val));
                 guiManager.openAdminCombatSettings(player);
@@ -246,7 +275,7 @@ public class GUIClickListener implements Listener {
             return;
         }
 
-        // 6. Admin Auction Sub-GUI
+        // 7. Admin Auction Sub-GUI
         if (holder instanceof AdminAuctionHolder) {
             event.setCancelled(true);
             SoundUtil.playClick(player);
@@ -273,7 +302,7 @@ public class GUIClickListener implements Listener {
             return;
         }
 
-        // 7. Admin Debug Sub-GUI
+        // 8. Admin Debug Sub-GUI
         if (holder instanceof AdminDebugHolder) {
             event.setCancelled(true);
             SoundUtil.playClick(player);
@@ -292,8 +321,8 @@ public class GUIClickListener implements Listener {
             return;
         }
 
-        // 8. Simple Back-Button Sub-GUIs
-        if (holder instanceof AdminKillHolder || holder instanceof AdminClaimHolder || holder instanceof AdminTeamHolder || holder instanceof AdminScoreboardHolder) {
+        // 9. Simple Back-Button Sub-GUIs
+        if (holder instanceof AdminKillHolder || holder instanceof AdminTeamHolder || holder instanceof AdminScoreboardHolder) {
             event.setCancelled(true);
             SoundUtil.playClick(player);
             if (event.getSlot() == 26) {
@@ -302,7 +331,7 @@ public class GUIClickListener implements Listener {
             return;
         }
 
-        // 9. Auction Purchase Confirmation GUI
+        // 10. Auction Purchase Confirmation GUI
         if (holder instanceof AuctionConfirmHolder confirmHolder) {
             event.setCancelled(true);
             SoundUtil.playClick(player);
@@ -322,7 +351,7 @@ public class GUIClickListener implements Listener {
             return;
         }
 
-        // 10. Main Team Control GUI Navigation
+        // 11. Main Team Control GUI Navigation
         if (holder instanceof TeamGUIHolder teamHolder) {
             event.setCancelled(true);
             SoundUtil.playClick(player);
@@ -352,7 +381,7 @@ public class GUIClickListener implements Listener {
             return;
         }
 
-        // 11. Team Upgrades GUI
+        // 12. Team Upgrades GUI
         if (holder instanceof TeamUpgradesHolder upgradesHolder) {
             event.setCancelled(true);
             SoundUtil.playClick(player);
