@@ -90,7 +90,7 @@ public class GUIClickListener implements Listener {
 
         if (!(event.getWhoClicked() instanceof Player player)) return;
 
-        // Choice Crate GUI Selection
+        // Choice Crate GUI Selection (Consumes key ONLY upon clicking chosen item!)
         if (holder instanceof CrateGUIHolder crateHolder) {
             event.setCancelled(true);
             SoundUtil.playClick(player);
@@ -98,9 +98,13 @@ public class GUIClickListener implements Listener {
 
             Crate crate = crateManager.getCrate(crateHolder.getCrateName());
             if (crate != null && slot >= 0 && slot < crate.getContents().size()) {
-                ItemStack selected = crate.getContents().get(slot).clone();
-                player.getInventory().addItem(selected);
-                player.sendMessage(TextUtil.format("<green>🎁 You chose " + selected.getType() + " from crate '" + crate.getDisplayName() + "'!</green>"));
+                if (crateManager.consumeKey(player, crate)) {
+                    ItemStack selected = crate.getContents().get(slot).clone();
+                    player.getInventory().addItem(selected);
+                    player.sendMessage(TextUtil.format("<green>🎁 You chose " + selected.getType() + " from crate '" + crate.getDisplayName() + "'!</green>"));
+                } else {
+                    player.sendMessage(TextUtil.format("<red>No crate key found in inventory!</red>"));
+                }
                 player.closeInventory();
             }
             return;

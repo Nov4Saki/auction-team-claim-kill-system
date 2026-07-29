@@ -53,7 +53,7 @@ public class CrateCommand implements TabExecutor {
             int slot = 10;
             for (Crate crate : crateManager.getAllCrates()) {
                 inv.setItem(slot++, new GUIItemBuilder(Material.CHEST).name("<gold>" + crate.getDisplayName() + "</gold>")
-                        .lore(List.of("<gray>Required Key: " + crate.getKeyItem().getType() + "</gray>", "<yellow>Type /crate open " + crate.getName() + " to open!</yellow>")).build());
+                        .lore(List.of("<gray>Required Key: " + crate.getKeyItem().getType() + "</gray>", "<yellow>Type /crate open " + crate.getName() + " to inspect & open!</yellow>")).build());
             }
             player.openInventory(inv);
             return true;
@@ -75,9 +75,8 @@ public class CrateCommand implements TabExecutor {
                 player.sendMessage(TextUtil.format("<red>You need a matching key item in your inventory to open this crate!</red>"));
                 return true;
             }
-            if (crateManager.consumeKey(player, crate)) {
-                crateManager.openCrateChoiceMenu(player, crate);
-            }
+            // Open crate choice menu FIRST; key is consumed only when item is chosen!
+            crateManager.openCrateChoiceMenu(player, crate);
             return true;
         }
 

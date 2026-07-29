@@ -10,6 +10,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockExplodeEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.entity.EntityChangeBlockEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
@@ -56,6 +57,16 @@ public class ClaimProtectionListener implements Listener {
         if (!claimManager.canBuild(player, chunk)) {
             event.setCancelled(true);
             player.sendActionBar(net.kyori.adventure.text.Component.text("🚫 You do not have permission in this claim!", net.kyori.adventure.text.format.NamedTextColor.RED));
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onEntityChangeBlock(EntityChangeBlockEvent event) {
+        Chunk chunk = event.getBlock().getChunk();
+        if (claimManager.isClaimed(chunk)) {
+            if (!(event.getEntity() instanceof Player player && claimManager.canBuild(player, chunk))) {
+                event.setCancelled(true);
+            }
         }
     }
 
