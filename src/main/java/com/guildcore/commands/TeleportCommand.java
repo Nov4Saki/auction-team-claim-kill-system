@@ -2,6 +2,11 @@ package com.guildcore.commands;
 
 import com.guildcore.database.DatabaseManager;
 import com.guildcore.util.TextUtil;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.event.ClickEvent;
+import net.kyori.adventure.text.event.HoverEvent;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
@@ -72,7 +77,25 @@ public class TeleportCommand implements TabExecutor {
 
             tpaRequests.put(target.getUniqueId(), player.getUniqueId());
             player.sendMessage(TextUtil.format("<green>Sent teleport request to " + target.getName() + ".</green>"));
-            target.sendMessage(TextUtil.format("<gold>⚡ <yellow>" + player.getName() + "</yellow> requested to teleport to you. Type <green>/tpaccept</green> or <red>/tpdeny</red>.</gold>"));
+
+            // Interactive Clickable & Hoverable Chat Component
+            Component tpaMsg = Component.text("⚡ ")
+                    .color(NamedTextColor.GOLD)
+                    .append(Component.text(player.getName()).color(NamedTextColor.YELLOW))
+                    .append(Component.text(" requested to teleport to you. ").color(NamedTextColor.GOLD))
+                    .append(Component.text("[ACCEPT]")
+                            .color(NamedTextColor.GREEN)
+                            .decorate(TextDecoration.BOLD)
+                            .clickEvent(ClickEvent.runCommand("/tpaccept"))
+                            .hoverEvent(HoverEvent.showText(Component.text("Click to accept teleport request from " + player.getName()).color(NamedTextColor.GREEN))))
+                    .append(Component.text("  "))
+                    .append(Component.text("[DENY]")
+                            .color(NamedTextColor.RED)
+                            .decorate(TextDecoration.BOLD)
+                            .clickEvent(ClickEvent.runCommand("/tpdeny"))
+                            .hoverEvent(HoverEvent.showText(Component.text("Click to deny teleport request from " + player.getName()).color(NamedTextColor.RED))));
+
+            target.sendMessage(tpaMsg);
             return true;
         }
 
