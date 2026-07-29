@@ -1,0 +1,61 @@
+name: GuildCore
+version: '1.0.0'
+main: com.guildcore.GuildCorePlugin
+api-version: '1.21'
+author: Antigravity
+description: Dual-compatible, combat-hardened all-in-one team & economy plugin for Paper, Folia, Spigot, and Bukkit 1.21.11
+folia-supported: true
+
+commands:
+  gccoins:
+    description: Check your coin balance
+    aliases: [gcoins, gcbal, gcbalance, gcmoney]
+  gcpay:
+    description: Pay coins to another player
+    usage: /gcpay <player> <amount>
+  gceco:
+    description: Admin economy control
+    permission: guildcore.admin
+  gcclaim:
+    description: Claim land and manage claim options
+    aliases: [gclaim, guildcoreclaim]
+    usage: /gcclaim [auto|map|flags]
+  gcunclaim:
+    description: Unclaim the current chunk
+    aliases: [gunclaim]
+  gctrust:
+    description: Grant trust level to a player in your claim
+    aliases: [gtrust]
+    usage: /gctrust <access|container|build|manager> <player>
+  gcuntrust:
+    description: Remove trust from a player in your claim
+    aliases: [guntrust]
+    usage: /gcuntrust <player>
+  gcteam:
+    description: Team management system
+    aliases: [gteam, guildcoreteam, gctg]
+  gctc:
+    description: Send team chat message
+    aliases: [gtc, gteamchat]
+  gcah:
+    description: Open the Auction House
+    aliases: [gauction, guildcoreah]
+  gcstats:
+    description: View player kill statistics and leaderboards
+    aliases: [gstats, guildcorestats]
+  gcbounty:
+    description: Set or view bounties
+    aliases: [gbounty]
+  guildcore:
+    description: Master plugin command and debug controls
+    permission: guildcore.admin
+    aliases: [gcdebug, gcore]
+  gcsettings:
+    description: Master admin configuration GUI
+    permission: guildcore.admin
+    aliases: [gcconfig, gadmin]
+
+permissions:
+  guildcore.admin:
+    description: Full administrative access to GuildCore
+    default: op

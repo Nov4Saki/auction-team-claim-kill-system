@@ -1,0 +1,10 @@
+target/
+build/
+.gradle/
+.lib/
+gradle-8.10/
+gradle-8.12-bin.zip
+*.zip
+.idea/
+*.log
+dependency-reduced-pom.xml
