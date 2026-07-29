@@ -277,8 +277,11 @@ public class TeamCommand implements TabExecutor {
                 player.sendMessage(TextUtil.format("<red>Team home not set.</red>"));
                 return true;
             }
-            player.teleport(team.getHomeLocation());
-            player.sendMessage(TextUtil.format("<green>Teleported to team home!</green>"));
+            player.teleportAsync(team.getHomeLocation()).thenAccept(success -> {
+                if (success) {
+                    player.sendMessage(TextUtil.format("<green>Teleported to team home!</green>"));
+                }
+            });
             return true;
         }
 

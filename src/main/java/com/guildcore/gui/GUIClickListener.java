@@ -362,8 +362,11 @@ public class GUIClickListener implements Listener {
                 guiManager.openTeamUpgrades(player, team);
             } else if (slot == 32) { // Teleport Home
                 if (team.getHomeLocation() != null) {
-                    player.teleport(team.getHomeLocation());
-                    player.sendMessage(TextUtil.format("<green>Teleported to team home!</green>"));
+                    player.teleportAsync(team.getHomeLocation()).thenAccept(success -> {
+                        if (success) {
+                            player.sendMessage(TextUtil.format("<green>Teleported to team home!</green>"));
+                        }
+                    });
                 } else {
                     player.sendMessage(TextUtil.format("<red>Team home location is not set.</red>"));
                 }

@@ -85,9 +85,12 @@ public class TeleportCommand implements TabExecutor {
             }
             Player requester = Bukkit.getPlayer(requesterUuid);
             if (requester != null && requester.isOnline()) {
-                requester.teleport(player.getLocation());
-                requester.sendMessage(TextUtil.format("<green>Teleported to " + player.getName() + "!</green>"));
-                player.sendMessage(TextUtil.format("<green>Accepted teleport request from " + requester.getName() + "!</green>"));
+                requester.teleportAsync(player.getLocation()).thenAccept(success -> {
+                    if (success) {
+                        requester.sendMessage(TextUtil.format("<green>Teleported to " + player.getName() + "!</green>"));
+                        player.sendMessage(TextUtil.format("<green>Accepted teleport request from " + requester.getName() + "!</green>"));
+                    }
+                });
             } else {
                 player.sendMessage(TextUtil.format("<red>Requester is no longer online.</red>"));
             }
@@ -117,16 +120,22 @@ public class TeleportCommand implements TabExecutor {
             int y = world.getHighestBlockYAt(x, z) + 1;
             Location targetLoc = new Location(world, x + 0.5, y, z + 0.5);
 
-            player.teleport(targetLoc);
-            player.sendMessage(TextUtil.format("<green>🎲 Randomly teleported to (" + x + ", " + y + ", " + z + ")!</green>"));
+            player.teleportAsync(targetLoc).thenAccept(success -> {
+                if (success) {
+                    player.sendMessage(TextUtil.format("<green>🎲 Randomly teleported to (" + x + ", " + y + ", " + z + ")!</green>"));
+                }
+            });
             return true;
         }
 
         // 5. /spawn
         if (cmd.equals("spawn")) {
             Location spawn = player.getWorld().getSpawnLocation();
-            player.teleport(spawn);
-            player.sendMessage(TextUtil.format("<green>Teleported to spawn!</green>"));
+            player.teleportAsync(spawn).thenAccept(success -> {
+                if (success) {
+                    player.sendMessage(TextUtil.format("<green>Teleported to spawn!</green>"));
+                }
+            });
             return true;
         }
 
@@ -176,9 +185,10 @@ public class TeleportCommand implements TabExecutor {
                             World w = Bukkit.getWorld(rs.getString("world"));
                             if (w != null) {
                                 Location loc = new Location(w, rs.getDouble("x"), rs.getDouble("y"), rs.getDouble("z"), rs.getFloat("yaw"), rs.getFloat("pitch"));
-                                Bukkit.getScheduler().runTask(com.guildcore.GuildCorePlugin.getInstance(), () -> {
-                                    player.teleport(loc);
-                                    player.sendMessage(TextUtil.format("<green>Teleported home (" + name + ")!</green>"));
+                                player.teleportAsync(loc).thenAccept(success -> {
+                                    if (success) {
+                                        player.sendMessage(TextUtil.format("<green>Teleported home (" + name + ")!</green>"));
+                                    }
                                 });
                             }
                         } else {
@@ -224,9 +234,10 @@ public class TeleportCommand implements TabExecutor {
                             World w = Bukkit.getWorld(rs.getString("world"));
                             if (w != null) {
                                 Location loc = new Location(w, rs.getDouble("x"), rs.getDouble("y"), rs.getDouble("z"), rs.getFloat("yaw"), rs.getFloat("pitch"));
-                                Bukkit.getScheduler().runTask(com.guildcore.GuildCorePlugin.getInstance(), () -> {
-                                    player.teleport(loc);
-                                    player.sendMessage(TextUtil.format("<green>Teleported to warp '" + name + "'!</green>"));
+                                player.teleportAsync(loc).thenAccept(success -> {
+                                    if (success) {
+                                        player.sendMessage(TextUtil.format("<green>Teleported to warp '" + name + "'!</green>"));
+                                    }
                                 });
                             }
                         } else {
