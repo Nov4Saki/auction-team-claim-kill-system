@@ -35,7 +35,7 @@ public class AuctionManager {
         dbManager.executeAsync(() -> {
             try (Connection conn = dbManager.getConnection();
                  PreparedStatement ps = conn.prepareStatement(
-                         "SELECT id, seller_uuid, seller_name, category, price, is_bid, current_bid, bidder_uuid, item_data, expires_at, is_sold, is_expired FROM auction_items WHERE is_claimed = 0");
+                         "SELECT id, seller_uuid, seller_name, category, price, is_bid, current_bid, bidder_uuid, item_data, created_at, purchasable_at, expires_at, is_sold, is_expired FROM auction_items WHERE is_claimed = 0");
                  ResultSet rs = ps.executeQuery()) {
 
                 auctionItems.clear();
@@ -50,11 +50,13 @@ public class AuctionManager {
                     String bidderStr = rs.getString("bidder_uuid");
                     UUID bidder = bidderStr != null ? UUID.fromString(bidderStr) : null;
                     ItemStack item = ItemSerializer.deserializeItem(rs.getString("item_data"));
+                    long createdMs = rs.getTimestamp("created_at") != null ? rs.getTimestamp("created_at").getTime() : System.currentTimeMillis();
+                    long purchasableMs = rs.getTimestamp("purchasable_at") != null ? rs.getTimestamp("purchasable_at").getTime() : System.currentTimeMillis();
                     long expiresAt = rs.getTimestamp("expires_at").getTime();
                     boolean isSold = rs.getBoolean("is_sold");
                     boolean isExpired = rs.getBoolean("is_expired");
 
-                    AuctionItem auction = new AuctionItem(id, seller, sellerName, cat, price, isBid, currentBid, bidder, item, expiresAt, isSold, isExpired);
+                    AuctionItem auction = new AuctionItem(id, seller, sellerName, cat, price, isBid, currentBid, bidder, item, createdMs, purchasableMs, expiresAt, isSold, isExpired);
                     auctionItems.put(id, auction);
                 }
                 DebugManager.log(DebugFlag.AUCTION_PURCHASES, "Loaded " + auctionItems.size() + " active auction listings from database.");
@@ -84,6 +86,16 @@ public class AuctionManager {
         return count;
     }
 
+    public List<AuctionItem> getPlayerListings(UUID playerUuid) {
+        List<AuctionItem> list = new ArrayList<>();
+        for (AuctionItem item : auctionItems.values()) {
+            if (item.getSellerUuid().equals(playerUuid) && !item.isSold() && !item.isExpired()) {
+                list.add(item);
+            }
+        }
+        return list;
+    }
+
     public boolean listItem(Player seller, ItemStack item, long price, boolean isBid) {
         if (item == null || item.getType().isAir() || price <= 0) return false;
 
@@ -103,13 +115,16 @@ public class AuctionManager {
         String sellerName = seller.getName();
         String category = AuctionCategoryUtil.getCategory(item.getType());
         String itemData = ItemSerializer.serializeItem(item);
+        long now = System.currentTimeMillis();
+        int cooldownSec = settingsManager.getInt("auction.listing_cooldown_sec", 0);
+        long purchasableAtMs = now + (cooldownSec * 1000L);
         long durationMs = settingsManager.getInt("auction.duration_hours", 48) * 3600 * 1000L;
-        long expiresAtMs = System.currentTimeMillis() + durationMs;
+        long expiresAtMs = now + durationMs;
 
         dbManager.executeAsync(() -> {
             try (Connection conn = dbManager.getConnection();
                  PreparedStatement ps = conn.prepareStatement(
-                         "INSERT INTO auction_items (seller_uuid, seller_name, category, price, is_bid, current_bid, item_data, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, datetime(?, 'unixepoch', 'localtime'))",
+                         "INSERT INTO auction_items (seller_uuid, seller_name, category, price, is_bid, current_bid, item_data, purchasable_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, datetime(?, 'unixepoch', 'localtime'), datetime(?, 'unixepoch', 'localtime'))",
                          Statement.RETURN_GENERATED_KEYS)) {
 
                 ps.setString(1, sellerUuid.toString());
@@ -119,13 +134,14 @@ public class AuctionManager {
                 ps.setBoolean(5, isBid);
                 ps.setLong(6, isBid ? price : 0);
                 ps.setString(7, itemData);
-                ps.setLong(8, expiresAtMs / 1000L);
+                ps.setLong(8, purchasableAtMs / 1000L);
+                ps.setLong(9, expiresAtMs / 1000L);
                 ps.executeUpdate();
 
                 try (ResultSet rs = ps.getGeneratedKeys()) {
                     if (rs.next()) {
                         int id = rs.getInt(1);
-                        AuctionItem auction = new AuctionItem(id, sellerUuid, sellerName, category, price, isBid, isBid ? price : 0, null, item, expiresAtMs, false, false);
+                        AuctionItem auction = new AuctionItem(id, sellerUuid, sellerName, category, price, isBid, isBid ? price : 0, null, item, now, purchasableAtMs, expiresAtMs, false, false);
                         auctionItems.put(id, auction);
                         DebugManager.log(DebugFlag.AUCTION_PURCHASES, "Listed auction item #" + id + " (" + item.getType() + ") for $" + price + " by " + sellerName);
                     }
@@ -138,9 +154,43 @@ public class AuctionManager {
         return true;
     }
 
+    public boolean cancelListing(Player seller, AuctionItem item) {
+        if (item == null || item.isSold() || item.isExpired()) return false;
+        if (!seller.getUniqueId().equals(item.getSellerUuid()) && !seller.isOp()) return false;
+
+        item.setSold(true);
+        auctionItems.remove(item.getId());
+
+        if (seller.getInventory().firstEmpty() == -1) {
+            addToStash(seller.getUniqueId(), item.getItem());
+            seller.sendMessage("§e[Auction] Your inventory was full! Cancelled item sent to your Auction Stash (/ah stash).");
+        } else {
+            seller.getInventory().addItem(item.getItem());
+            seller.sendMessage("§a[Auction] Listing cancelled! Item returned to your inventory.");
+        }
+
+        dbManager.executeAsync(() -> {
+            try (Connection conn = dbManager.getConnection();
+                 PreparedStatement ps = conn.prepareStatement("UPDATE auction_items SET is_sold = 1, is_claimed = 1 WHERE id = ?")) {
+                ps.setInt(1, item.getId());
+                ps.executeUpdate();
+                DebugManager.log(DebugFlag.AUCTION_PURCHASES, "Cancelled auction listing #" + item.getId() + " by " + seller.getName());
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
+
+        return true;
+    }
+
     public boolean buyItem(Player buyer, AuctionItem item) {
         if (item == null || item.isSold() || item.isExpired()) return false;
         if (buyer.getUniqueId().equals(item.getSellerUuid())) return false;
+
+        if (!item.isPurchasable()) {
+            buyer.sendMessage("§c[Auction] This listing is on cooldown and cannot be purchased for another " + item.getRemainingCooldownSec() + " seconds!");
+            return false;
+        }
 
         long price = item.getPrice();
         if (!economyManager.withdraw(buyer.getUniqueId(), price, "auction_buy")) {
@@ -155,7 +205,6 @@ public class AuctionManager {
         item.setSold(true);
         auctionItems.remove(item.getId());
 
-        // Give item to buyer or add to stash if inventory is full
         if (buyer.getInventory().firstEmpty() == -1) {
             addToStash(buyer.getUniqueId(), item.getItem());
             buyer.sendMessage("§e[Auction] Your inventory was full! Item sent to your Auction Stash (/ah stash).");

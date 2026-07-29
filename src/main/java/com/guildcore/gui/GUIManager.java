@@ -53,7 +53,7 @@ public class GUIManager {
         inv.setItem(13, new GUIItemBuilder(Material.SHIELD).name("<blue>🏰 Team Settings</blue>").lore(List.of("<gray>Click to edit team creation cost and base caps</gray>")).build());
         inv.setItem(14, new GUIItemBuilder(Material.GOLDEN_APPLE).name("<dark_purple>⚔ Combat & Items</dark_purple>").lore(List.of("<gray>Click to edit combat tag duration and weapon rules</gray>")).build());
         inv.setItem(15, new GUIItemBuilder(Material.NAME_TAG).name("<aqua>📊 Scoreboard Settings</aqua>").lore(List.of("<gray>Click to edit scoreboard refresh rate and titles</gray>")).build());
-        inv.setItem(16, new GUIItemBuilder(Material.CHEST).name("<gold>🏪 Auction Settings</gold>").lore(List.of("<gray>Click to edit listing fees and max listings</gray>")).build());
+        inv.setItem(16, new GUIItemBuilder(Material.CHEST).name("<gold>🏪 Auction Settings</gold>").lore(List.of("<gray>Click to edit listing fees, max listings, and cooldowns</gray>")).build());
         inv.setItem(22, new GUIItemBuilder(Material.LEVER).name("<red>🐞 Debug Panel (18 Flags)</red>").lore(List.of("<gray>Click to toggle 18 surgical debug flags</gray>")).build());
 
         player.openInventory(inv);
@@ -61,7 +61,7 @@ public class GUIManager {
     }
 
     public void openAdminEconomySettings(Player player) {
-        Inventory inv = Bukkit.createInventory(new SettingsGUIHolder(), 27, TextUtil.format("<gold>💰 Economy Config</gold>"));
+        Inventory inv = Bukkit.createInventory(new AdminEconomyHolder(), 27, TextUtil.format("<gold>💰 Economy Config</gold>"));
         long startingBal = settingsManager.getInt("economy.starting_balance", 100);
         long killReward = settingsManager.getInt("economy.pvp_kill_reward", 50);
         long tax = settingsManager.getInt("economy.sales_tax_percent", 5);
@@ -76,7 +76,7 @@ public class GUIManager {
     }
 
     public void openAdminKillSettings(Player player) {
-        Inventory inv = Bukkit.createInventory(new SettingsGUIHolder(), 27, TextUtil.format("<red>⚔ Kill Counter Config</red>"));
+        Inventory inv = Bukkit.createInventory(new AdminKillHolder(), 27, TextUtil.format("<red>⚔ Kill Counter Config</red>"));
         inv.setItem(11, new GUIItemBuilder(Material.DIAMOND_SWORD).name("<yellow>PvP Kill Streak Bonus: ON</yellow>").build());
         inv.setItem(15, new GUIItemBuilder(Material.ZOMBIE_HEAD).name("<yellow>Mob Kill Coin Rewards: ON</yellow>").build());
         inv.setItem(26, new GUIItemBuilder(Material.BARRIER).name("<red>◀ Back to Admin Panel</red>").build());
@@ -84,7 +84,7 @@ public class GUIManager {
     }
 
     public void openAdminClaimSettings(Player player) {
-        Inventory inv = Bukkit.createInventory(new SettingsGUIHolder(), 27, TextUtil.format("<green>🏠 Claim Config</green>"));
+        Inventory inv = Bukkit.createInventory(new AdminClaimHolder(), 27, TextUtil.format("<green>🏠 Claim Config</green>"));
         int earnRate = settingsManager.getInt("claims.blocks_per_hour", 50);
         inv.setItem(11, new GUIItemBuilder(Material.GOLDEN_SHOVEL).name("<yellow>Claim Blocks Per Hour: " + earnRate + "</yellow>").lore(List.of("<gray>Click to cycle 25 / 50 / 100</gray>")).build());
         inv.setItem(15, new GUIItemBuilder(Material.GRASS_BLOCK).name("<green>Default Chunk Protection: STRICT 16x16</green>").build());
@@ -93,7 +93,7 @@ public class GUIManager {
     }
 
     public void openAdminTeamSettings(Player player) {
-        Inventory inv = Bukkit.createInventory(new SettingsGUIHolder(), 27, TextUtil.format("<blue>🏰 Team Config</blue>"));
+        Inventory inv = Bukkit.createInventory(new AdminTeamHolder(), 27, TextUtil.format("<blue>🏰 Team Config</blue>"));
         int cost = settingsManager.getInt("teams.creation_cost", 5000);
         int baseMembers = settingsManager.getInt("teams.base_max_members", 3);
         inv.setItem(11, new GUIItemBuilder(Material.GOLD_BLOCK).name("<yellow>Team Creation Cost: $" + cost + "</yellow>").lore(List.of("<gray>Click to cycle $1000 / $5000 / $10000</gray>")).build());
@@ -103,7 +103,7 @@ public class GUIManager {
     }
 
     public void openAdminCombatSettings(Player player) {
-        Inventory inv = Bukkit.createInventory(new SettingsGUIHolder(), 27, TextUtil.format("<dark_purple>⚔ Combat & Weapon Rules Config</dark_purple>"));
+        Inventory inv = Bukkit.createInventory(new AdminCombatHolder(), 27, TextUtil.format("<dark_purple>⚔ Combat & Weapon Rules Config</dark_purple>"));
         int duration = settingsManager.getInt("combat.tag_duration", 15);
         int pearlCd = settingsManager.getInt("combat.enderpearl_cooldown", 15);
         int windCd = settingsManager.getInt("combat.windcharge_cooldown", 10);
@@ -125,7 +125,7 @@ public class GUIManager {
     }
 
     public void openAdminScoreboardSettings(Player player) {
-        Inventory inv = Bukkit.createInventory(new SettingsGUIHolder(), 27, TextUtil.format("<aqua>📊 Scoreboard Config</aqua>"));
+        Inventory inv = Bukkit.createInventory(new AdminScoreboardHolder(), 27, TextUtil.format("<aqua>📊 Scoreboard Config</aqua>"));
         int refresh = settingsManager.getInt("scoreboard.update_ticks", 20);
         inv.setItem(11, new GUIItemBuilder(Material.NAME_TAG).name("<yellow>Scoreboard Refresh: " + (refresh / 20) + "s</yellow>").lore(List.of("<gray>Click to cycle 1s / 2s / 5s</gray>")).build());
         inv.setItem(26, new GUIItemBuilder(Material.BARRIER).name("<red>◀ Back to Admin Panel</red>").build());
@@ -133,19 +133,22 @@ public class GUIManager {
     }
 
     public void openAdminAuctionSettings(Player player) {
-        Inventory inv = Bukkit.createInventory(new SettingsGUIHolder(), 27, TextUtil.format("<gold>🏪 Auction Config</gold>"));
+        Inventory inv = Bukkit.createInventory(new AdminAuctionHolder(), 27, TextUtil.format("<gold>🏪 Auction Config</gold>"));
         int fee = settingsManager.getInt("auction.listing_fee", 50);
         int duration = settingsManager.getInt("auction.duration_hours", 48);
         long maxPrice = settingsManager.getLong("auction.max_listing_price", 1000000000L);
-        inv.setItem(11, new GUIItemBuilder(Material.GOLD_NUGGET).name("<yellow>Listing Fee: $" + fee + "</yellow>").build());
-        inv.setItem(13, new GUIItemBuilder(Material.CLOCK).name("<yellow>Listing Duration: " + duration + "h</yellow>").build());
-        inv.setItem(15, new GUIItemBuilder(Material.DIAMOND_BLOCK).name("<green>Max Listing Price: $" + maxPrice + "</green>").build());
+        int listingCooldown = settingsManager.getInt("auction.listing_cooldown_sec", 0);
+
+        inv.setItem(10, new GUIItemBuilder(Material.GOLD_NUGGET).name("<yellow>Listing Fee: $" + fee + "</yellow>").lore(List.of("<gray>Click to cycle $0 / $50 / $100</gray>")).build());
+        inv.setItem(12, new GUIItemBuilder(Material.CLOCK).name("<yellow>Listing Duration: " + duration + "h</yellow>").lore(List.of("<gray>Click to cycle 24h / 48h / 72h</gray>")).build());
+        inv.setItem(14, new GUIItemBuilder(Material.DIAMOND_BLOCK).name("<green>Max Listing Price: $" + maxPrice + "</green>").build());
+        inv.setItem(16, new GUIItemBuilder(Material.REPEATER).name("<gold>Listing Purchase Delay: " + listingCooldown + "s</gold>").lore(List.of("<gray>Click to cycle 0s / 5s / 10s / 30s / 60s</gray>")).build());
         inv.setItem(26, new GUIItemBuilder(Material.BARRIER).name("<red>◀ Back to Admin Panel</red>").build());
         player.openInventory(inv);
     }
 
     public void openAdminDebugPanel(Player player) {
-        Inventory inv = Bukkit.createInventory(new SettingsGUIHolder(), 27, TextUtil.format("<red>🐞 Debug Flags Panel (18 Flags)</red>"));
+        Inventory inv = Bukkit.createInventory(new AdminDebugHolder(), 27, TextUtil.format("<red>🐞 Debug Flags Panel (18 Flags)</red>"));
 
         DebugFlag[] flags = DebugFlag.values();
         for (int i = 0; i < Math.min(flags.length, 18); i++) {
@@ -206,7 +209,12 @@ public class GUIManager {
 
                 currentLore.add(Component.text("Seller: " + item.getSellerName(), NamedTextColor.WHITE));
                 currentLore.add(Component.text("Price: $" + item.getPrice(), NamedTextColor.GREEN));
-                currentLore.add(Component.text("Click to Purchase", NamedTextColor.YELLOW));
+
+                if (!item.isPurchasable()) {
+                    currentLore.add(Component.text("⏳ Purchasable in " + item.getRemainingCooldownSec() + "s", NamedTextColor.GOLD));
+                } else {
+                    currentLore.add(Component.text("Click to Purchase", NamedTextColor.YELLOW));
+                }
 
                 if (display.getType().name().contains("SHULKER_BOX")) {
                     currentLore.add(Component.text("Right-Click to Preview Contents", NamedTextColor.AQUA));
@@ -220,7 +228,7 @@ public class GUIManager {
         }
 
         // Row 6: Control & Stash Buttons (Slots 45-53)
-        inv.setItem(45, new GUIItemBuilder(Material.PLAYER_HEAD).name("<yellow>👤 My Listings</yellow>").lore(List.of("<gray>View your active sales</gray>")).build());
+        inv.setItem(45, new GUIItemBuilder(Material.PLAYER_HEAD).name("<yellow>👤 My Listings</yellow>").lore(List.of("<gray>Click to view & cancel active listings</gray>")).build());
         if (page > 1) {
             inv.setItem(48, new GUIItemBuilder(Material.ARROW).name("<yellow>◀ Previous Page (" + (page - 1) + ")</yellow>").build());
         }
@@ -232,6 +240,29 @@ public class GUIManager {
 
         player.openInventory(inv);
         DebugManager.log(DebugFlag.GUI_CLICKS, "Opened auction house GUI page " + page + " for " + player.getName());
+    }
+
+    public void openMyListings(Player player, int page) {
+        Inventory inv = Bukkit.createInventory(new AuctionMyListingsHolder(page), 54, TextUtil.format("<gold>👤 My Active Listings (Click to Cancel)</gold>"));
+
+        List<AuctionItem> myListings = auctionManager.getPlayerListings(player.getUniqueId());
+        int slot = 0;
+        for (AuctionItem item : myListings) {
+            ItemStack display = item.getItem().clone();
+            ItemMeta meta = display.getItemMeta();
+            if (meta != null) {
+                List<Component> lore = meta.hasLore() ? meta.lore() : new ArrayList<>();
+                if (lore == null) lore = new ArrayList<>();
+                lore.add(Component.text("Price: $" + item.getPrice(), NamedTextColor.GREEN));
+                lore.add(Component.text("Click to CANCEL & Reclaim Item", NamedTextColor.RED));
+                meta.lore(lore);
+                display.setItemMeta(meta);
+            }
+            inv.setItem(slot++, display);
+        }
+
+        inv.setItem(49, new GUIItemBuilder(Material.BARRIER).name("<red>◀ Back to Auction House</red>").build());
+        player.openInventory(inv);
     }
 
     public void openConfirmPurchase(Player player, AuctionItem item) {

@@ -64,7 +64,7 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
     @Override
     public void onEnable() {
         instance = this;
-        getLogger().info("Initializing GuildCore v5 (Interactive Sub-GUIs & Complete NBT Preservation Engine)...");
+        getLogger().info("Initializing GuildCore v5 (Isolated Sub-GUIs & Listing Cooldown Engine)...");
 
         // 1. Scheduler Wrapper
         this.scheduler = new SchedulerWrapper(this);
@@ -128,7 +128,7 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
         pm.registerEvents(itemControlManager, this);
         pm.registerEvents(new ClaimProtectionListener(claimManager), this);
         pm.registerEvents(new RaidNexusListener(raidManager, claimManager), this);
-        pm.registerEvents(new GUIClickListener(guiManager, auctionManager, teamManager, teamUpgradeManager, teamVaultManager, economyManager, scheduler), this);
+        pm.registerEvents(new GUIClickListener(guiManager, auctionManager, teamManager, teamUpgradeManager, teamVaultManager, economyManager, settingsManager, scheduler), this);
 
         // Register Commands & Tab Completers
         CoinsCommand coinsCmd = new CoinsCommand(economyManager);

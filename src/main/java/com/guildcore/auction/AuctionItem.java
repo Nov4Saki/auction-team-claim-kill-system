@@ -14,11 +14,13 @@ public class AuctionItem {
     private long currentBid;
     private UUID bidderUuid;
     private final ItemStack item;
+    private final long createdMs;
+    private final long purchasableAtMs;
     private final long expiresAtMs;
     private boolean isSold;
     private boolean isExpired;
 
-    public AuctionItem(int id, UUID sellerUuid, String sellerName, String category, long price, boolean isBid, long currentBid, UUID bidderUuid, ItemStack item, long expiresAtMs, boolean isSold, boolean isExpired) {
+    public AuctionItem(int id, UUID sellerUuid, String sellerName, String category, long price, boolean isBid, long currentBid, UUID bidderUuid, ItemStack item, long createdMs, long purchasableAtMs, long expiresAtMs, boolean isSold, boolean isExpired) {
         this.id = id;
         this.sellerUuid = sellerUuid;
         this.sellerName = sellerName != null ? sellerName : "Unknown";
@@ -28,6 +30,8 @@ public class AuctionItem {
         this.currentBid = currentBid;
         this.bidderUuid = bidderUuid;
         this.item = item;
+        this.createdMs = createdMs;
+        this.purchasableAtMs = purchasableAtMs;
         this.expiresAtMs = expiresAtMs;
         this.isSold = isSold;
         this.isExpired = isExpired;
@@ -75,6 +79,22 @@ public class AuctionItem {
 
     public ItemStack getItem() {
         return item != null ? item.clone() : null;
+    }
+
+    public long getCreatedMs() {
+        return createdMs;
+    }
+
+    public long getPurchasableAtMs() {
+        return purchasableAtMs;
+    }
+
+    public boolean isPurchasable() {
+        return System.currentTimeMillis() >= purchasableAtMs;
+    }
+
+    public long getRemainingCooldownSec() {
+        return Math.max(0, (purchasableAtMs - System.currentTimeMillis()) / 1000L);
     }
 
     public long getExpiresAtMs() {

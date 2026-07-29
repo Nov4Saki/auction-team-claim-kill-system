@@ -130,7 +130,7 @@ public class DatabaseSetup {
                     "action VARCHAR(8) NOT NULL, " +
                     "timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP);");
 
-            // Auction Items (with seller_name)
+            // Auction Items
             stmt.execute("CREATE TABLE IF NOT EXISTS auction_items (" +
                     "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
                     "seller_uuid VARCHAR(36) NOT NULL, " +
@@ -142,17 +142,21 @@ public class DatabaseSetup {
                     "bidder_uuid VARCHAR(36), " +
                     "item_data TEXT NOT NULL, " +
                     "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
+                    "purchasable_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
                     "expires_at TIMESTAMP NOT NULL, " +
                     "is_sold BOOLEAN DEFAULT 0, " +
                     "is_expired BOOLEAN DEFAULT 0, " +
                     "is_claimed BOOLEAN DEFAULT 0);");
 
-            // Migration column check for seller_name if table exists
             try {
                 stmt.execute("ALTER TABLE auction_items ADD COLUMN seller_name VARCHAR(36) DEFAULT 'Unknown';");
             } catch (Exception ignored) {}
 
-            // Auction Stash (for inventory overflow / expired items)
+            try {
+                stmt.execute("ALTER TABLE auction_items ADD COLUMN purchasable_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;");
+            } catch (Exception ignored) {}
+
+            // Auction Stash
             stmt.execute("CREATE TABLE IF NOT EXISTS auction_stash (" +
                     "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
                     "player_uuid VARCHAR(36) NOT NULL, " +
@@ -200,6 +204,7 @@ public class DatabaseSetup {
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('auction.duration_hours', '48');");
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('auction.max_listing_price', '1000000000');");
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('auction.max_listings_default', '3');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('auction.listing_cooldown_sec', '0');");
         }
     }
 }
