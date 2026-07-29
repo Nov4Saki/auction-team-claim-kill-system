@@ -19,7 +19,6 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -40,7 +39,7 @@ public class TeleportCommand implements TabExecutor {
         List<String> completions = new ArrayList<>();
         String cmd = alias.toLowerCase();
 
-        if (cmd.equals("tpa")) {
+        if (cmd.equals("tpa") || cmd.equals("gctpa")) {
             if (args.length == 1) {
                 for (Player p : Bukkit.getOnlinePlayers()) {
                     if (p.getName().toLowerCase().startsWith(args[0].toLowerCase())) completions.add(p.getName());
@@ -59,8 +58,8 @@ public class TeleportCommand implements TabExecutor {
 
         String cmd = label.toLowerCase();
 
-        // 1. /tpa <player>
-        if (cmd.equals("tpa")) {
+        // 1. /tpa <player> (Instant text request - Zero GUI)
+        if (cmd.equals("tpa") || cmd.equals("gctpa")) {
             if (args.length < 1) {
                 player.sendMessage(TextUtil.format("<red>Usage: /tpa <player></red>"));
                 return true;
@@ -78,7 +77,7 @@ public class TeleportCommand implements TabExecutor {
             tpaRequests.put(target.getUniqueId(), player.getUniqueId());
             player.sendMessage(TextUtil.format("<green>Sent teleport request to " + target.getName() + ".</green>"));
 
-            // Interactive Clickable & Hoverable Chat Component
+            // Interactive Clickable Chat Text Component (NO GUI)
             Component tpaMsg = Component.text("⚡ ")
                     .color(NamedTextColor.GOLD)
                     .append(Component.text(player.getName()).color(NamedTextColor.YELLOW))
@@ -100,7 +99,7 @@ public class TeleportCommand implements TabExecutor {
         }
 
         // 2. /tpaccept
-        if (cmd.equals("tpaccept")) {
+        if (cmd.equals("tpaccept") || cmd.equals("gctpaccept")) {
             UUID requesterUuid = tpaRequests.remove(player.getUniqueId());
             if (requesterUuid == null) {
                 player.sendMessage(TextUtil.format("<red>You have no pending TPA requests.</red>"));
@@ -121,7 +120,7 @@ public class TeleportCommand implements TabExecutor {
         }
 
         // 3. /tpdeny
-        if (cmd.equals("tpdeny")) {
+        if (cmd.equals("tpdeny") || cmd.equals("gctpdeny")) {
             UUID requesterUuid = tpaRequests.remove(player.getUniqueId());
             if (requesterUuid != null) {
                 Player requester = Bukkit.getPlayer(requesterUuid);

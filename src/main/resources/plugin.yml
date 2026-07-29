@@ -53,11 +53,14 @@ commands:
     aliases: [setting, config]
   tpa:
     description: Send a teleport request to another player
+    aliases: [gctpa]
     usage: /tpa <player>
   tpaccept:
     description: Accept a pending teleport request
+    aliases: [gctpaccept]
   tpdeny:
     description: Deny a pending teleport request
+    aliases: [gctpdeny]
   rtp:
     description: Randomly teleport to a safe surface location in the wilderness
   spawn:
