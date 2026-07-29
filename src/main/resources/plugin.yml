@@ -3,7 +3,7 @@ version: '1.0.0'
 main: com.guildcore.GuildCorePlugin
 api-version: '1.21'
 author: Antigravity
-description: Dual-compatible, combat-hardened all-in-one team & economy plugin for Paper, Folia, Spigot, and Bukkit 1.21.11
+description: Dual-compatible, combat-hardened all-in-one team, teleportation, trade & economy plugin for Paper, Folia, Spigot, and Bukkit 1.21.11
 folia-supported: true
 
 commands:
@@ -51,6 +51,43 @@ commands:
     description: Master admin configuration GUI
     permission: guildcore.admin
     aliases: [setting, config]
+  tpa:
+    description: Send a teleport request to another player
+    usage: /tpa <player>
+  tpaccept:
+    description: Accept a pending teleport request
+  tpdeny:
+    description: Deny a pending teleport request
+  rtp:
+    description: Randomly teleport to a safe surface location in the wilderness
+  spawn:
+    description: Teleport to server spawn
+  setspawn:
+    description: Set server spawn location
+    permission: guildcore.admin
+  sethome:
+    description: Set a personal home location
+    usage: /sethome [name]
+  home:
+    description: Teleport to a personal home location
+    usage: /home [name]
+  delhome:
+    description: Delete a personal home location
+    usage: /delhome [name]
+  warp:
+    description: Teleport to a server warp
+    usage: /warp <name>
+  setwarp:
+    description: Set a server warp
+    permission: guildcore.admin
+    usage: /setwarp <name>
+  delwarp:
+    description: Delete a server warp
+    permission: guildcore.admin
+    usage: /delwarp <name>
+  trade:
+    description: Request or accept a player-to-player trade
+    usage: /trade <player|accept>
 
 permissions:
   guildcore.admin:

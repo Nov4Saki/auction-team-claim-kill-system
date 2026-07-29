@@ -57,10 +57,25 @@ public class ScoreboardManager {
         this.scheduler = scheduler;
     }
 
+    public void clearServerScoreboards() {
+        try {
+            Scoreboard mainBoard = Bukkit.getScoreboardManager().getMainScoreboard();
+            for (Objective obj : new ArrayList<>(mainBoard.getObjectives())) {
+                obj.unregister();
+            }
+            playerBoards.clear();
+            for (Player p : Bukkit.getOnlinePlayers()) {
+                scheduler.runSync(p, () -> p.setScoreboard(Bukkit.getScoreboardManager().getNewScoreboard()));
+            }
+            DebugManager.log(DebugFlag.SCOREBOARD_UPDATES, "Cleared all server scoreboards and objectives.");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
     public void updateBoard(Player player) {
         if (player == null || !player.isOnline()) return;
 
-        // Route scoreboard mutations strictly to the player's region thread on Folia / Bukkit main thread
         scheduler.runSync(player, () -> {
             try {
                 Scoreboard board = playerBoards.computeIfAbsent(player.getUniqueId(), k -> Bukkit.getScoreboardManager().getNewScoreboard());

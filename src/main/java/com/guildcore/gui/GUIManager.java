@@ -52,7 +52,7 @@ public class GUIManager {
         inv.setItem(12, new GUIItemBuilder(Material.GRASS_BLOCK).name("<green>🏠 Claim & World Settings</green>").lore(List.of("<gray>Click to edit claim blocks & world explosion rules</gray>")).build());
         inv.setItem(13, new GUIItemBuilder(Material.SHIELD).name("<blue>🏰 Team Settings</blue>").lore(List.of("<gray>Click to edit team creation cost and base caps</gray>")).build());
         inv.setItem(14, new GUIItemBuilder(Material.GOLDEN_APPLE).name("<dark_purple>⚔ Combat & Item Controls</dark_purple>").lore(List.of("<gray>Click to edit combat tags, command blocks, & item rules</gray>")).build());
-        inv.setItem(15, new GUIItemBuilder(Material.NAME_TAG).name("<aqua>📊 Scoreboard Settings</aqua>").lore(List.of("<gray>Click to edit scoreboard refresh rate and titles</gray>")).build());
+        inv.setItem(15, new GUIItemBuilder(Material.NAME_TAG).name("<aqua>📊 Scoreboard Settings</aqua>").lore(List.of("<gray>Click to edit scoreboard refresh rate, titles, & wipe</gray>")).build());
         inv.setItem(16, new GUIItemBuilder(Material.CHEST).name("<gold>🏪 Auction Settings</gold>").lore(List.of("<gray>Click to edit listing fees, max listings, and cooldowns</gray>")).build());
         inv.setItem(22, new GUIItemBuilder(Material.LEVER).name("<red>🐞 Debug Panel (18 Flags)</red>").lore(List.of("<gray>Click to toggle 18 surgical debug flags</gray>")).build());
 
@@ -66,9 +66,9 @@ public class GUIManager {
         long killReward = settingsManager.getInt("economy.pvp_kill_reward", 50);
         long tax = settingsManager.getInt("economy.sales_tax_percent", 5);
 
-        inv.setItem(10, new GUIItemBuilder(Material.GOLD_INGOT).name("<yellow>Starting Balance: $" + startingBal + "</yellow>").lore(List.of("<gray>Click to cycle $100 / $500 / $1000</gray>")).build());
-        inv.setItem(12, new GUIItemBuilder(Material.DIAMOND_SWORD).name("<red>PvP Kill Reward: $" + killReward + "</red>").lore(List.of("<gray>Click to cycle $10 / $50 / $100</gray>")).build());
-        inv.setItem(14, new GUIItemBuilder(Material.HOPPER).name("<gold>Sales Tax: " + tax + "%</gold>").lore(List.of("<gray>Click to cycle 0% / 5% / 10%</gray>")).build());
+        inv.setItem(10, new GUIItemBuilder(Material.GOLD_INGOT).name("<yellow>Starting Balance: $" + startingBal + "</yellow>").lore(List.of("<gray>Click to enter custom value in chat or cycle</gray>")).build());
+        inv.setItem(12, new GUIItemBuilder(Material.DIAMOND_SWORD).name("<red>PvP Kill Reward: $" + killReward + "</red>").lore(List.of("<gray>Click to enter custom value in chat or cycle</gray>")).build());
+        inv.setItem(14, new GUIItemBuilder(Material.HOPPER).name("<gold>Sales Tax: " + tax + "%</gold>").lore(List.of("<gray>Click to enter custom value in chat or cycle</gray>")).build());
         inv.setItem(16, new GUIItemBuilder(Material.EMERALD_BLOCK).name("<green>➕ Admin: Give Self +$1,000 Coins</green>").lore(List.of("<gray>Click to instantly receive $1,000 coins</gray>")).build());
         inv.setItem(26, new GUIItemBuilder(Material.BARRIER).name("<red>◀ Back to Admin Panel</red>").build());
 
@@ -88,7 +88,7 @@ public class GUIManager {
         int earnRate = settingsManager.getInt("claims.blocks_per_hour", 50);
         boolean disableExplosions = settingsManager.getBoolean("world.disable_explosions", false);
 
-        inv.setItem(10, new GUIItemBuilder(Material.GOLDEN_SHOVEL).name("<yellow>Claim Blocks Per Hour: " + earnRate + "</yellow>").lore(List.of("<gray>Click to cycle 25 / 50 / 100</gray>")).build());
+        inv.setItem(10, new GUIItemBuilder(Material.GOLDEN_SHOVEL).name("<yellow>Claim Blocks Per Hour: " + earnRate + "</yellow>").lore(List.of("<gray>Click to enter custom value in chat or cycle</gray>")).build());
         inv.setItem(12, new GUIItemBuilder(Material.GRASS_BLOCK).name("<green>Default Chunk Protection: STRICT 16x16</green>").lore(List.of("<gray>All claims are 100% immune to explosion damage</gray>")).build());
         inv.setItem(14, new GUIItemBuilder(Material.TNT).name("<red>Global World Explosions: " + (disableExplosions ? "<red>DISABLED</red>" : "<green>ENABLED</green>") + "</red>").lore(List.of("<yellow>Click to toggle all TNT/Creeper/Crystal explosions server-wide</yellow>")).build());
         inv.setItem(26, new GUIItemBuilder(Material.BARRIER).name("<red>◀ Back to Admin Panel</red>").build());
@@ -99,8 +99,8 @@ public class GUIManager {
         Inventory inv = Bukkit.createInventory(new AdminTeamHolder(), 27, TextUtil.format("<blue>🏰 Team Config</blue>"));
         int cost = settingsManager.getInt("teams.creation_cost", 5000);
         int baseMembers = settingsManager.getInt("teams.base_max_members", 3);
-        inv.setItem(11, new GUIItemBuilder(Material.GOLD_BLOCK).name("<yellow>Team Creation Cost: $" + cost + "</yellow>").lore(List.of("<gray>Click to cycle $1000 / $5000 / $10000</gray>")).build());
-        inv.setItem(15, new GUIItemBuilder(Material.PLAYER_HEAD).name("<yellow>Base Max Members: " + baseMembers + "</yellow>").lore(List.of("<gray>Click to cycle 3 / 5 / 10</gray>")).build());
+        inv.setItem(11, new GUIItemBuilder(Material.GOLD_BLOCK).name("<yellow>Team Creation Cost: $" + cost + "</yellow>").lore(List.of("<gray>Click to enter custom value in chat or cycle</gray>")).build());
+        inv.setItem(15, new GUIItemBuilder(Material.PLAYER_HEAD).name("<yellow>Base Max Members: " + baseMembers + "</yellow>").lore(List.of("<gray>Click to enter custom value in chat or cycle</gray>")).build());
         inv.setItem(26, new GUIItemBuilder(Material.BARRIER).name("<red>◀ Back to Admin Panel</red>").build());
         player.openInventory(inv);
     }
@@ -117,11 +117,11 @@ public class GUIManager {
         boolean crystal = settingsManager.getBoolean("combat.crystal_enabled", false);
         boolean anchor = settingsManager.getBoolean("combat.anchor_enabled", false);
 
-        inv.setItem(9, new GUIItemBuilder(Material.CLOCK).name("<yellow>Combat Tag Duration: " + duration + "s</yellow>").lore(List.of("<gray>Click to cycle 10s / 15s / 30s</gray>")).build());
+        inv.setItem(9, new GUIItemBuilder(Material.CLOCK).name("<yellow>Combat Tag Duration: " + duration + "s</yellow>").lore(List.of("<gray>Click to enter custom value in chat or cycle</gray>")).build());
         inv.setItem(10, new GUIItemBuilder(Material.COMMAND_BLOCK).name("<red>Commands in Combat: " + (disableCmds ? "<red>DISABLED</red>" : "<green>ENABLED</green>") + "</red>").lore(List.of("<yellow>Click to toggle</yellow>")).build());
-        inv.setItem(11, new GUIItemBuilder(Material.ENDER_PEARL).name("<purple>Ender Pearl Cooldown: " + pearlCd + "s</purple>").lore(List.of("<gray>Click to cycle 10s / 15s / 30s</gray>")).build());
-        inv.setItem(12, new GUIItemBuilder(Material.FEATHER).name("<aqua>Wind Charge Cooldown: " + windCd + "s</aqua>").lore(List.of("<gray>Click to cycle 5s / 10s / 20s</gray>")).build());
-        inv.setItem(13, new GUIItemBuilder(Material.HEAVY_CORE).name("<gold>Mace Cooldown: " + maceCd + "s</gold>").lore(List.of("<gray>Click to cycle 5s / 12s / 20s</gray>")).build());
+        inv.setItem(11, new GUIItemBuilder(Material.ENDER_PEARL).name("<purple>Ender Pearl Cooldown: " + pearlCd + "s</purple>").lore(List.of("<gray>Click to enter custom value in chat or cycle</gray>")).build());
+        inv.setItem(12, new GUIItemBuilder(Material.FEATHER).name("<aqua>Wind Charge Cooldown: " + windCd + "s</aqua>").lore(List.of("<gray>Click to enter custom value in chat or cycle</gray>")).build());
+        inv.setItem(13, new GUIItemBuilder(Material.HEAVY_CORE).name("<gold>Mace Cooldown: " + maceCd + "s</gold>").lore(List.of("<gray>Click to enter custom value in chat or cycle</gray>")).build());
         inv.setItem(14, new GUIItemBuilder(Material.SHIELD).name("<blue>Shields Server-Wide: " + (shieldGlobal ? "<red>DISABLED</red>" : "<green>ENABLED</green>") + "</blue>").lore(List.of("<yellow>Click to toggle server-wide shield use</yellow>")).build());
         inv.setItem(15, new GUIItemBuilder(Material.TRIDENT).name("<blue>Riptide Trident in Combat: " + (riptide ? "<green>ENABLED</green>" : "<red>DISABLED</red>") + "</blue>").lore(List.of("<yellow>Click to toggle</yellow>")).build());
         inv.setItem(16, new GUIItemBuilder(Material.END_CRYSTAL).name("<light_purple>End Crystals: " + (crystal ? "<green>ENABLED</green>" : "<red>DISABLED</red>") + "</light_purple>").lore(List.of("<yellow>Click to toggle</yellow>")).build());
@@ -135,6 +135,7 @@ public class GUIManager {
         Inventory inv = Bukkit.createInventory(new AdminScoreboardHolder(), 27, TextUtil.format("<aqua>📊 Scoreboard Config</aqua>"));
         int refresh = settingsManager.getInt("scoreboard.update_ticks", 20);
         inv.setItem(11, new GUIItemBuilder(Material.NAME_TAG).name("<yellow>Scoreboard Refresh: " + (refresh / 20) + "s</yellow>").lore(List.of("<gray>Click to cycle 1s / 2s / 5s</gray>")).build());
+        inv.setItem(13, new GUIItemBuilder(Material.TNT).name("<red>🧹 Clear All Server Scoreboards & Objectives</red>").lore(List.of("<gray>Click to wipe all scoreboards & objectives cleanly</gray>")).build());
         inv.setItem(26, new GUIItemBuilder(Material.BARRIER).name("<red>◀ Back to Admin Panel</red>").build());
         player.openInventory(inv);
     }
@@ -142,14 +143,14 @@ public class GUIManager {
     public void openAdminAuctionSettings(Player player) {
         Inventory inv = Bukkit.createInventory(new AdminAuctionHolder(), 27, TextUtil.format("<gold>🏪 Auction Config</gold>"));
         int fee = settingsManager.getInt("auction.listing_fee", 50);
-        int duration = settingsManager.getInt("auction.duration_hours", 48);
+        int duration = settingsManager.getInt("auction.duration_hours_default", 48);
         long maxPrice = settingsManager.getLong("auction.max_listing_price", 1000000000L);
         int listingCooldown = settingsManager.getInt("auction.listing_cooldown_sec", 0);
 
-        inv.setItem(10, new GUIItemBuilder(Material.GOLD_NUGGET).name("<yellow>Listing Fee: $" + fee + "</yellow>").lore(List.of("<gray>Click to cycle $0 / $50 / $100</gray>")).build());
-        inv.setItem(12, new GUIItemBuilder(Material.CLOCK).name("<yellow>Listing Duration: " + duration + "h</yellow>").lore(List.of("<gray>Click to cycle 24h / 48h / 72h</gray>")).build());
-        inv.setItem(14, new GUIItemBuilder(Material.DIAMOND_BLOCK).name("<green>Max Listing Price: $" + maxPrice + "</green>").build());
-        inv.setItem(16, new GUIItemBuilder(Material.REPEATER).name("<gold>Listing Purchase Delay: " + listingCooldown + "s</gold>").lore(List.of("<gray>Click to cycle 0s / 5s / 10s / 30s / 60s</gray>")).build());
+        inv.setItem(10, new GUIItemBuilder(Material.GOLD_NUGGET).name("<yellow>Listing Fee: $" + fee + "</yellow>").lore(List.of("<gray>Click to enter custom value in chat or cycle</gray>")).build());
+        inv.setItem(12, new GUIItemBuilder(Material.CLOCK).name("<yellow>Default Listing Duration: " + duration + "h</yellow>").lore(List.of("<gray>Click to enter custom value in chat or cycle</gray>")).build());
+        inv.setItem(14, new GUIItemBuilder(Material.DIAMOND_BLOCK).name("<green>Max Listing Price: $" + maxPrice + "</green>").lore(List.of("<gray>Click to enter custom value in chat</gray>")).build());
+        inv.setItem(16, new GUIItemBuilder(Material.REPEATER).name("<gold>Listing Purchase Delay: " + listingCooldown + "s</gold>").lore(List.of("<gray>Click to enter custom value in chat or cycle</gray>")).build());
         inv.setItem(26, new GUIItemBuilder(Material.BARRIER).name("<red>◀ Back to Admin Panel</red>").build());
         player.openInventory(inv);
     }

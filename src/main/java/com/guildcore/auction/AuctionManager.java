@@ -76,6 +76,16 @@ public class AuctionManager {
         return settingsManager.getInt("auction.max_listings_default", 3);
     }
 
+    public int getListingDurationHoursForPlayer(Player player) {
+        if (player.hasPermission("guildcore.auction.duration.op") || player.isOp()) return settingsManager.getInt("auction.duration_op", 168);
+        if (player.hasPermission("guildcore.auction.duration.5")) return settingsManager.getInt("auction.duration_tier5", 120);
+        if (player.hasPermission("guildcore.auction.duration.4")) return settingsManager.getInt("auction.duration_tier4", 96);
+        if (player.hasPermission("guildcore.auction.duration.3")) return settingsManager.getInt("auction.duration_tier3", 72);
+        if (player.hasPermission("guildcore.auction.duration.2")) return settingsManager.getInt("auction.duration_tier2", 48);
+        if (player.hasPermission("guildcore.auction.duration.1")) return settingsManager.getInt("auction.duration_tier1", 24);
+        return settingsManager.getInt("auction.duration_hours_default", 48);
+    }
+
     public int getPlayerActiveListingCount(UUID playerUuid) {
         int count = 0;
         for (AuctionItem item : auctionItems.values()) {
@@ -118,7 +128,8 @@ public class AuctionManager {
         long now = System.currentTimeMillis();
         int cooldownSec = settingsManager.getInt("auction.listing_cooldown_sec", 0);
         long purchasableAtMs = now + (cooldownSec * 1000L);
-        long durationMs = settingsManager.getInt("auction.duration_hours", 48) * 3600 * 1000L;
+        int durationHours = getListingDurationHoursForPlayer(seller);
+        long durationMs = durationHours * 3600 * 1000L;
         long expiresAtMs = now + durationMs;
 
         dbManager.executeAsync(() -> {
@@ -143,7 +154,7 @@ public class AuctionManager {
                         int id = rs.getInt(1);
                         AuctionItem auction = new AuctionItem(id, sellerUuid, sellerName, category, price, isBid, isBid ? price : 0, null, item, now, purchasableAtMs, expiresAtMs, false, false);
                         auctionItems.put(id, auction);
-                        DebugManager.log(DebugFlag.AUCTION_PURCHASES, "Listed auction item #" + id + " (" + item.getType() + ") for $" + price + " by " + sellerName);
+                        DebugManager.log(DebugFlag.AUCTION_PURCHASES, "Listed auction item #" + id + " (" + item.getType() + ") for $" + price + " by " + sellerName + " (Duration: " + durationHours + "h)");
                     }
                 }
             } catch (Exception e) {

@@ -13,6 +13,7 @@ import com.guildcore.debug.DebugFlag;
 import com.guildcore.debug.DebugManager;
 import com.guildcore.economy.EconomyListener;
 import com.guildcore.economy.EconomyManager;
+import com.guildcore.gui.ChatInputListener;
 import com.guildcore.gui.GUIClickListener;
 import com.guildcore.gui.GUIManager;
 import com.guildcore.raids.RaidManager;
@@ -23,6 +24,7 @@ import com.guildcore.scoreboard.ScoreboardManager;
 import com.guildcore.stats.BountyManager;
 import com.guildcore.stats.StatsManager;
 import com.guildcore.teams.*;
+import com.guildcore.trade.TradeManager;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -56,6 +58,7 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
     private AuctionManager auctionManager;
     private ScoreboardManager scoreboardManager;
     private GUIManager guiManager;
+    private TradeManager tradeManager;
 
     public static GuildCorePlugin getInstance() {
         return instance;
@@ -64,7 +67,7 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
     @Override
     public void onEnable() {
         instance = this;
-        getLogger().info("Initializing GuildCore v5 (Explosions Protection & Mace/Shield Disabling Engine)...");
+        getLogger().info("Initializing GuildCore v5 (Teleportation, Trade, Chat Input & Scoreboard Clear Engine)...");
 
         // 1. Scheduler Wrapper
         this.scheduler = new SchedulerWrapper(this);
@@ -106,9 +109,10 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
         this.teamPermissionManager = new TeamPermissionManager(databaseManager);
         this.teamPermissionManager.loadPermissions();
 
-        // 7. Raids
+        // 7. Raids & Trade
         this.raidRollbackEngine = new RaidRollbackEngine(scheduler);
         this.raidManager = new RaidManager(teamManager, teamBankManager, claimManager, settingsManager, scheduler, raidRollbackEngine);
+        this.tradeManager = new TradeManager();
 
         // 8. Auction House
         this.auctionManager = new AuctionManager(databaseManager, economyManager, settingsManager);
@@ -128,7 +132,8 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
         pm.registerEvents(itemControlManager, this);
         pm.registerEvents(new ClaimProtectionListener(claimManager, settingsManager), this);
         pm.registerEvents(new RaidNexusListener(raidManager, claimManager), this);
-        pm.registerEvents(new GUIClickListener(guiManager, auctionManager, teamManager, teamUpgradeManager, teamVaultManager, economyManager, settingsManager, scheduler), this);
+        pm.registerEvents(new GUIClickListener(guiManager, auctionManager, teamManager, teamUpgradeManager, teamVaultManager, economyManager, settingsManager, scoreboardManager, scheduler), this);
+        pm.registerEvents(new ChatInputListener(settingsManager, scheduler), this);
 
         // Register Commands & Tab Completers
         CoinsCommand coinsCmd = new CoinsCommand(economyManager);
@@ -159,7 +164,24 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
         SettingsCommand settingsCmd = new SettingsCommand(guiManager);
         registerCmd("settings", settingsCmd);
 
-        getLogger().info("GuildCore v5 loaded successfully!");
+        TeleportCommand tpCmd = new TeleportCommand(databaseManager);
+        registerCmd("tpa", tpCmd);
+        registerCmd("tpaccept", tpCmd);
+        registerCmd("tpdeny", tpCmd);
+        registerCmd("rtp", tpCmd);
+        registerCmd("spawn", tpCmd);
+        registerCmd("setspawn", tpCmd);
+        registerCmd("sethome", tpCmd);
+        registerCmd("home", tpCmd);
+        registerCmd("delhome", tpCmd);
+        registerCmd("warp", tpCmd);
+        registerCmd("setwarp", tpCmd);
+        registerCmd("delwarp", tpCmd);
+
+        TradeCommand tradeCmd = new TradeCommand(tradeManager);
+        registerCmd("trade", tradeCmd);
+
+        getLogger().info("GuildCore v5 loaded successfully with all utility & teleport commands!");
     }
 
     private void registerCmd(String name, org.bukkit.command.TabExecutor executor) {

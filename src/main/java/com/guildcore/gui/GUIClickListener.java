@@ -8,6 +8,7 @@ import com.guildcore.debug.DebugManager;
 import com.guildcore.economy.EconomyManager;
 import com.guildcore.gui.holders.*;
 import com.guildcore.scheduler.SchedulerWrapper;
+import com.guildcore.scoreboard.ScoreboardManager;
 import com.guildcore.teams.Team;
 import com.guildcore.teams.TeamManager;
 import com.guildcore.teams.TeamUpgradeManager;
@@ -40,9 +41,10 @@ public class GUIClickListener implements Listener {
     private final TeamVaultManager vaultManager;
     private final EconomyManager economyManager;
     private final SettingsManager settingsManager;
+    private final ScoreboardManager scoreboardManager;
     private final SchedulerWrapper scheduler;
 
-    public GUIClickListener(GUIManager guiManager, AuctionManager auctionManager, TeamManager teamManager, TeamUpgradeManager upgradeManager, TeamVaultManager vaultManager, EconomyManager economyManager, SettingsManager settingsManager, SchedulerWrapper scheduler) {
+    public GUIClickListener(GUIManager guiManager, AuctionManager auctionManager, TeamManager teamManager, TeamUpgradeManager upgradeManager, TeamVaultManager vaultManager, EconomyManager economyManager, SettingsManager settingsManager, ScoreboardManager scoreboardManager, SchedulerWrapper scheduler) {
         this.guiManager = guiManager;
         this.auctionManager = auctionManager;
         this.teamManager = teamManager;
@@ -50,6 +52,7 @@ public class GUIClickListener implements Listener {
         this.vaultManager = vaultManager;
         this.economyManager = economyManager;
         this.settingsManager = settingsManager;
+        this.scoreboardManager = scoreboardManager;
         this.scheduler = scheduler;
     }
 
@@ -178,20 +181,11 @@ public class GUIClickListener implements Listener {
             int slot = event.getSlot();
 
             if (slot == 10) {
-                long bal = settingsManager.getInt("economy.starting_balance", 100);
-                long next = bal == 100 ? 500 : (bal == 500 ? 1000 : 100);
-                settingsManager.set("economy.starting_balance", String.valueOf(next));
-                guiManager.openAdminEconomySettings(player);
+                ChatInputListener.requestInput(player, "economy.starting_balance", p -> guiManager.openAdminEconomySettings(p));
             } else if (slot == 12) {
-                long reward = settingsManager.getInt("economy.pvp_kill_reward", 50);
-                long next = reward == 10 ? 50 : (reward == 50 ? 100 : 10);
-                settingsManager.set("economy.pvp_kill_reward", String.valueOf(next));
-                guiManager.openAdminEconomySettings(player);
+                ChatInputListener.requestInput(player, "economy.pvp_kill_reward", p -> guiManager.openAdminEconomySettings(p));
             } else if (slot == 14) {
-                long tax = settingsManager.getInt("economy.sales_tax_percent", 5);
-                long next = tax == 0 ? 5 : (tax == 5 ? 10 : 0);
-                settingsManager.set("economy.sales_tax_percent", String.valueOf(next));
-                guiManager.openAdminEconomySettings(player);
+                ChatInputListener.requestInput(player, "economy.sales_tax_percent", p -> guiManager.openAdminEconomySettings(p));
             } else if (slot == 16) {
                 economyManager.deposit(player.getUniqueId(), 1000, "admin_give_self");
                 player.sendMessage(TextUtil.format("<green>Received +$1,000 coins from Admin Panel!</green>"));
@@ -209,10 +203,7 @@ public class GUIClickListener implements Listener {
             int slot = event.getSlot();
 
             if (slot == 10) {
-                int rate = settingsManager.getInt("claims.blocks_per_hour", 50);
-                int next = rate == 25 ? 50 : (rate == 50 ? 100 : 25);
-                settingsManager.set("claims.blocks_per_hour", String.valueOf(next));
-                guiManager.openAdminClaimSettings(player);
+                ChatInputListener.requestInput(player, "claims.blocks_per_hour", p -> guiManager.openAdminClaimSettings(p));
             } else if (slot == 14) {
                 boolean disableExplosions = settingsManager.getBoolean("world.disable_explosions", false);
                 settingsManager.set("world.disable_explosions", String.valueOf(!disableExplosions));
@@ -230,29 +221,17 @@ public class GUIClickListener implements Listener {
             int slot = event.getSlot();
 
             if (slot == 9) {
-                int tag = settingsManager.getInt("combat.tag_duration", 15);
-                int next = tag == 10 ? 15 : (tag == 15 ? 30 : 10);
-                settingsManager.set("combat.tag_duration", String.valueOf(next));
-                guiManager.openAdminCombatSettings(player);
+                ChatInputListener.requestInput(player, "combat.tag_duration", p -> guiManager.openAdminCombatSettings(p));
             } else if (slot == 10) {
                 boolean disableCmds = settingsManager.getBoolean("combat.disable_commands", true);
                 settingsManager.set("combat.disable_commands", String.valueOf(!disableCmds));
                 guiManager.openAdminCombatSettings(player);
             } else if (slot == 11) {
-                int cd = settingsManager.getInt("combat.enderpearl_cooldown", 15);
-                int next = cd == 10 ? 15 : (cd == 15 ? 30 : 10);
-                settingsManager.set("combat.enderpearl_cooldown", String.valueOf(next));
-                guiManager.openAdminCombatSettings(player);
+                ChatInputListener.requestInput(player, "combat.enderpearl_cooldown", p -> guiManager.openAdminCombatSettings(p));
             } else if (slot == 12) {
-                int cd = settingsManager.getInt("combat.windcharge_cooldown", 10);
-                int next = cd == 5 ? 10 : (cd == 10 ? 20 : 5);
-                settingsManager.set("combat.windcharge_cooldown", String.valueOf(next));
-                guiManager.openAdminCombatSettings(player);
+                ChatInputListener.requestInput(player, "combat.windcharge_cooldown", p -> guiManager.openAdminCombatSettings(p));
             } else if (slot == 13) {
-                int cd = settingsManager.getInt("combat.mace_cooldown", 12);
-                int next = cd == 5 ? 12 : (cd == 12 ? 20 : 5);
-                settingsManager.set("combat.mace_cooldown", String.valueOf(next));
-                guiManager.openAdminCombatSettings(player);
+                ChatInputListener.requestInput(player, "combat.mace_cooldown", p -> guiManager.openAdminCombatSettings(p));
             } else if (slot == 14) {
                 boolean val = settingsManager.getBoolean("item.disabled_global.shield", false);
                 settingsManager.set("item.disabled_global.shield", String.valueOf(!val));
@@ -275,34 +254,45 @@ public class GUIClickListener implements Listener {
             return;
         }
 
-        // 7. Admin Auction Sub-GUI
-        if (holder instanceof AdminAuctionHolder) {
+        // 7. Admin Scoreboard Sub-GUI
+        if (holder instanceof AdminScoreboardHolder) {
             event.setCancelled(true);
             SoundUtil.playClick(player);
             int slot = event.getSlot();
 
-            if (slot == 10) {
-                int fee = settingsManager.getInt("auction.listing_fee", 50);
-                int next = fee == 0 ? 50 : (fee == 50 ? 100 : 0);
-                settingsManager.set("auction.listing_fee", String.valueOf(next));
-                guiManager.openAdminAuctionSettings(player);
-            } else if (slot == 12) {
-                int dur = settingsManager.getInt("auction.duration_hours", 48);
-                int next = dur == 24 ? 48 : (dur == 48 ? 72 : 24);
-                settingsManager.set("auction.duration_hours", String.valueOf(next));
-                guiManager.openAdminAuctionSettings(player);
-            } else if (slot == 16) {
-                int cd = settingsManager.getInt("auction.listing_cooldown_sec", 0);
-                int next = cd == 0 ? 5 : (cd == 5 ? 10 : (cd == 10 ? 30 : (cd == 30 ? 60 : 0)));
-                settingsManager.set("auction.listing_cooldown_sec", String.valueOf(next));
-                guiManager.openAdminAuctionSettings(player);
+            if (slot == 11) {
+                ChatInputListener.requestInput(player, "scoreboard.update_ticks", p -> guiManager.openAdminScoreboardSettings(p));
+            } else if (slot == 13) { // Clear all scoreboards & objectives
+                scoreboardManager.clearServerScoreboards();
+                player.sendMessage(TextUtil.format("<green>🧹 Successfully wiped all server scoreboards & objectives!</green>"));
+                guiManager.openAdminScoreboardSettings(player);
             } else if (slot == 26) {
                 guiManager.openAdminSettings(player);
             }
             return;
         }
 
-        // 8. Admin Debug Sub-GUI
+        // 8. Admin Auction Sub-GUI
+        if (holder instanceof AdminAuctionHolder) {
+            event.setCancelled(true);
+            SoundUtil.playClick(player);
+            int slot = event.getSlot();
+
+            if (slot == 10) {
+                ChatInputListener.requestInput(player, "auction.listing_fee", p -> guiManager.openAdminAuctionSettings(p));
+            } else if (slot == 12) {
+                ChatInputListener.requestInput(player, "auction.duration_hours_default", p -> guiManager.openAdminAuctionSettings(p));
+            } else if (slot == 14) {
+                ChatInputListener.requestInput(player, "auction.max_listing_price", p -> guiManager.openAdminAuctionSettings(p));
+            } else if (slot == 16) {
+                ChatInputListener.requestInput(player, "auction.listing_cooldown_sec", p -> guiManager.openAdminAuctionSettings(p));
+            } else if (slot == 26) {
+                guiManager.openAdminSettings(player);
+            }
+            return;
+        }
+
+        // 9. Admin Debug Sub-GUI
         if (holder instanceof AdminDebugHolder) {
             event.setCancelled(true);
             SoundUtil.playClick(player);
@@ -321,8 +311,8 @@ public class GUIClickListener implements Listener {
             return;
         }
 
-        // 9. Simple Back-Button Sub-GUIs
-        if (holder instanceof AdminKillHolder || holder instanceof AdminTeamHolder || holder instanceof AdminScoreboardHolder) {
+        // 10. Simple Back-Button Sub-GUIs
+        if (holder instanceof AdminKillHolder || holder instanceof AdminTeamHolder) {
             event.setCancelled(true);
             SoundUtil.playClick(player);
             if (event.getSlot() == 26) {
@@ -331,7 +321,7 @@ public class GUIClickListener implements Listener {
             return;
         }
 
-        // 10. Auction Purchase Confirmation GUI
+        // 11. Auction Purchase Confirmation GUI
         if (holder instanceof AuctionConfirmHolder confirmHolder) {
             event.setCancelled(true);
             SoundUtil.playClick(player);
@@ -351,7 +341,7 @@ public class GUIClickListener implements Listener {
             return;
         }
 
-        // 11. Main Team Control GUI Navigation
+        // 12. Main Team Control GUI Navigation
         if (holder instanceof TeamGUIHolder teamHolder) {
             event.setCancelled(true);
             SoundUtil.playClick(player);
@@ -381,7 +371,7 @@ public class GUIClickListener implements Listener {
             return;
         }
 
-        // 12. Team Upgrades GUI
+        // 13. Team Upgrades GUI
         if (holder instanceof TeamUpgradesHolder upgradesHolder) {
             event.setCancelled(true);
             SoundUtil.playClick(player);
