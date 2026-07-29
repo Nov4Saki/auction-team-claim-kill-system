@@ -6,6 +6,7 @@ import com.guildcore.debug.DebugManager;
 import com.guildcore.scheduler.SchedulerWrapper;
 import com.guildcore.util.TextUtil;
 import org.bukkit.Material;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -43,7 +44,34 @@ public class ItemControlManager implements Listener {
 
         Material type = item.getType();
 
-        // 1. Combat Item Disable (e.g. ENDER_PEARL)
+        // 1. Riptide Trident check
+        if (type == Material.TRIDENT && item.getEnchantments().containsKey(Enchantment.RIPTIDE)) {
+            if (combatTagManager.isTagged(player) && !settingsManager.getBoolean("combat.riptide_enabled", false)) {
+                event.setCancelled(true);
+                scheduler.runSync(player, () -> player.sendActionBar(TextUtil.format("<red>🚫 Riptide Tridents are disabled in combat!</red>")));
+                return;
+            }
+        }
+
+        // 2. End Crystal check
+        if (type == Material.END_CRYSTAL) {
+            if (combatTagManager.isTagged(player) && !settingsManager.getBoolean("combat.crystal_enabled", false)) {
+                event.setCancelled(true);
+                scheduler.runSync(player, () -> player.sendActionBar(TextUtil.format("<red>🚫 End Crystals are disabled in combat!</red>")));
+                return;
+            }
+        }
+
+        // 3. Respawn Anchor check
+        if (type == Material.RESPAWN_ANCHOR) {
+            if (combatTagManager.isTagged(player) && !settingsManager.getBoolean("combat.anchor_enabled", false)) {
+                event.setCancelled(true);
+                scheduler.runSync(player, () -> player.sendActionBar(TextUtil.format("<red>🚫 Respawn Anchors are disabled in combat!</red>")));
+                return;
+            }
+        }
+
+        // 4. Combat Item Disable
         if (combatTagManager.isTagged(player) && isCombatDisabled(type)) {
             event.setCancelled(true);
             DebugManager.log(DebugFlag.ITEM_DISABLE, "Blocked combat-disabled item: " + type + " for " + player.getName());
@@ -51,7 +79,7 @@ public class ItemControlManager implements Listener {
             return;
         }
 
-        // 2. Custom Combat Cooldowns (e.g. CHORUS_FRUIT)
+        // 5. Custom Combat Cooldowns (Ender Pearl, Wind Charge, Mace, etc.)
         long cooldownMs = getCombatCooldownMs(type);
         if (cooldownMs > 0 && combatTagManager.isTagged(player)) {
             Map<Material, Long> playerCooldowns = itemCooldowns.computeIfAbsent(player.getUniqueId(), k -> new ConcurrentHashMap<>());
@@ -89,6 +117,15 @@ public class ItemControlManager implements Listener {
     }
 
     private long getCombatCooldownMs(Material material) {
+        if (material == Material.ENDER_PEARL) {
+            return settingsManager.getInt("combat.enderpearl_cooldown", 15) * 1000L;
+        }
+        if (material.name().equals("WIND_CHARGE")) {
+            return settingsManager.getInt("combat.windcharge_cooldown", 10) * 1000L;
+        }
+        if (material.name().equals("MACE")) {
+            return settingsManager.getInt("combat.mace_cooldown", 12) * 1000L;
+        }
         String key = "combat.cooldown_sec." + material.name().toLowerCase();
         int seconds = settingsManager.getInt(key, 0);
         return seconds * 1000L;

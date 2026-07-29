@@ -130,10 +130,11 @@ public class DatabaseSetup {
                     "action VARCHAR(8) NOT NULL, " +
                     "timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP);");
 
-            // Auction Items
+            // Auction Items (with seller_name)
             stmt.execute("CREATE TABLE IF NOT EXISTS auction_items (" +
                     "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
                     "seller_uuid VARCHAR(36) NOT NULL, " +
+                    "seller_name VARCHAR(36) DEFAULT 'Unknown', " +
                     "category VARCHAR(32) NOT NULL, " +
                     "price BIGINT NOT NULL, " +
                     "is_bid BOOLEAN DEFAULT 0, " +
@@ -145,6 +146,11 @@ public class DatabaseSetup {
                     "is_sold BOOLEAN DEFAULT 0, " +
                     "is_expired BOOLEAN DEFAULT 0, " +
                     "is_claimed BOOLEAN DEFAULT 0);");
+
+            // Migration column check for seller_name if table exists
+            try {
+                stmt.execute("ALTER TABLE auction_items ADD COLUMN seller_name VARCHAR(36) DEFAULT 'Unknown';");
+            } catch (Exception ignored) {}
 
             // Auction Stash (for inventory overflow / expired items)
             stmt.execute("CREATE TABLE IF NOT EXISTS auction_stash (" +
@@ -177,6 +183,12 @@ public class DatabaseSetup {
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('economy.pvp_kill_reward', '50');");
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('economy.sales_tax_percent', '5');");
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('combat.tag_duration', '15');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('combat.enderpearl_cooldown', '15');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('combat.windcharge_cooldown', '10');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('combat.riptide_enabled', 'false');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('combat.mace_cooldown', '12');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('combat.crystal_enabled', 'false');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('combat.anchor_enabled', 'false');");
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('claims.blocks_per_hour', '50');");
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('teams.creation_cost', '5000');");
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('teams.base_max_members', '3');");
@@ -186,6 +198,8 @@ public class DatabaseSetup {
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('raids.nexus_max_hp', '100');");
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('auction.listing_fee', '50');");
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('auction.duration_hours', '48');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('auction.max_listing_price', '1000000000');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('auction.max_listings_default', '3');");
         }
     }
 }

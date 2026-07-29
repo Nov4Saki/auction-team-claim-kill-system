@@ -1,5 +1,6 @@
 package com.guildcore.auction;
 
+import com.guildcore.config.SettingsManager;
 import com.guildcore.database.DatabaseManager;
 import com.guildcore.debug.DebugFlag;
 import com.guildcore.debug.DebugManager;
@@ -21,24 +22,27 @@ import java.util.concurrent.ConcurrentHashMap;
 public class AuctionManager {
     private final DatabaseManager dbManager;
     private final EconomyManager economyManager;
+    private final SettingsManager settingsManager;
     private final Map<Integer, AuctionItem> auctionItems = new ConcurrentHashMap<>();
 
-    public AuctionManager(DatabaseManager dbManager, EconomyManager economyManager) {
+    public AuctionManager(DatabaseManager dbManager, EconomyManager economyManager, SettingsManager settingsManager) {
         this.dbManager = dbManager;
         this.economyManager = economyManager;
+        this.settingsManager = settingsManager;
     }
 
     public void loadAuctions() {
         dbManager.executeAsync(() -> {
             try (Connection conn = dbManager.getConnection();
                  PreparedStatement ps = conn.prepareStatement(
-                         "SELECT id, seller_uuid, category, price, is_bid, current_bid, bidder_uuid, item_data, expires_at, is_sold, is_expired FROM auction_items WHERE is_claimed = 0");
+                         "SELECT id, seller_uuid, seller_name, category, price, is_bid, current_bid, bidder_uuid, item_data, expires_at, is_sold, is_expired FROM auction_items WHERE is_claimed = 0");
                  ResultSet rs = ps.executeQuery()) {
 
                 auctionItems.clear();
                 while (rs.next()) {
                     int id = rs.getInt("id");
                     UUID seller = UUID.fromString(rs.getString("seller_uuid"));
+                    String sellerName = rs.getString("seller_name");
                     String cat = rs.getString("category");
                     long price = rs.getLong("price");
                     boolean isBid = rs.getBoolean("is_bid");
@@ -50,7 +54,7 @@ public class AuctionManager {
                     boolean isSold = rs.getBoolean("is_sold");
                     boolean isExpired = rs.getBoolean("is_expired");
 
-                    AuctionItem auction = new AuctionItem(id, seller, cat, price, isBid, currentBid, bidder, item, expiresAt, isSold, isExpired);
+                    AuctionItem auction = new AuctionItem(id, seller, sellerName, cat, price, isBid, currentBid, bidder, item, expiresAt, isSold, isExpired);
                     auctionItems.put(id, auction);
                 }
                 DebugManager.log(DebugFlag.AUCTION_PURCHASES, "Loaded " + auctionItems.size() + " active auction listings from database.");
@@ -60,36 +64,70 @@ public class AuctionManager {
         });
     }
 
+    public int getMaxListingsForPlayer(Player player) {
+        if (player.hasPermission("guildcore.auction.limit.op") || player.isOp()) return Integer.MAX_VALUE;
+        if (player.hasPermission("guildcore.auction.limit.5")) return 30;
+        if (player.hasPermission("guildcore.auction.limit.4")) return 20;
+        if (player.hasPermission("guildcore.auction.limit.3")) return 15;
+        if (player.hasPermission("guildcore.auction.limit.2")) return 10;
+        if (player.hasPermission("guildcore.auction.limit.1")) return 5;
+        return settingsManager.getInt("auction.max_listings_default", 3);
+    }
+
+    public int getPlayerActiveListingCount(UUID playerUuid) {
+        int count = 0;
+        for (AuctionItem item : auctionItems.values()) {
+            if (item.getSellerUuid().equals(playerUuid) && !item.isSold() && !item.isExpired()) {
+                count++;
+            }
+        }
+        return count;
+    }
+
     public boolean listItem(Player seller, ItemStack item, long price, boolean isBid) {
         if (item == null || item.getType().isAir() || price <= 0) return false;
 
+        long maxPrice = settingsManager.getLong("auction.max_listing_price", 1000000000L);
+        if (price > maxPrice) {
+            seller.sendMessage("§c[Auction] Price exceeds max listing price limit of $" + maxPrice + "!");
+            return false;
+        }
+
+        int maxListings = getMaxListingsForPlayer(seller);
+        if (getPlayerActiveListingCount(seller.getUniqueId()) >= maxListings) {
+            seller.sendMessage("§c[Auction] You have reached your maximum active listings limit (" + maxListings + ")!");
+            return false;
+        }
+
         UUID sellerUuid = seller.getUniqueId();
+        String sellerName = seller.getName();
         String category = AuctionCategoryUtil.getCategory(item.getType());
         String itemData = ItemSerializer.serializeItem(item);
-        long durationMs = 48 * 3600 * 1000L;
+        long durationMs = settingsManager.getInt("auction.duration_hours", 48) * 3600 * 1000L;
         long expiresAtMs = System.currentTimeMillis() + durationMs;
 
         dbManager.executeAsync(() -> {
             try (Connection conn = dbManager.getConnection();
                  PreparedStatement ps = conn.prepareStatement(
-                         "INSERT INTO auction_items (seller_uuid, category, price, is_bid, current_bid, item_data, expires_at) VALUES (?, ?, ?, ?, ?, ?, datetime(?, 'unixepoch', 'localtime'))",
+                         "INSERT INTO auction_items (seller_uuid, seller_name, category, price, is_bid, current_bid, item_data, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, datetime(?, 'unixepoch', 'localtime'))",
                          Statement.RETURN_GENERATED_KEYS)) {
 
                 ps.setString(1, sellerUuid.toString());
-                ps.setString(2, category);
-                ps.setLong(3, price);
-                ps.setBoolean(4, isBid);
-                ps.setLong(5, isBid ? price : 0);
-                ps.setString(6, itemData);
-                ps.setLong(7, expiresAtMs / 1000L);
+                ps.setString(2, sellerName);
+                ps.setString(3, category);
+                ps.setLong(4, price);
+                ps.setBoolean(5, isBid);
+                ps.setLong(6, isBid ? price : 0);
+                ps.setString(7, itemData);
+                ps.setLong(8, expiresAtMs / 1000L);
                 ps.executeUpdate();
 
                 try (ResultSet rs = ps.getGeneratedKeys()) {
                     if (rs.next()) {
                         int id = rs.getInt(1);
-                        AuctionItem auction = new AuctionItem(id, sellerUuid, category, price, isBid, isBid ? price : 0, null, item, expiresAtMs, false, false);
+                        AuctionItem auction = new AuctionItem(id, sellerUuid, sellerName, category, price, isBid, isBid ? price : 0, null, item, expiresAtMs, false, false);
                         auctionItems.put(id, auction);
-                        DebugManager.log(DebugFlag.AUCTION_PURCHASES, "Listed auction item #" + id + " (" + item.getType() + ") for $" + price + " by " + seller.getName());
+                        DebugManager.log(DebugFlag.AUCTION_PURCHASES, "Listed auction item #" + id + " (" + item.getType() + ") for $" + price + " by " + sellerName);
                     }
                 }
             } catch (Exception e) {
@@ -109,7 +147,8 @@ public class AuctionManager {
             return false;
         }
 
-        long tax = (long) (price * 0.05);
+        long taxPercent = settingsManager.getInt("economy.sales_tax_percent", 5);
+        long tax = (long) (price * (taxPercent / 100.0));
         long sellerProceeds = price - tax;
         economyManager.deposit(item.getSellerUuid(), sellerProceeds, "auction_sale");
 
@@ -119,7 +158,7 @@ public class AuctionManager {
         // Give item to buyer or add to stash if inventory is full
         if (buyer.getInventory().firstEmpty() == -1) {
             addToStash(buyer.getUniqueId(), item.getItem());
-            buyer.sendMessage("§e[Auction] Your inventory was full! Item sent to your Auction Stash (/gcah stash).");
+            buyer.sendMessage("§e[Auction] Your inventory was full! Item sent to your Auction Stash (/ah stash).");
         } else {
             buyer.getInventory().addItem(item.getItem());
         }

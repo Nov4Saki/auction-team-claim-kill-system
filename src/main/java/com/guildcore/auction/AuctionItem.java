@@ -7,6 +7,7 @@ import java.util.UUID;
 public class AuctionItem {
     private final int id;
     private final UUID sellerUuid;
+    private final String sellerName;
     private final String category;
     private final long price;
     private final boolean isBid;
@@ -17,9 +18,10 @@ public class AuctionItem {
     private boolean isSold;
     private boolean isExpired;
 
-    public AuctionItem(int id, UUID sellerUuid, String category, long price, boolean isBid, long currentBid, UUID bidderUuid, ItemStack item, long expiresAtMs, boolean isSold, boolean isExpired) {
+    public AuctionItem(int id, UUID sellerUuid, String sellerName, String category, long price, boolean isBid, long currentBid, UUID bidderUuid, ItemStack item, long expiresAtMs, boolean isSold, boolean isExpired) {
         this.id = id;
         this.sellerUuid = sellerUuid;
+        this.sellerName = sellerName != null ? sellerName : "Unknown";
         this.category = category;
         this.price = price;
         this.isBid = isBid;
@@ -37,6 +39,10 @@ public class AuctionItem {
 
     public UUID getSellerUuid() {
         return sellerUuid;
+    }
+
+    public String getSellerName() {
+        return sellerName;
     }
 
     public String getCategory() {

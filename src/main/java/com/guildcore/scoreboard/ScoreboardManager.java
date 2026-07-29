@@ -60,27 +60,33 @@ public class ScoreboardManager {
     public void updateBoard(Player player) {
         if (player == null || !player.isOnline()) return;
 
-        Scoreboard board = playerBoards.computeIfAbsent(player.getUniqueId(), k -> Bukkit.getScoreboardManager().getNewScoreboard());
+        // Route scoreboard mutations strictly to the player's region thread on Folia / Bukkit main thread
+        scheduler.runSync(player, () -> {
+            try {
+                Scoreboard board = playerBoards.computeIfAbsent(player.getUniqueId(), k -> Bukkit.getScoreboardManager().getNewScoreboard());
 
-        Objective oldObj = board.getObjective("sidebar");
-        if (oldObj != null) {
-            oldObj.unregister();
-        }
+                Objective oldObj = board.getObjective("sidebar");
+                if (oldObj != null) {
+                    oldObj.unregister();
+                }
 
-        String titleText = settingsManager.getString("scoreboard.title", "⚡ MY SERVER");
-        Objective obj = board.registerNewObjective("sidebar", Criteria.DUMMY, Component.text(titleText, NamedTextColor.YELLOW, TextDecoration.BOLD));
-        obj.setDisplaySlot(DisplaySlot.SIDEBAR);
+                String titleText = settingsManager.getString("scoreboard.title", "⚡ MY SERVER");
+                Objective obj = board.registerNewObjective("sidebar", Criteria.DUMMY, Component.text(titleText, NamedTextColor.YELLOW, TextDecoration.BOLD));
+                obj.setDisplaySlot(DisplaySlot.SIDEBAR);
 
-        List<String> lines = buildLines(player);
-        for (int i = 0; i < lines.size(); i++) {
-            // Append invisible color codes to ensure uniqueness per line
-            String uniqueLine = lines.get(i) + getUniqueSuffix(i);
-            Score score = obj.getScore(uniqueLine);
-            score.setScore(lines.size() - i);
-        }
+                List<String> lines = buildLines(player);
+                for (int i = 0; i < lines.size(); i++) {
+                    String uniqueLine = lines.get(i) + getUniqueSuffix(i);
+                    Score score = obj.getScore(uniqueLine);
+                    score.setScore(lines.size() - i);
+                }
 
-        player.setScoreboard(board);
-        DebugManager.log(DebugFlag.SCOREBOARD_UPDATES, "Updated sidebar scoreboard for " + player.getName());
+                player.setScoreboard(board);
+                DebugManager.log(DebugFlag.SCOREBOARD_UPDATES, "Updated sidebar scoreboard for " + player.getName());
+            } catch (Exception e) {
+                DebugManager.log(DebugFlag.SCOREBOARD_UPDATES, "Failed to update scoreboard for " + player.getName() + ": " + e.getMessage());
+            }
+        });
     }
 
     private List<String> buildLines(Player player) {

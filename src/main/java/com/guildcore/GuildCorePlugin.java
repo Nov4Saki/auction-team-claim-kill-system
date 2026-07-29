@@ -64,7 +64,7 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
     @Override
     public void onEnable() {
         instance = this;
-        getLogger().info("Initializing GuildCore v5 (Tab Completion & Vault Persistence Engine)...");
+        getLogger().info("Initializing GuildCore v5 (Folia Scoreboard & Custom Item Preservation Engine)...");
 
         // 1. Scheduler Wrapper
         this.scheduler = new SchedulerWrapper(this);
@@ -111,7 +111,7 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
         this.raidManager = new RaidManager(teamManager, teamBankManager, claimManager, settingsManager, scheduler, raidRollbackEngine);
 
         // 8. Auction House
-        this.auctionManager = new AuctionManager(databaseManager, economyManager);
+        this.auctionManager = new AuctionManager(databaseManager, economyManager, settingsManager);
         this.auctionManager.loadAuctions();
 
         // 9. Scoreboard & GUI
@@ -132,34 +132,34 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
 
         // Register Commands & Tab Completers
         CoinsCommand coinsCmd = new CoinsCommand(economyManager);
-        registerCmd("gccoins", coinsCmd);
-        registerCmd("gcpay", coinsCmd);
-        registerCmd("gceco", coinsCmd);
+        registerCmd("coins", coinsCmd);
+        registerCmd("pay", coinsCmd);
+        registerCmd("eco", coinsCmd);
 
         ClaimCommand claimCmd = new ClaimCommand(claimManager, claimVisualizer, guiManager);
-        registerCmd("gcclaim", claimCmd);
-        registerCmd("gcunclaim", claimCmd);
-        registerCmd("gctrust", claimCmd);
-        registerCmd("gcuntrust", claimCmd);
+        registerCmd("claim", claimCmd);
+        registerCmd("unclaim", claimCmd);
+        registerCmd("trust", claimCmd);
+        registerCmd("untrust", claimCmd);
 
         TeamCommand teamCmd = new TeamCommand(teamManager, teamBankManager, teamVaultManager, claimManager, raidManager, settingsManager, guiManager);
-        registerCmd("gcteam", teamCmd);
-        registerCmd("gctc", teamCmd);
+        registerCmd("team", teamCmd);
+        registerCmd("tc", teamCmd);
 
         AuctionCommand ahCmd = new AuctionCommand(auctionManager, guiManager);
-        registerCmd("gcah", ahCmd);
+        registerCmd("ah", ahCmd);
 
         StatsCommand statsCmd = new StatsCommand(statsManager, bountyManager);
-        registerCmd("gcstats", statsCmd);
-        registerCmd("gcbounty", statsCmd);
+        registerCmd("stats", statsCmd);
+        registerCmd("bounty", statsCmd);
 
         DebugCommand debugCmd = new DebugCommand();
         registerCmd("guildcore", debugCmd);
 
         SettingsCommand settingsCmd = new SettingsCommand(guiManager);
-        registerCmd("gcsettings", settingsCmd);
+        registerCmd("settings", settingsCmd);
 
-        getLogger().info("GuildCore v5 loaded with full Tab Completion and Vault Persistence!");
+        getLogger().info("GuildCore v5 enabled successfully!");
     }
 
     private void registerCmd(String name, org.bukkit.command.TabExecutor executor) {
@@ -182,7 +182,7 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
     public void onPlayerJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
         economyManager.loadPlayer(player.getUniqueId(), player.getName());
-        scoreboardManager.updateBoard(player);
+        scheduler.runSync(player, () -> scoreboardManager.updateBoard(player));
     }
 
     @EventHandler
