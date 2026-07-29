@@ -64,7 +64,7 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
     @Override
     public void onEnable() {
         instance = this;
-        getLogger().info("Initializing GuildCore v5 (Folia Scoreboard & Custom Item Preservation Engine)...");
+        getLogger().info("Initializing GuildCore v5 (Interactive Sub-GUIs & Complete NBT Preservation Engine)...");
 
         // 1. Scheduler Wrapper
         this.scheduler = new SchedulerWrapper(this);
@@ -128,7 +128,7 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
         pm.registerEvents(itemControlManager, this);
         pm.registerEvents(new ClaimProtectionListener(claimManager), this);
         pm.registerEvents(new RaidNexusListener(raidManager, claimManager), this);
-        pm.registerEvents(new GUIClickListener(guiManager, auctionManager, teamManager, teamUpgradeManager, teamVaultManager, scheduler), this);
+        pm.registerEvents(new GUIClickListener(guiManager, auctionManager, teamManager, teamUpgradeManager, teamVaultManager, economyManager, scheduler), this);
 
         // Register Commands & Tab Completers
         CoinsCommand coinsCmd = new CoinsCommand(economyManager);
@@ -159,7 +159,7 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
         SettingsCommand settingsCmd = new SettingsCommand(guiManager);
         registerCmd("settings", settingsCmd);
 
-        getLogger().info("GuildCore v5 enabled successfully!");
+        getLogger().info("GuildCore v5 loaded successfully!");
     }
 
     private void registerCmd(String name, org.bukkit.command.TabExecutor executor) {

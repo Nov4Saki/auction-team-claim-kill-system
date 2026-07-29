@@ -4,6 +4,7 @@ import com.guildcore.auction.AuctionItem;
 import com.guildcore.auction.AuctionManager;
 import com.guildcore.debug.DebugFlag;
 import com.guildcore.debug.DebugManager;
+import com.guildcore.economy.EconomyManager;
 import com.guildcore.gui.holders.*;
 import com.guildcore.scheduler.SchedulerWrapper;
 import com.guildcore.teams.Team;
@@ -34,14 +35,16 @@ public class GUIClickListener implements Listener {
     private final TeamManager teamManager;
     private final TeamUpgradeManager upgradeManager;
     private final TeamVaultManager vaultManager;
+    private final EconomyManager economyManager;
     private final SchedulerWrapper scheduler;
 
-    public GUIClickListener(GUIManager guiManager, AuctionManager auctionManager, TeamManager teamManager, TeamUpgradeManager upgradeManager, TeamVaultManager vaultManager, SchedulerWrapper scheduler) {
+    public GUIClickListener(GUIManager guiManager, AuctionManager auctionManager, TeamManager teamManager, TeamUpgradeManager upgradeManager, TeamVaultManager vaultManager, EconomyManager economyManager, SchedulerWrapper scheduler) {
         this.guiManager = guiManager;
         this.auctionManager = auctionManager;
         this.teamManager = teamManager;
         this.upgradeManager = upgradeManager;
         this.vaultManager = vaultManager;
+        this.economyManager = economyManager;
         this.scheduler = scheduler;
     }
 
@@ -51,6 +54,10 @@ public class GUIClickListener implements Listener {
         InventoryHolder holder = event.getInventory().getHolder();
         if (holder instanceof VaultGUIHolder vaultHolder) {
             ItemStack[] contents = event.getInventory().getContents();
+            // Preserve empty slot 53 if it's the barrier back button
+            if (contents.length > 53 && contents[53] != null && contents[53].getType() == Material.BARRIER) {
+                contents[53] = null;
+            }
             vaultManager.saveVaultPage(vaultHolder.getTeamId(), vaultHolder.getPage(), contents);
             DebugManager.log(DebugFlag.VAULT_SERIALIZATION, "Saved team vault on close for team " + vaultHolder.getTeamId() + " page " + vaultHolder.getPage());
         }
@@ -64,8 +71,14 @@ public class GUIClickListener implements Listener {
 
         if (!(event.getWhoClicked() instanceof Player player)) return;
 
-        // ALLOW item placement/taking inside Team Vaults!
-        if (holder instanceof VaultGUIHolder) {
+        // Vault GUI Back Button handling
+        if (holder instanceof VaultGUIHolder vaultHolder) {
+            if (event.getSlot() == 53 && event.getCurrentItem() != null && event.getCurrentItem().getType() == Material.BARRIER) {
+                event.setCancelled(true);
+                SoundUtil.playClick(player);
+                Team team = teamManager.getTeam(vaultHolder.getTeamId());
+                guiManager.openTeamMenu(player, team);
+            }
             return;
         }
 
@@ -124,12 +137,25 @@ public class GUIClickListener implements Listener {
             int slot = event.getSlot();
 
             if (slot == 10) { guiManager.openAdminEconomySettings(player); return; }
+            if (slot == 11) { guiManager.openAdminKillSettings(player); return; }
+            if (slot == 12) { guiManager.openAdminClaimSettings(player); return; }
+            if (slot == 13) { guiManager.openAdminTeamSettings(player); return; }
             if (slot == 14) { guiManager.openAdminCombatSettings(player); return; }
+            if (slot == 15) { guiManager.openAdminScoreboardSettings(player); return; }
+            if (slot == 16) { guiManager.openAdminAuctionSettings(player); return; }
             if (slot == 22) { guiManager.openAdminDebugPanel(player); return; }
             if (slot == 26) { guiManager.openAdminSettings(player); return; }
 
-            // Debug Flag Wool Toggles (Slots 0-17)
-            if (slot >= 0 && slot < 18) {
+            // Admin Give Coins Button (Slot 16 in Economy Settings Sub-GUI)
+            if (slot == 16 && event.getView().getTitle().contains("Economy Config")) {
+                economyManager.deposit(player.getUniqueId(), 1000, "admin_give_self");
+                player.sendMessage(TextUtil.format("<green>Received +$1,000 coins from Admin Panel!</green>"));
+                guiManager.openAdminEconomySettings(player);
+                return;
+            }
+
+            // Debug Flag Wool Toggles (Slots 0-17 in Debug Panel Sub-GUI)
+            if (slot >= 0 && slot < 18 && event.getView().getTitle().contains("Debug Flags")) {
                 DebugFlag[] flags = DebugFlag.values();
                 if (slot < flags.length) {
                     DebugFlag flag = flags[slot];
@@ -170,11 +196,12 @@ public class GUIClickListener implements Listener {
             if (team == null) return;
 
             if (slot == 12) { // Bank
-                player.sendMessage(TextUtil.format("<gold>🏦 Team Bank: <green>$" + team.getBankBalance() + "</green> | Use /gcteam bank deposit <amount> or withdraw</gold>"));
+                player.sendMessage(TextUtil.format("<gold>🏦 Team Bank: <green>$" + team.getBankBalance() + "</green> | Use /team bank deposit <amount> or withdraw</gold>"));
             } else if (slot == 14) { // Vault
                 ItemStack[] contents = vaultManager.getVaultPage(team.getId(), 1);
                 Inventory vaultInv = Bukkit.createInventory(new VaultGUIHolder(team.getId(), 1), 54, TextUtil.format("<gold>📦 Team Vault (Page 1)</gold>"));
                 vaultInv.setContents(contents);
+                vaultInv.setItem(53, new GUIItemBuilder(Material.BARRIER).name("<red>◀ Back to Team Menu</red>").build());
                 scheduler.runSync(player, () -> player.openInventory(vaultInv));
             } else if (slot == 16) { // Upgrades
                 guiManager.openTeamUpgrades(player, team);
@@ -189,7 +216,7 @@ public class GUIClickListener implements Listener {
             return;
         }
 
-        // 5. Team Upgrades GUI Interactions
+        // 5. Team Upgrades GUI Interactions & Back Button
         if (holder instanceof TeamUpgradesHolder upgradesHolder) {
             event.setCancelled(true);
             SoundUtil.playClick(player);
@@ -197,6 +224,11 @@ public class GUIClickListener implements Listener {
 
             Team team = teamManager.getTeam(upgradesHolder.getTeamId());
             if (team == null) return;
+
+            if (slot == 26) { // Back to Team Menu
+                guiManager.openTeamMenu(player, team);
+                return;
+            }
 
             if (slot == 11) { // Member Cap Upgrade
                 if (team.getBankBalance() >= 5000) {
