@@ -21,7 +21,7 @@ public class ChatInputListener implements Listener {
     private final SettingsManager settingsManager;
     private final SchedulerWrapper scheduler;
 
-    public record PendingInput(String key, Consumer<Player> callback) {}
+    public record PendingInput(String key, boolean isString, Consumer<Player> callback) {}
 
     public ChatInputListener(SettingsManager settingsManager, SchedulerWrapper scheduler) {
         this.settingsManager = settingsManager;
@@ -29,9 +29,22 @@ public class ChatInputListener implements Listener {
     }
 
     public static void requestInput(Player player, String key, Consumer<Player> callback) {
-        pendingInputs.put(player.getUniqueId(), new PendingInput(key, callback));
+        boolean isString = key.endsWith("_name") || key.endsWith("_tag") || key.endsWith("_desc") || key.endsWith("_title");
+        requestInputInternal(player, key, isString, callback);
+    }
+
+    public static void requestStringInput(Player player, String key, Consumer<Player> callback) {
+        requestInputInternal(player, key, true, callback);
+    }
+
+    private static void requestInputInternal(Player player, String key, boolean isString, Consumer<Player> callback) {
+        pendingInputs.put(player.getUniqueId(), new PendingInput(key, isString, callback));
         player.closeInventory();
-        player.sendMessage(TextUtil.format("<yellow>⌨ Type a numerical value in chat for <gold>" + key + "</gold> (or type <red>cancel</red>):</yellow>"));
+        if (isString) {
+            player.sendMessage(TextUtil.format("<yellow>⌨ Type text input in chat for <gold>" + key + "</gold> (or type <red>cancel</red>):</yellow>"));
+        } else {
+            player.sendMessage(TextUtil.format("<yellow>⌨ Type a numerical value in chat for <gold>" + key + "</gold> (or type <red>cancel</red>):</yellow>"));
+        }
     }
 
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
@@ -59,6 +72,13 @@ public class ChatInputListener implements Listener {
     private void processInput(Player player, String raw, PendingInput pending) {
         if (raw.equalsIgnoreCase("cancel")) {
             player.sendMessage(TextUtil.format("<red>Input cancelled.</red>"));
+            scheduler.runSync(player, () -> pending.callback().accept(player));
+            return;
+        }
+
+        if (pending.isString()) {
+            settingsManager.set(pending.key(), raw);
+            player.sendMessage(TextUtil.format("<green>✔ Successfully set <gold>" + pending.key() + "</gold> to '<white>" + raw + "</white>'!</green>"));
             scheduler.runSync(player, () -> pending.callback().accept(player));
             return;
         }

@@ -167,19 +167,39 @@ public class CrateManager {
         int size = Math.min(54, (int) Math.ceil((contents.size() + 9) / 9.0) * 9);
         if (size < 27) size = 27;
 
-        Inventory inv = Bukkit.createInventory(new CrateGUIHolder(crate.getName()), size, TextUtil.format("<gold>🎁 Choice Crate: " + crate.getDisplayName() + "</gold>"));
+        boolean hasKey = hasKey(player, crate);
+        String title = hasKey ? "<gold>🎁 Choice Crate: " + crate.getDisplayName() + "</gold>" : "<gold>🔍 Inspecting Crate: " + crate.getDisplayName() + "</gold>";
+        Inventory inv = Bukkit.createInventory(new CrateGUIHolder(crate.getName()), size, TextUtil.format(title));
 
         for (int i = 0; i < contents.size(); i++) {
             ItemStack item = contents.get(i).clone();
             ItemMeta meta = item.getItemMeta();
             if (meta != null) {
                 List<String> lore = meta.hasLore() && meta.getLore() != null ? meta.getLore() : new ArrayList<>();
-                lore.add("§e§lCLICK TO CHOOSE THIS ITEM");
+                if (hasKey) {
+                    lore.add("§a§l[Click to Claim This Item]");
+                } else {
+                    lore.add("§c§l[Crate Key Required to Claim]");
+                }
                 meta.setLore(lore);
                 item.setItemMeta(meta);
             }
             inv.setItem(i, item);
         }
+
+        scheduler.runSync(player, () -> player.openInventory(inv));
+    }
+
+    public void openCrateConfirmMenu(Player player, Crate crate, int slotIndex, ItemStack selectedItem) {
+        Inventory inv = Bukkit.createInventory(new CrateConfirmGUIHolder(crate.getName(), slotIndex, selectedItem), 27, TextUtil.format("<gold>🎁 Confirm Crate Choice?</gold>"));
+
+        for (int i = 0; i < 27; i++) {
+            inv.setItem(i, new GUIItemBuilder(Material.BLACK_STAINED_GLASS_PANE).name("<gray> </gray>").build());
+        }
+
+        inv.setItem(11, new GUIItemBuilder(Material.GREEN_WOOL).name("<green>✔ CONFIRM CLAIM</green>").lore(List.of("<gray>Click to consume key and receive item!</gray>")).build());
+        inv.setItem(13, selectedItem.clone());
+        inv.setItem(15, new GUIItemBuilder(Material.RED_WOOL).name("<red>✖ CANCEL</red>").lore(List.of("<gray>Return to crate inspection</gray>")).build());
 
         scheduler.runSync(player, () -> player.openInventory(inv));
     }
