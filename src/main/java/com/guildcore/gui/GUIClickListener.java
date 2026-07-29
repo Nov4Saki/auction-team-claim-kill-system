@@ -5,6 +5,7 @@ import com.guildcore.auction.AuctionManager;
 import com.guildcore.config.SettingsManager;
 import com.guildcore.crates.Crate;
 import com.guildcore.crates.CrateAdminGUIHolder;
+import com.guildcore.crates.CrateAdminHubHolder;
 import com.guildcore.crates.CrateGUIHolder;
 import com.guildcore.crates.CrateManager;
 import com.guildcore.debug.DebugFlag;
@@ -89,6 +90,56 @@ public class GUIClickListener implements Listener {
         if (holder == null) return;
 
         if (!(event.getWhoClicked() instanceof Player player)) return;
+
+        // Crate Admin Hub GUI Navigation & Actions
+        if (holder instanceof CrateAdminHubHolder) {
+            event.setCancelled(true);
+            SoundUtil.playClick(player);
+            int slot = event.getSlot();
+
+            if (slot == 45) { // Create New Crate
+                ChatInputListener.requestInput(player, "new_crate_name", p -> {
+                    String name = settingsManager.getString("new_crate_name", "");
+                    if (!name.isEmpty()) {
+                        ItemStack inHand = p.getInventory().getItemInMainHand();
+                        ItemStack keyItem = (inHand != null && !inHand.getType().isAir()) ? inHand.clone() : new ItemStack(Material.TRIPWIRE_HOOK);
+                        keyItem.setAmount(1);
+                        crateManager.createCrate(name, name, keyItem);
+                        p.sendMessage(TextUtil.format("<green>✔ Created choice crate '" + name + "'!</green>"));
+                    }
+                    crateManager.openCrateAdminHub(p);
+                });
+                return;
+            }
+
+            if (slot == 53) {
+                player.closeInventory();
+                return;
+            }
+
+            List<Crate> list = crateManager.getAllCrates();
+            if (slot >= 0 && slot < list.size()) {
+                Crate crate = list.get(slot);
+                ClickType click = event.getClick();
+                if (click == ClickType.LEFT) {
+                    crateManager.openCrateAdminEditor(player, crate);
+                } else if (click == ClickType.RIGHT) {
+                    ItemStack inHand = player.getInventory().getItemInMainHand();
+                    if (inHand != null && !inHand.getType().isAir()) {
+                        crateManager.setKeyItem(crate.getName(), inHand);
+                        player.sendMessage(TextUtil.format("<green>✔ Updated key item for crate '" + crate.getDisplayName() + "' to " + inHand.getType() + "!</green>"));
+                    } else {
+                        player.sendMessage(TextUtil.format("<red>Hold the new key item in your main hand!</red>"));
+                    }
+                    crateManager.openCrateAdminHub(player);
+                } else if (click == ClickType.SHIFT_RIGHT) {
+                    crateManager.deleteCrate(crate.getName());
+                    player.sendMessage(TextUtil.format("<red>Deleted crate '" + crate.getDisplayName() + "'.</red>"));
+                    crateManager.openCrateAdminHub(player);
+                }
+            }
+            return;
+        }
 
         // Choice Crate GUI Selection (Consumes key ONLY upon clicking chosen item!)
         if (holder instanceof CrateGUIHolder crateHolder) {

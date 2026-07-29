@@ -26,7 +26,7 @@ public class CrateCommand implements TabExecutor {
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         List<String> completions = new ArrayList<>();
         if (args.length == 1) {
-            for (String sub : Arrays.asList("open", "givekey", "create", "edit", "list")) {
+            for (String sub : Arrays.asList("open", "admin", "menu", "givekey", "create", "edit", "list")) {
                 if (sub.startsWith(args[0].toLowerCase())) completions.add(sub);
             }
         } else if (args.length == 2) {
@@ -60,6 +60,15 @@ public class CrateCommand implements TabExecutor {
         }
 
         String sub = args[0].toLowerCase();
+
+        if (sub.equals("admin") || sub.equals("menu")) {
+            if (!player.hasPermission("guildcore.admin")) {
+                player.sendMessage(TextUtil.format("<red>No permission.</red>"));
+                return true;
+            }
+            crateManager.openCrateAdminHub(player);
+            return true;
+        }
 
         if (sub.equals("open")) {
             if (args.length < 2) {

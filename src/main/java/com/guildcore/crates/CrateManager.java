@@ -77,6 +77,36 @@ public class CrateManager {
         });
     }
 
+    public void setKeyItem(String name, ItemStack keyItem) {
+        Crate crate = getCrate(name);
+        if (crate == null || keyItem == null) return;
+
+        crate.setKeyItem(keyItem.clone());
+        dbManager.executeAsync(() -> {
+            try (Connection conn = dbManager.getConnection();
+                 PreparedStatement ps = conn.prepareStatement("UPDATE crates SET key_item_data = ? WHERE name = ?")) {
+                ps.setString(1, ItemSerializer.serializeItem(keyItem));
+                ps.setString(2, name);
+                ps.executeUpdate();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
+    }
+
+    public void deleteCrate(String name) {
+        crates.remove(name.toLowerCase());
+        dbManager.executeAsync(() -> {
+            try (Connection conn = dbManager.getConnection();
+                 PreparedStatement ps = conn.prepareStatement("DELETE FROM crates WHERE name = ?")) {
+                ps.setString(1, name);
+                ps.executeUpdate();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
+    }
+
     public void saveCrateContents(String name, List<ItemStack> contents) {
         Crate crate = getCrate(name);
         if (crate == null) return;
@@ -150,6 +180,28 @@ public class CrateManager {
             }
             inv.setItem(i, item);
         }
+
+        scheduler.runSync(player, () -> player.openInventory(inv));
+    }
+
+    public void openCrateAdminHub(Player player) {
+        Inventory inv = Bukkit.createInventory(new CrateAdminHubHolder(), 54, TextUtil.format("<red>⚙ Modular Choice Crates Admin Hub</red>"));
+
+        List<Crate> list = getAllCrates();
+        for (int i = 0; i < Math.min(45, list.size()); i++) {
+            Crate crate = list.get(i);
+            inv.setItem(i, new GUIItemBuilder(Material.CHEST).name("<gold>" + crate.getDisplayName() + "</gold>")
+                    .lore(List.of(
+                            "<gray>Items Inside: <white>" + crate.getContents().size() + "</white></gray>",
+                            "<gray>Key Item: <yellow>" + crate.getKeyItem().getType() + "</yellow></gray>",
+                            "<green>[Left-Click] Edit Crate Items</green>",
+                            "<yellow>[Right-Click] Set Key (Item in Main Hand)</yellow>",
+                            "<red>[Shift-Right-Click] Delete Crate</red>"
+                    )).build());
+        }
+
+        inv.setItem(45, new GUIItemBuilder(Material.EMERALD_BLOCK).name("<green>➕ Create New Choice Crate</green>").lore(List.of("<gray>Click to type crate name in chat</gray>")).build());
+        inv.setItem(53, new GUIItemBuilder(Material.BARRIER).name("<red>✖ Close Menu</red>").build());
 
         scheduler.runSync(player, () -> player.openInventory(inv));
     }
