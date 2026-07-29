@@ -7,7 +7,6 @@ public class DatabaseSetup {
 
     public static void initTables(Connection conn) throws Exception {
         try (Statement stmt = conn.createStatement()) {
-            // Enable WAL mode & foreign keys
             stmt.execute("PRAGMA journal_mode=WAL;");
             stmt.execute("PRAGMA foreign_keys=ON;");
 
@@ -103,6 +102,22 @@ public class DatabaseSetup {
                     "permission_node VARCHAR(32), " +
                     "allowed BOOLEAN DEFAULT 1, " +
                     "PRIMARY KEY (team_id, role, permission_node));");
+
+            // Personal Homes
+            stmt.execute("CREATE TABLE IF NOT EXISTS homes (" +
+                    "player_uuid VARCHAR(36), " +
+                    "name VARCHAR(32), " +
+                    "world VARCHAR(64), " +
+                    "x DOUBLE, y DOUBLE, z DOUBLE, " +
+                    "yaw FLOAT, pitch FLOAT, " +
+                    "PRIMARY KEY (player_uuid, name));");
+
+            // Server Warps
+            stmt.execute("CREATE TABLE IF NOT EXISTS warps (" +
+                    "name VARCHAR(32) PRIMARY KEY, " +
+                    "world VARCHAR(64), " +
+                    "x DOUBLE, y DOUBLE, z DOUBLE, " +
+                    "yaw FLOAT, pitch FLOAT);");
 
             // Team Bank Log
             stmt.execute("CREATE TABLE IF NOT EXISTS team_bank_log (" +
@@ -201,7 +216,7 @@ public class DatabaseSetup {
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('raids.declaration_cost', '2000');");
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('raids.nexus_max_hp', '100');");
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('auction.listing_fee', '50');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('auction.duration_hours', '48');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('auction.duration_hours_default', '48');");
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('auction.max_listing_price', '1000000000');");
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('auction.max_listings_default', '3');");
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('auction.listing_cooldown_sec', '0');");

@@ -13,7 +13,6 @@ import com.guildcore.stats.BountyManager;
 import com.guildcore.stats.StatsManager;
 import com.guildcore.teams.Team;
 import com.guildcore.teams.TeamManager;
-import com.guildcore.util.TextUtil;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
@@ -28,9 +27,6 @@ import org.bukkit.scoreboard.Scoreboard;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 public class ScoreboardManager {
     private final EconomyManager economyManager;
@@ -42,8 +38,6 @@ public class ScoreboardManager {
     private final RaidManager raidManager;
     private final SettingsManager settingsManager;
     private final SchedulerWrapper scheduler;
-
-    private final Map<UUID, Scoreboard> playerBoards = new ConcurrentHashMap<>();
 
     public ScoreboardManager(EconomyManager economyManager, StatsManager statsManager, BountyManager bountyManager, TeamManager teamManager, ClaimManager claimManager, CombatTagManager combatTagManager, RaidManager raidManager, SettingsManager settingsManager, SchedulerWrapper scheduler) {
         this.economyManager = economyManager;
@@ -60,14 +54,35 @@ public class ScoreboardManager {
     public void clearServerScoreboards() {
         try {
             Scoreboard mainBoard = Bukkit.getScoreboardManager().getMainScoreboard();
+
+            // Clear all slots from main scoreboard
+            for (DisplaySlot slot : DisplaySlot.values()) {
+                try { mainBoard.clearSlot(slot); } catch (Exception ignored) {}
+            }
+
+            // Unregister all objectives on main scoreboard
             for (Objective obj : new ArrayList<>(mainBoard.getObjectives())) {
-                obj.unregister();
+                try { obj.unregister(); } catch (Exception ignored) {}
             }
-            playerBoards.clear();
-            for (Player p : Bukkit.getOnlinePlayers()) {
-                scheduler.runSync(p, () -> p.setScoreboard(Bukkit.getScoreboardManager().getNewScoreboard()));
+
+            // Wipe scoreboards for all online players
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                scheduler.runSync(player, () -> {
+                    try {
+                        Scoreboard board = player.getScoreboard();
+                        if (board != null) {
+                            for (DisplaySlot slot : DisplaySlot.values()) {
+                                try { board.clearSlot(slot); } catch (Exception ignored) {}
+                            }
+                            for (Objective obj : new ArrayList<>(board.getObjectives())) {
+                                try { obj.unregister(); } catch (Exception ignored) {}
+                            }
+                        }
+                        player.setScoreboard(mainBoard);
+                    } catch (Exception ignored) {}
+                });
             }
-            DebugManager.log(DebugFlag.SCOREBOARD_UPDATES, "Cleared all server scoreboards and objectives.");
+            DebugManager.log(DebugFlag.SCOREBOARD_UPDATES, "Wiped all server scoreboards and objectives cleanly.");
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -78,15 +93,16 @@ public class ScoreboardManager {
 
         scheduler.runSync(player, () -> {
             try {
-                Scoreboard board = playerBoards.computeIfAbsent(player.getUniqueId(), k -> Bukkit.getScoreboardManager().getNewScoreboard());
+                Scoreboard board = Bukkit.getScoreboardManager().getMainScoreboard();
+                String objName = "gc_" + player.getUniqueId().toString().substring(0, 8);
 
-                Objective oldObj = board.getObjective("sidebar");
+                Objective oldObj = board.getObjective(objName);
                 if (oldObj != null) {
-                    oldObj.unregister();
+                    try { oldObj.unregister(); } catch (Exception ignored) {}
                 }
 
                 String titleText = settingsManager.getString("scoreboard.title", "⚡ MY SERVER");
-                Objective obj = board.registerNewObjective("sidebar", Criteria.DUMMY, Component.text(titleText, NamedTextColor.YELLOW, TextDecoration.BOLD));
+                Objective obj = board.registerNewObjective(objName, Criteria.DUMMY, Component.text(titleText, NamedTextColor.YELLOW, TextDecoration.BOLD));
                 obj.setDisplaySlot(DisplaySlot.SIDEBAR);
 
                 List<String> lines = buildLines(player);

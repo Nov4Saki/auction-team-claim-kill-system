@@ -9,6 +9,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.player.AsyncPlayerChatEvent;
 
 import java.util.Map;
 import java.util.UUID;
@@ -33,15 +34,29 @@ public class ChatInputListener implements Listener {
         player.sendMessage(TextUtil.format("<yellow>⌨ Type a numerical value in chat for <gold>" + key + "</gold> (or type <red>cancel</red>):</yellow>"));
     }
 
-    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
-    public void onChat(AsyncChatEvent event) {
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
+    public void onPaperChat(AsyncChatEvent event) {
         Player player = event.getPlayer();
         PendingInput pending = pendingInputs.remove(player.getUniqueId());
         if (pending == null) return;
 
         event.setCancelled(true);
         String raw = PlainTextComponentSerializer.plainText().serialize(event.message()).trim();
+        processInput(player, raw, pending);
+    }
 
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
+    public void onLegacyChat(AsyncPlayerChatEvent event) {
+        Player player = event.getPlayer();
+        PendingInput pending = pendingInputs.remove(player.getUniqueId());
+        if (pending == null) return;
+
+        event.setCancelled(true);
+        String raw = event.getMessage().trim();
+        processInput(player, raw, pending);
+    }
+
+    private void processInput(Player player, String raw, PendingInput pending) {
         if (raw.equalsIgnoreCase("cancel")) {
             player.sendMessage(TextUtil.format("<red>Input cancelled.</red>"));
             scheduler.runSync(player, () -> pending.callback().accept(player));

@@ -5,7 +5,6 @@ import com.guildcore.util.TextUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
-import org.bukkit.block.Block;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabExecutor;
@@ -24,8 +23,6 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class TeleportCommand implements TabExecutor {
     private final DatabaseManager dbManager;
-
-    // Target UUID -> Requester UUID
     private final Map<UUID, UUID> tpaRequests = new ConcurrentHashMap<>();
     private final Random random = new Random();
 
@@ -147,23 +144,99 @@ public class TeleportCommand implements TabExecutor {
         if (cmd.equals("sethome")) {
             String name = args.length >= 1 ? args[0].toLowerCase() : "home";
             Location loc = player.getLocation();
-            player.sendMessage(TextUtil.format("<green>Home '" + name + "' set!</green>"));
+            dbManager.executeAsync(() -> {
+                try (Connection conn = dbManager.getConnection();
+                     PreparedStatement ps = conn.prepareStatement("INSERT OR REPLACE INTO homes (player_uuid, name, world, x, y, z, yaw, pitch) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")) {
+                    ps.setString(1, player.getUniqueId().toString());
+                    ps.setString(2, name);
+                    ps.setString(3, loc.getWorld().getName());
+                    ps.setDouble(4, loc.getX());
+                    ps.setDouble(5, loc.getY());
+                    ps.setDouble(6, loc.getZ());
+                    ps.setFloat(7, loc.getYaw());
+                    ps.setFloat(8, loc.getPitch());
+                    ps.executeUpdate();
+                    player.sendMessage(TextUtil.format("<green>Home '" + name + "' set!</green>"));
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            });
             return true;
         }
 
         if (cmd.equals("home")) {
             String name = args.length >= 1 ? args[0].toLowerCase() : "home";
-            player.sendMessage(TextUtil.format("<green>Teleporting home...</green>"));
+            dbManager.executeAsync(() -> {
+                try (Connection conn = dbManager.getConnection();
+                     PreparedStatement ps = conn.prepareStatement("SELECT world, x, y, z, yaw, pitch FROM homes WHERE player_uuid = ? AND name = ?")) {
+                    ps.setString(1, player.getUniqueId().toString());
+                    ps.setString(2, name);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (rs.next()) {
+                            World w = Bukkit.getWorld(rs.getString("world"));
+                            if (w != null) {
+                                Location loc = new Location(w, rs.getDouble("x"), rs.getDouble("y"), rs.getDouble("z"), rs.getFloat("yaw"), rs.getFloat("pitch"));
+                                Bukkit.getScheduler().runTask(com.guildcore.GuildCorePlugin.getInstance(), () -> {
+                                    player.teleport(loc);
+                                    player.sendMessage(TextUtil.format("<green>Teleported home (" + name + ")!</green>"));
+                                });
+                            }
+                        } else {
+                            player.sendMessage(TextUtil.format("<red>Home '" + name + "' not found!</red>"));
+                        }
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            });
             return true;
         }
 
-        // 7. /warp & /setwarp
+        if (cmd.equals("delhome")) {
+            String name = args.length >= 1 ? args[0].toLowerCase() : "home";
+            dbManager.executeAsync(() -> {
+                try (Connection conn = dbManager.getConnection();
+                     PreparedStatement ps = conn.prepareStatement("DELETE FROM homes WHERE player_uuid = ? AND name = ?")) {
+                    ps.setString(1, player.getUniqueId().toString());
+                    ps.setString(2, name);
+                    ps.executeUpdate();
+                    player.sendMessage(TextUtil.format("<green>Deleted home '" + name + "'.</green>"));
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            });
+            return true;
+        }
+
+        // 7. /warp & /setwarp & /delwarp
         if (cmd.equals("warp")) {
             if (args.length < 1) {
                 player.sendMessage(TextUtil.format("<gold>Usage: /warp <name></gold>"));
                 return true;
             }
-            player.sendMessage(TextUtil.format("<green>Teleporting to warp '" + args[0] + "'...</green>"));
+            String name = args[0].toLowerCase();
+            dbManager.executeAsync(() -> {
+                try (Connection conn = dbManager.getConnection();
+                     PreparedStatement ps = conn.prepareStatement("SELECT world, x, y, z, yaw, pitch FROM warps WHERE name = ?")) {
+                    ps.setString(1, name);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (rs.next()) {
+                            World w = Bukkit.getWorld(rs.getString("world"));
+                            if (w != null) {
+                                Location loc = new Location(w, rs.getDouble("x"), rs.getDouble("y"), rs.getDouble("z"), rs.getFloat("yaw"), rs.getFloat("pitch"));
+                                Bukkit.getScheduler().runTask(com.guildcore.GuildCorePlugin.getInstance(), () -> {
+                                    player.teleport(loc);
+                                    player.sendMessage(TextUtil.format("<green>Teleported to warp '" + name + "'!</green>"));
+                                });
+                            }
+                        } else {
+                            player.sendMessage(TextUtil.format("<red>Warp '" + name + "' not found!</red>"));
+                        }
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            });
             return true;
         }
 
@@ -176,7 +249,24 @@ public class TeleportCommand implements TabExecutor {
                 player.sendMessage(TextUtil.format("<red>Usage: /setwarp <name></red>"));
                 return true;
             }
-            player.sendMessage(TextUtil.format("<green>Warp '" + args[0] + "' set!</green>"));
+            String name = args[0].toLowerCase();
+            Location loc = player.getLocation();
+            dbManager.executeAsync(() -> {
+                try (Connection conn = dbManager.getConnection();
+                     PreparedStatement ps = conn.prepareStatement("INSERT OR REPLACE INTO warps (name, world, x, y, z, yaw, pitch) VALUES (?, ?, ?, ?, ?, ?, ?)")) {
+                    ps.setString(1, name);
+                    ps.setString(2, loc.getWorld().getName());
+                    ps.setDouble(3, loc.getX());
+                    ps.setDouble(4, loc.getY());
+                    ps.setDouble(5, loc.getZ());
+                    ps.setFloat(6, loc.getYaw());
+                    ps.setFloat(7, loc.getPitch());
+                    ps.executeUpdate();
+                    player.sendMessage(TextUtil.format("<green>Warp '" + name + "' set!</green>"));
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            });
             return true;
         }
 
