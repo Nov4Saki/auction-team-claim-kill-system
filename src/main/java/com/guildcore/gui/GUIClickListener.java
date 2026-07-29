@@ -3,12 +3,19 @@ package com.guildcore.gui;
 import com.guildcore.auction.AuctionItem;
 import com.guildcore.auction.AuctionManager;
 import com.guildcore.config.SettingsManager;
+import com.guildcore.crates.Crate;
+import com.guildcore.crates.CrateAdminGUIHolder;
+import com.guildcore.crates.CrateGUIHolder;
+import com.guildcore.crates.CrateManager;
 import com.guildcore.debug.DebugFlag;
 import com.guildcore.debug.DebugManager;
 import com.guildcore.economy.EconomyManager;
 import com.guildcore.gui.holders.*;
 import com.guildcore.scheduler.SchedulerWrapper;
 import com.guildcore.scoreboard.ScoreboardManager;
+import com.guildcore.shop.ShopGUIHolder;
+import com.guildcore.shop.ShopItem;
+import com.guildcore.shop.ShopManager;
 import com.guildcore.teams.Team;
 import com.guildcore.teams.TeamManager;
 import com.guildcore.teams.TeamUpgradeManager;
@@ -30,6 +37,7 @@ import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.BlockStateMeta;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class GUIClickListener implements Listener {
@@ -42,9 +50,11 @@ public class GUIClickListener implements Listener {
     private final EconomyManager economyManager;
     private final SettingsManager settingsManager;
     private final ScoreboardManager scoreboardManager;
+    private final CrateManager crateManager;
+    private final ShopManager shopManager;
     private final SchedulerWrapper scheduler;
 
-    public GUIClickListener(GUIManager guiManager, AuctionManager auctionManager, TeamManager teamManager, TeamUpgradeManager upgradeManager, TeamVaultManager vaultManager, EconomyManager economyManager, SettingsManager settingsManager, ScoreboardManager scoreboardManager, SchedulerWrapper scheduler) {
+    public GUIClickListener(GUIManager guiManager, AuctionManager auctionManager, TeamManager teamManager, TeamUpgradeManager upgradeManager, TeamVaultManager vaultManager, EconomyManager economyManager, SettingsManager settingsManager, ScoreboardManager scoreboardManager, CrateManager crateManager, ShopManager shopManager, SchedulerWrapper scheduler) {
         this.guiManager = guiManager;
         this.auctionManager = auctionManager;
         this.teamManager = teamManager;
@@ -53,6 +63,8 @@ public class GUIClickListener implements Listener {
         this.economyManager = economyManager;
         this.settingsManager = settingsManager;
         this.scoreboardManager = scoreboardManager;
+        this.crateManager = crateManager;
+        this.shopManager = shopManager;
         this.scheduler = scheduler;
     }
 
@@ -77,6 +89,81 @@ public class GUIClickListener implements Listener {
         if (holder == null) return;
 
         if (!(event.getWhoClicked() instanceof Player player)) return;
+
+        // Choice Crate GUI Selection
+        if (holder instanceof CrateGUIHolder crateHolder) {
+            event.setCancelled(true);
+            SoundUtil.playClick(player);
+            int slot = event.getSlot();
+
+            Crate crate = crateManager.getCrate(crateHolder.getCrateName());
+            if (crate != null && slot >= 0 && slot < crate.getContents().size()) {
+                ItemStack selected = crate.getContents().get(slot).clone();
+                player.getInventory().addItem(selected);
+                player.sendMessage(TextUtil.format("<green>🎁 You chose " + selected.getType() + " from crate '" + crate.getDisplayName() + "'!</green>"));
+                player.closeInventory();
+            }
+            return;
+        }
+
+        // Choice Crate Admin Content Editor
+        if (holder instanceof CrateAdminGUIHolder adminCrateHolder) {
+            if (event.getSlot() == 53) {
+                event.setCancelled(true);
+                SoundUtil.playClick(player);
+                List<ItemStack> newContents = new ArrayList<>();
+                for (int i = 0; i < 53; i++) {
+                    ItemStack item = event.getInventory().getItem(i);
+                    if (item != null && !item.getType().isAir()) {
+                        newContents.add(item.clone());
+                    }
+                }
+                crateManager.saveCrateContents(adminCrateHolder.getCrateName(), newContents);
+                player.sendMessage(TextUtil.format("<green>✔ Saved crate contents for '" + adminCrateHolder.getCrateName() + "'!</green>"));
+                player.closeInventory();
+            }
+            return;
+        }
+
+        // Server Shop Buy/Sell GUI
+        if (holder instanceof ShopGUIHolder shopHolder) {
+            event.setCancelled(true);
+            SoundUtil.playClick(player);
+            int slot = event.getSlot();
+
+            if (shopHolder.getCategoryId() == 0) { // Category Selection
+                var categories = shopManager.getCategories();
+                for (var cat : categories.values()) {
+                    if (cat.getSlot() == slot) {
+                        shopManager.openShopCategoryMenu(player, cat.getId());
+                        return;
+                    }
+                }
+            } else { // Category Items Buy/Sell
+                if (slot == 49) {
+                    shopManager.openShopMainMenu(player);
+                    return;
+                }
+
+                List<ShopItem> items = shopManager.getCategoryItems(shopHolder.getCategoryId());
+                for (ShopItem shopItem : items) {
+                    if (shopItem.getSlot() == slot) {
+                        ClickType click = event.getClick();
+                        if (click == ClickType.LEFT) {
+                            shopManager.buyItem(player, shopItem, 1);
+                        } else if (click == ClickType.SHIFT_LEFT) {
+                            shopManager.buyItem(player, shopItem, 16);
+                        } else if (click == ClickType.RIGHT) {
+                            shopManager.sellItem(player, shopItem, 1);
+                        } else if (click == ClickType.SHIFT_RIGHT) {
+                            shopManager.sellItem(player, shopItem, 16);
+                        }
+                        return;
+                    }
+                }
+            }
+            return;
+        }
 
         // Vault GUI Back Button handling
         if (holder instanceof VaultGUIHolder vaultHolder) {

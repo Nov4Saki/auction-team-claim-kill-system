@@ -1,0 +1,168 @@
+package com.guildcore.crates;
+
+import com.guildcore.database.DatabaseManager;
+import com.guildcore.gui.GUIItemBuilder;
+import com.guildcore.scheduler.SchedulerWrapper;
+import com.guildcore.util.ItemSerializer;
+import com.guildcore.util.TextUtil;
+import org.bukkit.Bukkit;
+import org.bukkit.Material;
+import org.bukkit.entity.Player;
+import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+public class CrateManager {
+    private final DatabaseManager dbManager;
+    private final SchedulerWrapper scheduler;
+    private final Map<String, Crate> crates = new ConcurrentHashMap<>();
+
+    public CrateManager(DatabaseManager dbManager, SchedulerWrapper scheduler) {
+        this.dbManager = dbManager;
+        this.scheduler = scheduler;
+    }
+
+    public void loadCrates() {
+        dbManager.executeAsync(() -> {
+            try (Connection conn = dbManager.getConnection();
+                 PreparedStatement ps = conn.prepareStatement("SELECT name, display_name, key_item_data, contents_data FROM crates");
+                 ResultSet rs = ps.executeQuery()) {
+
+                crates.clear();
+                while (rs.next()) {
+                    String name = rs.getString("name");
+                    String displayName = rs.getString("display_name");
+                    ItemStack key = ItemSerializer.deserializeItem(rs.getString("key_item_data"));
+                    List<ItemStack> contents = ItemSerializer.deserializeItemList(rs.getString("contents_data"));
+
+                    crates.put(name.toLowerCase(), new Crate(name, displayName, key, contents));
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
+    }
+
+    public Crate getCrate(String name) {
+        return crates.get(name.toLowerCase());
+    }
+
+    public List<Crate> getAllCrates() {
+        return new ArrayList<>(crates.values());
+    }
+
+    public void createCrate(String name, String displayName, ItemStack keyItem) {
+        Crate crate = new Crate(name, displayName, keyItem, new ArrayList<>());
+        crates.put(name.toLowerCase(), crate);
+
+        dbManager.executeAsync(() -> {
+            try (Connection conn = dbManager.getConnection();
+                 PreparedStatement ps = conn.prepareStatement("INSERT OR REPLACE INTO crates (name, display_name, key_item_data, contents_data) VALUES (?, ?, ?, ?)")) {
+                ps.setString(1, name);
+                ps.setString(2, displayName);
+                ps.setString(3, ItemSerializer.serializeItem(keyItem));
+                ps.setString(4, ItemSerializer.serializeItemList(new ArrayList<>()));
+                ps.executeUpdate();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
+    }
+
+    public void saveCrateContents(String name, List<ItemStack> contents) {
+        Crate crate = getCrate(name);
+        if (crate == null) return;
+
+        crate.setContents(contents);
+        dbManager.executeAsync(() -> {
+            try (Connection conn = dbManager.getConnection();
+                 PreparedStatement ps = conn.prepareStatement("UPDATE crates SET contents_data = ? WHERE name = ?")) {
+                ps.setString(1, ItemSerializer.serializeItemList(contents));
+                ps.setString(2, name);
+                ps.executeUpdate();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
+    }
+
+    public boolean hasKey(Player player, Crate crate) {
+        if (player == null || crate == null) return false;
+        ItemStack key = crate.getKeyItem();
+        for (ItemStack item : player.getInventory().getContents()) {
+            if (item != null && item.isSimilar(key)) return true;
+        }
+        return false;
+    }
+
+    public boolean consumeKey(Player player, Crate crate) {
+        if (!hasKey(player, crate)) return false;
+        ItemStack key = crate.getKeyItem();
+        for (int i = 0; i < player.getInventory().getSize(); i++) {
+            ItemStack item = player.getInventory().getItem(i);
+            if (item != null && item.isSimilar(key)) {
+                if (item.getAmount() > 1) {
+                    item.setAmount(item.getAmount() - 1);
+                } else {
+                    player.getInventory().setItem(i, null);
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public void giveKey(Player player, String crateName, int amount) {
+        Crate crate = getCrate(crateName);
+        if (crate == null || player == null) return;
+
+        ItemStack key = crate.getKeyItem().clone();
+        key.setAmount(amount);
+        player.getInventory().addItem(key);
+        player.sendMessage(TextUtil.format("<green>Received " + amount + "x Key for crate '" + crate.getDisplayName() + "'!</green>"));
+    }
+
+    public void openCrateChoiceMenu(Player player, Crate crate) {
+        if (crate == null) return;
+
+        List<ItemStack> contents = crate.getContents();
+        int size = Math.min(54, (int) Math.ceil((contents.size() + 9) / 9.0) * 9);
+        if (size < 27) size = 27;
+
+        Inventory inv = Bukkit.createInventory(new CrateGUIHolder(crate.getName()), size, TextUtil.format("<gold>🎁 Choice Crate: " + crate.getDisplayName() + "</gold>"));
+
+        for (int i = 0; i < contents.size(); i++) {
+            ItemStack item = contents.get(i).clone();
+            ItemMeta meta = item.getItemMeta();
+            if (meta != null) {
+                List<String> lore = meta.hasLore() && meta.getLore() != null ? meta.getLore() : new ArrayList<>();
+                lore.add("§e§lCLICK TO CHOOSE THIS ITEM");
+                meta.setLore(lore);
+                item.setItemMeta(meta);
+            }
+            inv.setItem(i, item);
+        }
+
+        scheduler.runSync(player, () -> player.openInventory(inv));
+    }
+
+    public void openCrateAdminEditor(Player player, Crate crate) {
+        if (crate == null) return;
+
+        Inventory inv = Bukkit.createInventory(new CrateAdminGUIHolder(crate.getName()), 54, TextUtil.format("<red>⚙ Edit Crate: " + crate.getDisplayName() + "</red>"));
+        for (int i = 0; i < crate.getContents().size(); i++) {
+            if (i < 53) inv.setItem(i, crate.getContents().get(i).clone());
+        }
+        inv.setItem(53, new GUIItemBuilder(Material.GREEN_WOOL).name("<green>✔ SAVE CRATE CONTENTS</green>").build());
+
+        scheduler.runSync(player, () -> player.openInventory(inv));
+    }
+}

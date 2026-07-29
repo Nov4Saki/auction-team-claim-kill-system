@@ -8,9 +8,9 @@ import com.guildcore.combat.CombatTagManager;
 import com.guildcore.combat.ItemControlManager;
 import com.guildcore.commands.*;
 import com.guildcore.config.SettingsManager;
+import com.guildcore.crates.CrateCommand;
+import com.guildcore.crates.CrateManager;
 import com.guildcore.database.DatabaseManager;
-import com.guildcore.debug.DebugFlag;
-import com.guildcore.debug.DebugManager;
 import com.guildcore.economy.EconomyListener;
 import com.guildcore.economy.EconomyManager;
 import com.guildcore.gui.ChatInputListener;
@@ -21,11 +21,12 @@ import com.guildcore.raids.RaidNexusListener;
 import com.guildcore.raids.RaidRollbackEngine;
 import com.guildcore.scheduler.SchedulerWrapper;
 import com.guildcore.scoreboard.ScoreboardManager;
+import com.guildcore.shop.ShopCommand;
+import com.guildcore.shop.ShopManager;
 import com.guildcore.stats.BountyManager;
 import com.guildcore.stats.StatsManager;
 import com.guildcore.teams.*;
 import com.guildcore.trade.TradeManager;
-import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -59,6 +60,8 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
     private ScoreboardManager scoreboardManager;
     private GUIManager guiManager;
     private TradeManager tradeManager;
+    private CrateManager crateManager;
+    private ShopManager shopManager;
 
     public static GuildCorePlugin getInstance() {
         return instance;
@@ -67,7 +70,7 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
     @Override
     public void onEnable() {
         instance = this;
-        getLogger().info("Initializing GuildCore v5 (Teleportation, Trade, Chat Input & Scoreboard Clear Engine)...");
+        getLogger().info("Initializing GuildCore v5 (Modular Crates & Server Shop Engine)...");
 
         // 1. Scheduler Wrapper
         this.scheduler = new SchedulerWrapper(this);
@@ -109,10 +112,14 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
         this.teamPermissionManager = new TeamPermissionManager(databaseManager);
         this.teamPermissionManager.loadPermissions();
 
-        // 7. Raids & Trade
+        // 7. Raids, Trade, Crates & Shop
         this.raidRollbackEngine = new RaidRollbackEngine(scheduler);
         this.raidManager = new RaidManager(teamManager, teamBankManager, claimManager, settingsManager, scheduler, raidRollbackEngine);
         this.tradeManager = new TradeManager();
+        this.crateManager = new CrateManager(databaseManager, scheduler);
+        this.crateManager.loadCrates();
+        this.shopManager = new ShopManager(databaseManager, economyManager, scheduler);
+        this.shopManager.loadShop();
 
         // 8. Auction House
         this.auctionManager = new AuctionManager(databaseManager, economyManager, settingsManager);
@@ -132,7 +139,7 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
         pm.registerEvents(itemControlManager, this);
         pm.registerEvents(new ClaimProtectionListener(claimManager, settingsManager), this);
         pm.registerEvents(new RaidNexusListener(raidManager, claimManager), this);
-        pm.registerEvents(new GUIClickListener(guiManager, auctionManager, teamManager, teamUpgradeManager, teamVaultManager, economyManager, settingsManager, scoreboardManager, scheduler), this);
+        pm.registerEvents(new GUIClickListener(guiManager, auctionManager, teamManager, teamUpgradeManager, teamVaultManager, economyManager, settingsManager, scoreboardManager, crateManager, shopManager, scheduler), this);
         pm.registerEvents(new ChatInputListener(settingsManager, scheduler), this);
 
         // Register Commands & Tab Completers
@@ -181,7 +188,13 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
         TradeCommand tradeCmd = new TradeCommand(tradeManager);
         registerCmd("trade", tradeCmd);
 
-        getLogger().info("GuildCore v5 loaded successfully with all utility & teleport commands!");
+        CrateCommand crateCmd = new CrateCommand(crateManager);
+        registerCmd("crate", crateCmd);
+
+        ShopCommand shopCmd = new ShopCommand(shopManager);
+        registerCmd("shop", shopCmd);
+
+        getLogger().info("GuildCore v5 loaded successfully with Modular Choice Crates and Server Shop!");
     }
 
     private void registerCmd(String name, org.bukkit.command.TabExecutor executor) {

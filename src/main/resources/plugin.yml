@@ -3,7 +3,7 @@ version: '1.0.0'
 main: com.guildcore.GuildCorePlugin
 api-version: '1.21'
 author: Antigravity
-description: Dual-compatible, combat-hardened all-in-one team, teleportation, trade & economy plugin for Paper, Folia, Spigot, and Bukkit 1.21.11
+description: Dual-compatible, combat-hardened all-in-one team, teleportation, trade, crates, shop & economy plugin for Paper, Folia, Spigot, and Bukkit 1.21.11
 folia-supported: true
 
 commands:
@@ -91,6 +91,14 @@ commands:
   trade:
     description: Request or accept a player-to-player trade
     usage: /trade <player|accept>
+  crate:
+    description: Modular choice crates system
+    aliases: [crates]
+    usage: /crate [open|givekey|create|edit]
+  shop:
+    description: Server-wide buy/sell shop
+    aliases: [store]
+    usage: /shop [additem]
 
 permissions:
   guildcore.admin:

@@ -9,7 +9,9 @@ import org.bukkit.util.io.BukkitObjectOutputStream;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.List;
 
 public class ItemSerializer {
 
@@ -82,5 +84,21 @@ public class ItemSerializer {
             DebugManager.log(DebugFlag.VAULT_SERIALIZATION, "Failed to deserialize inventory: " + e.getMessage());
             return new ItemStack[0];
         }
+    }
+
+    public static String serializeItemList(List<ItemStack> list) {
+        if (list == null) return "";
+        return serializeInventory(list.toArray(new ItemStack[0]));
+    }
+
+    public static List<ItemStack> deserializeItemList(String base64) {
+        ItemStack[] arr = deserializeInventory(base64);
+        List<ItemStack> list = new ArrayList<>();
+        for (ItemStack item : arr) {
+            if (item != null && item.getType() != Material.AIR) {
+                list.add(item);
+            }
+        }
+        return list;
     }
 }

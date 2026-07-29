@@ -119,6 +119,30 @@ public class DatabaseSetup {
                     "x DOUBLE, y DOUBLE, z DOUBLE, " +
                     "yaw FLOAT, pitch FLOAT);");
 
+            // Modular Choice Crates
+            stmt.execute("CREATE TABLE IF NOT EXISTS crates (" +
+                    "name VARCHAR(32) PRIMARY KEY, " +
+                    "display_name VARCHAR(64) NOT NULL, " +
+                    "key_item_data TEXT NOT NULL, " +
+                    "contents_data TEXT NOT NULL);");
+
+            // Server Shop Categories
+            stmt.execute("CREATE TABLE IF NOT EXISTS shop_categories (" +
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                    "name VARCHAR(32) NOT NULL, " +
+                    "icon_material VARCHAR(64) NOT NULL, " +
+                    "slot INT DEFAULT 0);");
+
+            // Server Shop Items
+            stmt.execute("CREATE TABLE IF NOT EXISTS shop_items (" +
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                    "category_id INT NOT NULL, " +
+                    "item_data TEXT NOT NULL, " +
+                    "buy_price BIGINT DEFAULT 0, " +
+                    "sell_price BIGINT DEFAULT 0, " +
+                    "slot INT DEFAULT 0, " +
+                    "FOREIGN KEY (category_id) REFERENCES shop_categories(id) ON DELETE CASCADE);");
+
             // Team Bank Log
             stmt.execute("CREATE TABLE IF NOT EXISTS team_bank_log (" +
                     "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
