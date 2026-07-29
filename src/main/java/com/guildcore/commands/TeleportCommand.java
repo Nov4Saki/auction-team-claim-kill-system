@@ -37,9 +37,9 @@ public class TeleportCommand implements TabExecutor {
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         List<String> completions = new ArrayList<>();
-        String cmd = alias.toLowerCase();
+        String cmd = command.getName().toLowerCase();
 
-        if (cmd.equals("tpa") || cmd.equals("gctpa")) {
+        if (cmd.equals("tpa")) {
             if (args.length == 1) {
                 for (Player p : Bukkit.getOnlinePlayers()) {
                     if (p.getName().toLowerCase().startsWith(args[0].toLowerCase())) completions.add(p.getName());
@@ -56,10 +56,11 @@ public class TeleportCommand implements TabExecutor {
             return true;
         }
 
-        String cmd = label.toLowerCase();
+        // Use command.getName() to reliably match namespaced commands (/guildcore:tpa, /guildcore:rtp)
+        String cmd = command.getName().toLowerCase();
 
-        // 1. /tpa <player> (Instant text request - Zero GUI)
-        if (cmd.equals("tpa") || cmd.equals("gctpa")) {
+        // 1. /tpa <player>
+        if (cmd.equals("tpa")) {
             if (args.length < 1) {
                 player.sendMessage(TextUtil.format("<red>Usage: /tpa <player></red>"));
                 return true;
@@ -99,7 +100,7 @@ public class TeleportCommand implements TabExecutor {
         }
 
         // 2. /tpaccept
-        if (cmd.equals("tpaccept") || cmd.equals("gctpaccept")) {
+        if (cmd.equals("tpaccept")) {
             UUID requesterUuid = tpaRequests.remove(player.getUniqueId());
             if (requesterUuid == null) {
                 player.sendMessage(TextUtil.format("<red>You have no pending TPA requests.</red>"));
@@ -120,7 +121,7 @@ public class TeleportCommand implements TabExecutor {
         }
 
         // 3. /tpdeny
-        if (cmd.equals("tpdeny") || cmd.equals("gctpdeny")) {
+        if (cmd.equals("tpdeny")) {
             UUID requesterUuid = tpaRequests.remove(player.getUniqueId());
             if (requesterUuid != null) {
                 Player requester = Bukkit.getPlayer(requesterUuid);
@@ -134,18 +135,25 @@ public class TeleportCommand implements TabExecutor {
             return true;
         }
 
-        // 4. /rtp
+        // 4. /rtp (Folia Chunk Load & Async Safe)
         if (cmd.equals("rtp")) {
             World world = player.getWorld();
             int x = (random.nextInt(5000) - 2500);
             int z = (random.nextInt(5000) - 2500);
-            int y = world.getHighestBlockYAt(x, z) + 1;
-            Location targetLoc = new Location(world, x + 0.5, y, z + 0.5);
+            int chunkX = x >> 4;
+            int chunkZ = z >> 4;
 
-            player.teleportAsync(targetLoc).thenAccept(success -> {
-                if (success) {
-                    player.sendMessage(TextUtil.format("<green>🎲 Randomly teleported to (" + x + ", " + y + ", " + z + ")!</green>"));
-                }
+            player.sendMessage(TextUtil.format("<yellow>Finding safe wilderness location...</yellow>"));
+
+            world.getChunkAtAsync(chunkX, chunkZ).thenAccept(chunk -> {
+                int y = world.getHighestBlockYAt(x, z) + 1;
+                Location targetLoc = new Location(world, x + 0.5, y, z + 0.5);
+
+                player.teleportAsync(targetLoc).thenAccept(success -> {
+                    if (success) {
+                        player.sendMessage(TextUtil.format("<green>🎲 Randomly teleported to (" + x + ", " + y + ", " + z + ")!</green>"));
+                    }
+                });
             });
             return true;
         }

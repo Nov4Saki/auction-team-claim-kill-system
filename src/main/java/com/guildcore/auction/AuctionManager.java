@@ -77,12 +77,12 @@ public class AuctionManager {
     }
 
     public int getListingDurationHoursForPlayer(Player player) {
-        if (player.hasPermission("guildcore.auction.duration.op") || player.isOp()) return settingsManager.getInt("auction.duration_op", 168);
-        if (player.hasPermission("guildcore.auction.duration.5")) return settingsManager.getInt("auction.duration_tier5", 120);
-        if (player.hasPermission("guildcore.auction.duration.4")) return settingsManager.getInt("auction.duration_tier4", 96);
-        if (player.hasPermission("guildcore.auction.duration.3")) return settingsManager.getInt("auction.duration_tier3", 72);
-        if (player.hasPermission("guildcore.auction.duration.2")) return settingsManager.getInt("auction.duration_tier2", 48);
-        if (player.hasPermission("guildcore.auction.duration.1")) return settingsManager.getInt("auction.duration_tier1", 24);
+        if (player.hasPermission("guildcore.auction.duration.op") || player.isOp()) return settingsManager.getInt("auction.duration_hours.op", 168);
+        if (player.hasPermission("guildcore.auction.duration.5")) return settingsManager.getInt("auction.duration_hours.tier5", 120);
+        if (player.hasPermission("guildcore.auction.duration.4")) return settingsManager.getInt("auction.duration_hours.tier4", 96);
+        if (player.hasPermission("guildcore.auction.duration.3")) return settingsManager.getInt("auction.duration_hours.tier3", 72);
+        if (player.hasPermission("guildcore.auction.duration.2")) return settingsManager.getInt("auction.duration_hours.tier2", 48);
+        if (player.hasPermission("guildcore.auction.duration.1")) return settingsManager.getInt("auction.duration_hours.tier1", 24);
         return settingsManager.getInt("auction.duration_hours_default", 48);
     }
 

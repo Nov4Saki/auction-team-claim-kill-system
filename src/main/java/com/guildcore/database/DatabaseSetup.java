@@ -217,6 +217,12 @@ public class DatabaseSetup {
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('raids.nexus_max_hp', '100');");
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('auction.listing_fee', '50');");
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('auction.duration_hours_default', '48');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('auction.duration_hours.tier1', '24');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('auction.duration_hours.tier2', '48');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('auction.duration_hours.tier3', '72');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('auction.duration_hours.tier4', '96');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('auction.duration_hours.tier5', '120');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('auction.duration_hours.op', '168');");
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('auction.max_listing_price', '1000000000');");
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('auction.max_listings_default', '3');");
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('auction.listing_cooldown_sec', '0');");
