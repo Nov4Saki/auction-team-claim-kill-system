@@ -196,14 +196,26 @@ public class DatabaseSetup {
                     if ("purchasable_at".equalsIgnoreCase(col)) hasPurchasableAt = true;
                     if ("seller_name".equalsIgnoreCase(col)) hasSellerName = true;
                 }
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
 
             if (!hasSellerName) {
-                try { stmt.execute("ALTER TABLE auction_items ADD COLUMN seller_name VARCHAR(36) DEFAULT 'Unknown';"); } catch (Exception ignored) {}
+                try {
+                    stmt.execute("ALTER TABLE auction_items ADD COLUMN seller_name VARCHAR(36) DEFAULT 'Unknown';");
+                    System.out.println("[GuildCore DB] Added missing seller_name column to auction_items.");
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
             }
 
             if (!hasPurchasableAt) {
-                try { stmt.execute("ALTER TABLE auction_items ADD COLUMN purchasable_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;"); } catch (Exception ignored) {}
+                try {
+                    stmt.execute("ALTER TABLE auction_items ADD COLUMN purchasable_at TIMESTAMP;");
+                    System.out.println("[GuildCore DB] Added missing purchasable_at column to auction_items.");
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
             }
 
             // Auction Stash

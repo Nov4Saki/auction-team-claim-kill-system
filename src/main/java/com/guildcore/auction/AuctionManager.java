@@ -33,36 +33,38 @@ public class AuctionManager {
 
     public void loadAuctions() {
         dbManager.executeAsync(() -> {
-            try (Connection conn = dbManager.getConnection();
-                 PreparedStatement ps = conn.prepareStatement(
-                         "SELECT id, seller_uuid, seller_name, category, price, is_bid, current_bid, bidder_uuid, item_data, created_at, purchasable_at, expires_at, is_sold, is_expired FROM auction_items WHERE is_claimed = 0");
-                 ResultSet rs = ps.executeQuery()) {
+            try (Connection conn = dbManager.getConnection()) {
+                ensureAuctionSchema(conn);
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "SELECT id, seller_uuid, seller_name, category, price, is_bid, current_bid, bidder_uuid, item_data, created_at, purchasable_at, expires_at, is_sold, is_expired FROM auction_items WHERE is_claimed = 0");
+                     ResultSet rs = ps.executeQuery()) {
 
-                auctionItems.clear();
-                long now = System.currentTimeMillis();
-                while (rs.next()) {
-                    int id = rs.getInt("id");
-                    UUID seller = UUID.fromString(rs.getString("seller_uuid"));
-                    String sellerName = rs.getString("seller_name");
-                    String cat = rs.getString("category");
-                    long price = rs.getLong("price");
-                    boolean isBid = rs.getBoolean("is_bid");
-                    long currentBid = rs.getLong("current_bid");
-                    String bidderStr = rs.getString("bidder_uuid");
-                    UUID bidder = bidderStr != null ? UUID.fromString(bidderStr) : null;
-                    ItemStack item = ItemSerializer.deserializeItem(rs.getString("item_data"));
+                    auctionItems.clear();
+                    long now = System.currentTimeMillis();
+                    while (rs.next()) {
+                        int id = rs.getInt("id");
+                        UUID seller = UUID.fromString(rs.getString("seller_uuid"));
+                        String sellerName = rs.getString("seller_name");
+                        String cat = rs.getString("category");
+                        long price = rs.getLong("price");
+                        boolean isBid = rs.getBoolean("is_bid");
+                        long currentBid = rs.getLong("current_bid");
+                        String bidderStr = rs.getString("bidder_uuid");
+                        UUID bidder = bidderStr != null ? UUID.fromString(bidderStr) : null;
+                        ItemStack item = ItemSerializer.deserializeItem(rs.getString("item_data"));
 
-                    long createdMs = parseTimestampToMs(rs, "created_at", now);
-                    long purchasableMs = parseTimestampToMs(rs, "purchasable_at", now);
-                    long expiresAt = parseTimestampToMs(rs, "expires_at", now + (48 * 3600 * 1000L));
-                    boolean isSold = rs.getBoolean("is_sold");
-                    boolean isExpired = rs.getBoolean("is_expired");
+                        long createdMs = parseTimestampToMs(rs, "created_at", now);
+                        long purchasableMs = parseTimestampToMs(rs, "purchasable_at", now);
+                        long expiresAt = parseTimestampToMs(rs, "expires_at", now + (48 * 3600 * 1000L));
+                        boolean isSold = rs.getBoolean("is_sold");
+                        boolean isExpired = rs.getBoolean("is_expired");
 
-                    AuctionItem auction = new AuctionItem(id, seller, sellerName, cat, price, isBid, currentBid, bidder, item, createdMs, purchasableMs, expiresAt, isSold, isExpired);
-                    auctionItems.put(id, auction);
+                        AuctionItem auction = new AuctionItem(id, seller, sellerName, cat, price, isBid, currentBid, bidder, item, createdMs, purchasableMs, expiresAt, isSold, isExpired);
+                        auctionItems.put(id, auction);
+                    }
+                    DebugManager.log(DebugFlag.AUCTION_PURCHASES, "Loaded " + auctionItems.size() + " active auction listings from database.");
+                    checkAndSweepExpiredItems();
                 }
-                DebugManager.log(DebugFlag.AUCTION_PURCHASES, "Loaded " + auctionItems.size() + " active auction listings from database.");
-                checkAndSweepExpiredItems();
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -311,5 +313,33 @@ public class AuctionManager {
             }
         }
         return active;
+    }
+
+    private void ensureAuctionSchema(Connection conn) {
+        try (Statement stmt = conn.createStatement()) {
+            boolean hasPurchasableAt = false;
+            boolean hasSellerName = false;
+            try (ResultSet rs = stmt.executeQuery("PRAGMA table_info(auction_items);")) {
+                while (rs.next()) {
+                    String col = rs.getString("name");
+                    if ("purchasable_at".equalsIgnoreCase(col)) hasPurchasableAt = true;
+                    if ("seller_name".equalsIgnoreCase(col)) hasSellerName = true;
+                }
+            }
+            if (!hasSellerName) {
+                try {
+                    stmt.execute("ALTER TABLE auction_items ADD COLUMN seller_name VARCHAR(36) DEFAULT 'Unknown';");
+                    System.out.println("[GuildCore DB] Self-healed: Added missing seller_name column.");
+                } catch (Exception ignored) {}
+            }
+            if (!hasPurchasableAt) {
+                try {
+                    stmt.execute("ALTER TABLE auction_items ADD COLUMN purchasable_at TIMESTAMP;");
+                    System.out.println("[GuildCore DB] Self-healed: Added missing purchasable_at column.");
+                } catch (Exception ignored) {}
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }
