@@ -8,7 +8,9 @@ import com.guildcore.config.SettingsManager;
 import com.guildcore.debug.DebugFlag;
 import com.guildcore.debug.DebugManager;
 import com.guildcore.gui.holders.*;
+import com.guildcore.items.ProhibitedItemManager;
 import com.guildcore.scoreboard.ScoreboardManager;
+import com.guildcore.shop.ShopManager;
 import com.guildcore.stats.StatsManager;
 import com.guildcore.teams.Team;
 import com.guildcore.teams.TeamManager;
@@ -35,6 +37,8 @@ public class GUIManager {
     private final AuctionManager auctionManager;
     private final StatsManager statsManager;
     private final TeamPermissionManager permissionManager;
+    private ProhibitedItemManager prohibitedManager;
+    private ShopManager shopManager;
 
     public GUIManager(SettingsManager settingsManager, TeamManager teamManager, ClaimManager claimManager, AuctionManager auctionManager, StatsManager statsManager, TeamPermissionManager permissionManager) {
         this.settingsManager = settingsManager;
@@ -43,6 +47,14 @@ public class GUIManager {
         this.auctionManager = auctionManager;
         this.statsManager = statsManager;
         this.permissionManager = permissionManager;
+    }
+
+    public void setProhibitedItemManager(ProhibitedItemManager prohibitedManager) {
+        this.prohibitedManager = prohibitedManager;
+    }
+
+    public void setShopManager(ShopManager shopManager) {
+        this.shopManager = shopManager;
     }
 
     public void openAdminSettings(Player player) {
@@ -82,6 +94,9 @@ public class GUIManager {
 
         inv.setItem(17, new GUIItemBuilder(Material.COMPASS).name("<gradient:#FFD700:#FFA500><b>🎲 RTP & Teleportation Archive</b></gradient>")
                 .lore("<gray>▪ Manage RTP cooldowns, standstill timers, and coordinate bounds</gray>", "", "<yellow>▶ Click to inspect RTP Archive</yellow>").build());
+
+        inv.setItem(18, new GUIItemBuilder(Material.ANVIL).name("<gradient:#800000:#DC143C><b>🚫 Prohibited Items Archive</b></gradient>")
+                .lore("<gray>▪ Manage server item bans, crafting blocks, and inventory purges</gray>", "", "<yellow>▶ Click to inspect Prohibited Archive</yellow>").build());
 
         inv.setItem(22, new GUIItemBuilder(Material.LEVER).name("<gradient:#FF416C:#FF4B2B><b>⚡ Sovereign Debug Forge (18 Flags)</b></gradient>")
                 .lore("<gray>▪ Toggle 18 surgical realm diagnostic flags in real-time</gray>", "", "<yellow>▶ Click to open Debug Forge</yellow>").build());
@@ -532,6 +547,118 @@ public class GUIManager {
                 inv.setItem(i, new GUIItemBuilder(borderPane).name("<gray> </gray>").build());
             }
         }
+    }
+
+    private void fillBorder54(Inventory inv, Material borderPane) {
+        for (int i = 0; i < 54; i++) {
+            if (i < 9 || i >= 45 || i % 9 == 0 || i % 9 == 8) {
+                inv.setItem(i, new GUIItemBuilder(borderPane).name("<gray> </gray>").build());
+            }
+        }
+    }
+
+    public void openRtpWorldMenu(Player player) {
+        Inventory inv = Bukkit.createInventory(new com.guildcore.gui.holders.RTPWorldGUIHolder(), 27, TextUtil.format("<gradient:#D4AF37:#CC7722><b>🎲 Realm Teleportation Codex</b></gradient>"));
+        fillBorder27(inv, Material.ORANGE_STAINED_GLASS_PANE);
+
+        inv.setItem(11, new GUIItemBuilder(Material.GRASS_BLOCK).name("<gradient:#00FF87:#60EFFF><b>🌍 Overworld Realm</b></gradient>")
+                .lore("<gray>▪ Teleport to a safe surface above Y=63</gray>", "<gray>▪ Standstill Warmup & Range Protection</gray>", "", "<yellow>▶ Click to Teleport to Overworld</yellow>").build());
+
+        inv.setItem(13, new GUIItemBuilder(Material.NETHERRACK).name("<gradient:#FF416C:#FF4B2B><b>🔥 Nether Underworld</b></gradient>")
+                .lore("<gray>▪ Teleport to a safe solid block in Nether</gray>", "", "<yellow>▶ Click to Teleport to Nether</yellow>").build());
+
+        inv.setItem(15, new GUIItemBuilder(Material.END_STONE).name("<gradient:#9D50BB:#6E48AA><b>🔮 Ender Void Realm</b></gradient>")
+                .lore("<gray>▪ Teleport to safe surface in The End</gray>", "", "<yellow>▶ Click to Teleport to End</yellow>").build());
+
+        player.openInventory(inv);
+    }
+
+    public void openAdminShopHub(Player player) {
+        if (shopManager == null) return;
+        Inventory inv = Bukkit.createInventory(new com.guildcore.gui.holders.AdminShopHubHolder(), 54, TextUtil.format("<gradient:#D4AF37:#CC7722><b>⚜ Merchant Guild Forge (Admin)</b></gradient>"));
+        fillBorder54(inv, Material.CYAN_STAINED_GLASS_PANE);
+
+        inv.setItem(45, new GUIItemBuilder(Material.WRITABLE_BOOK).name("<gradient:#00FF87:#60EFFF><b>➕ Create New Shop Category</b></gradient>")
+                .lore("<gray>▪ Click to create a new category via chat</gray>").build());
+
+        var categories = shopManager.getCategories().values();
+        int slot = 10;
+        for (var cat : categories) {
+            if (slot == 17 || slot == 26 || slot == 35) slot += 2;
+            if (slot >= 44) break;
+
+            inv.setItem(slot++, new GUIItemBuilder(cat.getIcon()).name("<gradient:#D4AF37:#CC7722><b>⚜ " + cat.getName() + " (ID: " + cat.getId() + ")</b></gradient>")
+                    .lore(
+                            "<gray>▪ [Left-Click] Edit Category Items</gray>",
+                            "<gray>▪ [Right-Click] Set Icon (Item in hand)</gray>",
+                            "<gray>▪ [Shift-Right] Delete Category</gray>"
+                    ).build());
+        }
+
+        inv.setItem(49, new GUIItemBuilder(Material.BARRIER).name("<red><b>◀ Return to High Sovereign Panel</b></red>").build());
+        player.openInventory(inv);
+    }
+
+    public void openAdminShopCategoryEditor(Player player, int categoryId) {
+        if (shopManager == null) return;
+        var cat = shopManager.getCategories().get(categoryId);
+        if (cat == null) return;
+
+        Inventory inv = Bukkit.createInventory(new com.guildcore.gui.holders.AdminShopCategoryEditorHolder(categoryId), 54, TextUtil.format("<gradient:#D4AF37:#CC7722><b>⚜ Editing Category: " + cat.getName() + "</b></gradient>"));
+        fillBorder54(inv, Material.CYAN_STAINED_GLASS_PANE);
+
+        inv.setItem(45, new GUIItemBuilder(Material.HOPPER).name("<gradient:#00FF87:#60EFFF><b>➕ Add Held Item to Category</b></gradient>")
+                .lore("<gray>▪ Click while holding an item to add it</gray>").build());
+
+        var items = shopManager.getCategoryItems(categoryId);
+        int[] innerSlots = {
+                10, 11, 12, 13, 14, 15, 16,
+                19, 20, 21, 22, 23, 24, 25,
+                28, 29, 30, 31, 32, 33, 34,
+                37, 38, 39, 40, 41, 42, 43
+        };
+
+        for (int i = 0; i < Math.min(items.size(), innerSlots.length); i++) {
+            var item = items.get(i);
+            ItemStack display = item.getItem().clone();
+            ItemMeta meta = display.getItemMeta();
+            if (meta != null) {
+                List<Component> lore = meta.hasLore() && meta.lore() != null ? meta.lore() : new ArrayList<>();
+                lore.add(Component.text(" "));
+                lore.add(TextUtil.format("<gray>▪ Buy Price: </gray><gradient:#00FF87:#60EFFF><b>$" + String.format("%,d", item.getBuyPrice()) + " Gold</b></gradient>"));
+                lore.add(TextUtil.format("<gray>▪ Sell Price: </gray><gradient:#FF416C:#FF4B2B><b>$" + String.format("%,d", item.getSellPrice()) + " Gold</b></gradient>"));
+                lore.add(TextUtil.format("<gray>▪ [Left-Click] Edit Buy Price</gray>"));
+                lore.add(TextUtil.format("<gray>▪ [Right-Click] Edit Sell Price</gray>"));
+                lore.add(TextUtil.format("<gray>▪ [Shift-Right] Remove Item</gray>"));
+                meta.lore(lore);
+                display.setItemMeta(meta);
+            }
+            inv.setItem(innerSlots[i], display);
+        }
+
+        inv.setItem(49, new GUIItemBuilder(Material.BARRIER).name("<red><b>◀ Return to Shop Admin Hub</b></red>").build());
+        player.openInventory(inv);
+    }
+
+    public void openAdminProhibitedItems(Player player) {
+        if (prohibitedManager == null) return;
+        Inventory inv = Bukkit.createInventory(new com.guildcore.gui.holders.AdminProhibitedHolder(), 54, TextUtil.format("<gradient:#800000:#DC143C><b>🚫 Prohibited Items Codex</b></gradient>"));
+        fillBorder54(inv, Material.RED_STAINED_GLASS_PANE);
+
+        inv.setItem(10, new GUIItemBuilder(Material.ANVIL).name("<gradient:#FF416C:#FF4B2B><b>➕ Ban Item in Main Hand</b></gradient>")
+                .lore("<gray>▪ Click while holding an item to ban it</gray>").build());
+
+        var mats = new ArrayList<>(prohibitedManager.getProhibitedMaterials());
+        int slot = 11;
+        for (int i = 0; i < Math.min(mats.size(), 34); i++) {
+            if (slot == 17 || slot == 26 || slot == 35) slot += 2;
+            Material mat = mats.get(i);
+            inv.setItem(slot++, new GUIItemBuilder(mat).name("<gradient:#FF416C:#FF4B2B><b>🚫 " + mat.name() + "</b></gradient>")
+                    .lore("<gray>▪ Prohibited by Royal Decree</gray>", "", "<red>▶ Click to Unban & Allow Item</red>").build());
+        }
+
+        inv.setItem(49, new GUIItemBuilder(Material.BARRIER).name("<red><b>◀ Return to High Sovereign Panel</b></red>").build());
+        player.openInventory(inv);
     }
 }
 

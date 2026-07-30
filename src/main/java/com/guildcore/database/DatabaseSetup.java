@@ -187,13 +187,24 @@ public class DatabaseSetup {
                     "is_expired BOOLEAN DEFAULT 0, " +
                     "is_claimed BOOLEAN DEFAULT 0);");
 
-            try {
-                stmt.execute("ALTER TABLE auction_items ADD COLUMN seller_name VARCHAR(36) DEFAULT 'Unknown';");
+            // Auction Items Schema Migration Check
+            boolean hasPurchasableAt = false;
+            boolean hasSellerName = false;
+            try (java.sql.ResultSet rs = stmt.executeQuery("PRAGMA table_info(auction_items);")) {
+                while (rs.next()) {
+                    String col = rs.getString("name");
+                    if ("purchasable_at".equalsIgnoreCase(col)) hasPurchasableAt = true;
+                    if ("seller_name".equalsIgnoreCase(col)) hasSellerName = true;
+                }
             } catch (Exception ignored) {}
 
-            try {
-                stmt.execute("ALTER TABLE auction_items ADD COLUMN purchasable_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;");
-            } catch (Exception ignored) {}
+            if (!hasSellerName) {
+                try { stmt.execute("ALTER TABLE auction_items ADD COLUMN seller_name VARCHAR(36) DEFAULT 'Unknown';"); } catch (Exception ignored) {}
+            }
+
+            if (!hasPurchasableAt) {
+                try { stmt.execute("ALTER TABLE auction_items ADD COLUMN purchasable_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;"); } catch (Exception ignored) {}
+            }
 
             // Auction Stash
             stmt.execute("CREATE TABLE IF NOT EXISTS auction_stash (" +
@@ -201,6 +212,13 @@ public class DatabaseSetup {
                     "player_uuid VARCHAR(36) NOT NULL, " +
                     "item_data TEXT NOT NULL, " +
                     "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);");
+
+            // Prohibited Items Blacklist
+            stmt.execute("CREATE TABLE IF NOT EXISTS prohibited_items (" +
+                    "item_type VARCHAR(64) PRIMARY KEY, " +
+                    "reason VARCHAR(255) DEFAULT 'Prohibited by Royal Decree', " +
+                    "added_by VARCHAR(36) DEFAULT 'ADMIN', " +
+                    "added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);");
 
             // Raid Shields
             stmt.execute("CREATE TABLE IF NOT EXISTS raid_shields (" +

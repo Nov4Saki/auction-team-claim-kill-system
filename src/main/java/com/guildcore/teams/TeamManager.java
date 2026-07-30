@@ -157,15 +157,19 @@ public class TeamManager {
         return true;
     }
 
+    private final Map<UUID, String> pendingInvitesWithInviter = new ConcurrentHashMap<>();
+
     public boolean invitePlayer(Player inviter, Player target) {
         Team team = getPlayerTeam(inviter.getUniqueId());
         if (team == null) return false;
         pendingInvites.put(target.getUniqueId(), team.getId());
+        pendingInvitesWithInviter.put(target.getUniqueId(), inviter.getName());
         return true;
     }
 
     public boolean joinTeam(Player player) {
         Integer teamId = pendingInvites.remove(player.getUniqueId());
+        String inviterName = pendingInvitesWithInviter.remove(player.getUniqueId());
         if (teamId == null) return false;
         Team team = getTeam(teamId);
         if (team == null) return false;
@@ -190,6 +194,13 @@ public class TeamManager {
                 e.printStackTrace();
             }
         });
+
+        String displayInviter = inviterName != null ? inviterName : "a Guild Member";
+        for (Player member : org.bukkit.Bukkit.getOnlinePlayers()) {
+            if (playerTeamMap.containsKey(member.getUniqueId()) && playerTeamMap.get(member.getUniqueId()) == teamId) {
+                member.sendMessage(com.guildcore.util.TextUtil.format("<gradient:#00c6ff:#0072ff><b>🏰 [Guild] Please welcome <yellow>" + player.getName() + "</yellow> to the guild! (Invited by <gold>" + displayInviter + "</gold>)</b></gradient>"));
+            }
+        }
 
         return true;
     }

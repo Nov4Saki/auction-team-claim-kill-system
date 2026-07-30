@@ -2,6 +2,7 @@ package com.guildcore.commands;
 
 import com.guildcore.config.SettingsManager;
 import com.guildcore.database.DatabaseManager;
+import com.guildcore.gui.GUIManager;
 import com.guildcore.scheduler.SchedulerWrapper;
 import com.guildcore.util.TextUtil;
 import net.kyori.adventure.text.Component;
@@ -34,14 +35,16 @@ public class TeleportCommand implements TabExecutor {
     private final DatabaseManager dbManager;
     private final SettingsManager settingsManager;
     private final SchedulerWrapper scheduler;
+    private final GUIManager guiManager;
     private final Map<UUID, UUID> tpaRequests = new ConcurrentHashMap<>();
     private final Map<UUID, Long> rtpCooldowns = new ConcurrentHashMap<>();
     private final Random random = new Random();
 
-    public TeleportCommand(DatabaseManager dbManager, SettingsManager settingsManager, SchedulerWrapper scheduler) {
+    public TeleportCommand(DatabaseManager dbManager, SettingsManager settingsManager, SchedulerWrapper scheduler, GUIManager guiManager) {
         this.dbManager = dbManager;
         this.settingsManager = settingsManager;
         this.scheduler = scheduler;
+        this.guiManager = guiManager;
     }
 
     @Override
@@ -151,20 +154,17 @@ public class TeleportCommand implements TabExecutor {
             return true;
         }
 
-        // 4. /rtp [world_name] (Configurable Cooldown, Standstill Warmup & Range Bounds)
+        // 4. /rtp [world_name] (World Selector GUI if no args, Y>=63 & 2+ Air Blocks)
         if (cmd.equals("rtp")) {
-            World targetWorld = player.getWorld();
-            if (args.length >= 1) {
-                World specifiedWorld = Bukkit.getWorld(args[0]);
-                if (specifiedWorld == null) {
-                    player.sendMessage(TextUtil.format("<red>World '" + args[0] + "' not found!</red>"));
-                    return true;
-                }
-                if (specifiedWorld.getEnvironment() != World.Environment.NORMAL) {
-                    player.sendMessage(TextUtil.format("<red>RTP is only allowed in Overworld environments.</red>"));
-                    return true;
-                }
-                targetWorld = specifiedWorld;
+            if (args.length < 1) {
+                guiManager.openRtpWorldMenu(player);
+                return true;
+            }
+
+            World targetWorld = Bukkit.getWorld(args[0]);
+            if (targetWorld == null) {
+                player.sendMessage(TextUtil.format("<red>World '" + args[0] + "' not found!</red>"));
+                return true;
             }
 
             boolean isBypass = player.hasPermission("guildcore.admin.bypass") || player.isOp();
@@ -359,7 +359,7 @@ public class TeleportCommand implements TabExecutor {
 
     private void executeRTP(Player player, World targetWorld) {
         rtpCooldowns.put(player.getUniqueId(), System.currentTimeMillis());
-        player.sendMessage(TextUtil.format("<yellow>Searching for safe surface location in " + targetWorld.getName() + "...</yellow>"));
+        player.sendMessage(TextUtil.format("<yellow>Searching for safe surface location (Y>=63) in " + targetWorld.getName() + "...</yellow>"));
         findSafeRTPLocation(targetWorld, 0, loc -> {
             if (loc != null) {
                 player.teleportAsync(loc).thenAccept(success -> {
@@ -374,7 +374,7 @@ public class TeleportCommand implements TabExecutor {
     }
 
     private void findSafeRTPLocation(World world, int attempts, Consumer<Location> callback) {
-        if (attempts >= 25) {
+        if (attempts >= 30) {
             callback.accept(null);
             return;
         }
@@ -399,16 +399,16 @@ public class TeleportCommand implements TabExecutor {
 
         world.getChunkAtAsync(chunkX, chunkZ).thenAccept(chunk -> {
             int topY = Math.min(319, world.getMaxHeight() - 1);
-            int minY = world.getMinHeight() + 5;
+            int minY = Math.max(63, world.getMinHeight() + 5);
 
             int targetY = -1;
             for (int y = topY; y >= minY; y--) {
                 Block b = world.getBlockAt(x, y, z);
                 Material m = b.getType();
-                if (m.isSolid() && m != Material.LAVA && m != Material.WATER && m != Material.MAGMA_BLOCK && m != Material.FIRE && m != Material.CACTUS && m != Material.BEDROCK) {
+                if (m.isSolid() && m != Material.LAVA && m != Material.WATER && m != Material.MAGMA_BLOCK && m != Material.FIRE && m != Material.CACTUS && m != Material.BEDROCK && m != Material.POWDER_SNOW) {
                     Block feet = world.getBlockAt(x, y + 1, z);
                     Block head = world.getBlockAt(x, y + 2, z);
-                    if (feet.isPassable() && head.isPassable() && feet.getType() != Material.WATER && feet.getType() != Material.LAVA) {
+                    if (feet.isPassable() && head.isPassable() && feet.getType() != Material.WATER && feet.getType() != Material.LAVA && head.getType() != Material.WATER && head.getType() != Material.LAVA) {
                         targetY = y;
                         break;
                     }
@@ -424,4 +424,5 @@ public class TeleportCommand implements TabExecutor {
         });
     }
 }
+
 

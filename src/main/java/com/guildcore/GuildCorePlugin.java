@@ -16,6 +16,8 @@ import com.guildcore.economy.EconomyManager;
 import com.guildcore.gui.ChatInputListener;
 import com.guildcore.gui.GUIClickListener;
 import com.guildcore.gui.GUIManager;
+import com.guildcore.items.ProhibitedItemListener;
+import com.guildcore.items.ProhibitedItemManager;
 import com.guildcore.raids.RaidManager;
 import com.guildcore.raids.RaidNexusListener;
 import com.guildcore.raids.RaidRollbackEngine;
@@ -57,6 +59,7 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
     private RaidRollbackEngine raidRollbackEngine;
     private RaidManager raidManager;
     private AuctionManager auctionManager;
+    private ProhibitedItemManager prohibitedItemManager;
     private ScoreboardManager scoreboardManager;
     private GUIManager guiManager;
     private TradeManager tradeManager;
@@ -121,15 +124,20 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
         this.shopManager = new ShopManager(databaseManager, economyManager, scheduler);
         this.shopManager.loadShop();
 
-        // 8. Auction House
+        // 8. Auction House & Prohibited Items
         this.auctionManager = new AuctionManager(databaseManager, economyManager, settingsManager);
         this.auctionManager.loadAuctions();
+
+        this.prohibitedItemManager = new ProhibitedItemManager(databaseManager);
+        this.prohibitedItemManager.loadProhibitedItems();
 
         // 9. Scoreboard & GUI
         this.scoreboardManager = new ScoreboardManager(economyManager, statsManager, bountyManager, teamManager, claimManager, combatTagManager, raidManager, settingsManager, scheduler);
         this.scoreboardManager.startUpdateTask();
 
         this.guiManager = new GUIManager(settingsManager, teamManager, claimManager, auctionManager, statsManager, teamPermissionManager);
+        this.guiManager.setProhibitedItemManager(prohibitedItemManager);
+        this.guiManager.setShopManager(shopManager);
 
         // Register Event Listeners
         PluginManager pm = getServer().getPluginManager();
@@ -139,8 +147,11 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
         pm.registerEvents(itemControlManager, this);
         pm.registerEvents(new ClaimProtectionListener(claimManager, settingsManager), this);
         pm.registerEvents(new RaidNexusListener(raidManager, claimManager), this);
-        pm.registerEvents(new GUIClickListener(guiManager, auctionManager, teamManager, teamUpgradeManager, teamVaultManager, economyManager, settingsManager, scoreboardManager, crateManager, shopManager, scheduler), this);
+        GUIClickListener guiClickListener = new GUIClickListener(guiManager, auctionManager, teamManager, teamUpgradeManager, teamVaultManager, economyManager, settingsManager, scoreboardManager, crateManager, shopManager, scheduler);
+        guiClickListener.setProhibitedItemManager(prohibitedItemManager);
+        pm.registerEvents(guiClickListener, this);
         pm.registerEvents(new ChatInputListener(settingsManager, scheduler), this);
+        pm.registerEvents(new ProhibitedItemListener(prohibitedItemManager), this);
 
         // Register Commands & Tab Completers
         CoinsCommand coinsCmd = new CoinsCommand(economyManager);
@@ -171,7 +182,7 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
         SettingsCommand settingsCmd = new SettingsCommand(guiManager);
         registerCmd("settings", settingsCmd);
 
-        TeleportCommand tpCmd = new TeleportCommand(databaseManager, settingsManager, scheduler);
+        TeleportCommand tpCmd = new TeleportCommand(databaseManager, settingsManager, scheduler, guiManager);
         registerCmd("tpa", tpCmd);
         registerCmd("tpaccept", tpCmd);
         registerCmd("tpdeny", tpCmd);
@@ -191,10 +202,10 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
         CrateCommand crateCmd = new CrateCommand(crateManager);
         registerCmd("crate", crateCmd);
 
-        ShopCommand shopCmd = new ShopCommand(shopManager);
+        ShopCommand shopCmd = new ShopCommand(shopManager, guiManager);
         registerCmd("shop", shopCmd);
 
-        getLogger().info("GuildCore v5 loaded successfully with Modular Choice Crates and Server Shop!");
+        getLogger().info("GuildCore v5 loaded successfully with Prohibited Items Engine, RTP World Selector, and Shop Admin Forge!");
     }
 
     private void registerCmd(String name, org.bukkit.command.TabExecutor executor) {

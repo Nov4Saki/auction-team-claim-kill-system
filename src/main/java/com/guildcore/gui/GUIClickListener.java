@@ -13,6 +13,7 @@ import com.guildcore.debug.DebugFlag;
 import com.guildcore.debug.DebugManager;
 import com.guildcore.economy.EconomyManager;
 import com.guildcore.gui.holders.*;
+import com.guildcore.items.ProhibitedItemManager;
 import com.guildcore.scheduler.SchedulerWrapper;
 import com.guildcore.scoreboard.ScoreboardManager;
 import com.guildcore.shop.ShopGUIHolder;
@@ -23,6 +24,7 @@ import com.guildcore.teams.TeamManager;
 import com.guildcore.teams.TeamUpgradeManager;
 import com.guildcore.teams.TeamVaultManager;
 import com.guildcore.util.SoundUtil;
+import org.bukkit.World;
 import com.guildcore.util.TextUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -55,6 +57,7 @@ public class GUIClickListener implements Listener {
     private final CrateManager crateManager;
     private final ShopManager shopManager;
     private final SchedulerWrapper scheduler;
+    private ProhibitedItemManager prohibitedManager;
 
     public GUIClickListener(GUIManager guiManager, AuctionManager auctionManager, TeamManager teamManager, TeamUpgradeManager upgradeManager, TeamVaultManager vaultManager, EconomyManager economyManager, SettingsManager settingsManager, ScoreboardManager scoreboardManager, CrateManager crateManager, ShopManager shopManager, SchedulerWrapper scheduler) {
         this.guiManager = guiManager;
@@ -68,6 +71,10 @@ public class GUIClickListener implements Listener {
         this.crateManager = crateManager;
         this.shopManager = shopManager;
         this.scheduler = scheduler;
+    }
+
+    public void setProhibitedItemManager(ProhibitedItemManager prohibitedManager) {
+        this.prohibitedManager = prohibitedManager;
     }
 
     @EventHandler
@@ -322,6 +329,189 @@ public class GUIClickListener implements Listener {
             return;
         }
 
+        // RTP World Choice GUI
+        if (holder instanceof com.guildcore.gui.holders.RTPWorldGUIHolder) {
+            event.setCancelled(true);
+            SoundUtil.playClick(player);
+            int slot = event.getSlot();
+
+            if (slot == 11) {
+                World normalWorld = Bukkit.getWorlds().stream().filter(w -> w.getEnvironment() == World.Environment.NORMAL).findFirst().orElse(player.getWorld());
+                player.performCommand("rtp " + normalWorld.getName());
+            } else if (slot == 13) {
+                World netherWorld = Bukkit.getWorlds().stream().filter(w -> w.getEnvironment() == World.Environment.NETHER).findFirst().orElse(null);
+                if (netherWorld != null) {
+                    player.performCommand("rtp " + netherWorld.getName());
+                } else {
+                    player.sendMessage(TextUtil.format("<red>Nether world not found!</red>"));
+                }
+            } else if (slot == 15) {
+                World endWorld = Bukkit.getWorlds().stream().filter(w -> w.getEnvironment() == World.Environment.THE_END).findFirst().orElse(null);
+                if (endWorld != null) {
+                    player.performCommand("rtp " + endWorld.getName());
+                } else {
+                    player.sendMessage(TextUtil.format("<red>End world not found!</red>"));
+                }
+            }
+            player.closeInventory();
+            return;
+        }
+
+        // Admin Shop Hub GUI
+        if (holder instanceof com.guildcore.gui.holders.AdminShopHubHolder) {
+            event.setCancelled(true);
+            SoundUtil.playClick(player);
+            int slot = event.getSlot();
+
+            if (slot == 45) { // Create Category
+                ChatInputListener.requestStringInput(player, "new_shop_category_name", p -> {
+                    String name = settingsManager.getString("new_shop_category_name", "");
+                    if (!name.isEmpty()) {
+                        ItemStack inHand = p.getInventory().getItemInMainHand();
+                        Material mat = (inHand != null && !inHand.getType().isAir()) ? inHand.getType() : Material.CHEST;
+                        shopManager.createCategory(name, mat, 10);
+                        p.sendMessage(TextUtil.format("<green>✔ Created shop category '" + name + "'!</green>"));
+                    }
+                    guiManager.openAdminShopHub(p);
+                });
+                return;
+            }
+
+            if (slot == 49) {
+                guiManager.openAdminSettings(player);
+                return;
+            }
+
+            var categories = new ArrayList<>(shopManager.getCategories().values());
+            for (var cat : categories) {
+                if (cat.getSlot() == slot) {
+                    ClickType click = event.getClick();
+                    if (click == ClickType.LEFT) {
+                        guiManager.openAdminShopCategoryEditor(player, cat.getId());
+                    } else if (click == ClickType.RIGHT) {
+                        ItemStack inHand = player.getInventory().getItemInMainHand();
+                        if (inHand != null && !inHand.getType().isAir()) {
+                            shopManager.updateCategoryIcon(cat.getId(), inHand.getType());
+                            player.sendMessage(TextUtil.format("<green>✔ Updated category icon for '" + cat.getName() + "'!</green>"));
+                        } else {
+                            player.sendMessage(TextUtil.format("<red>Hold an item in hand to set as icon!</red>"));
+                        }
+                        guiManager.openAdminShopHub(player);
+                    } else if (click == ClickType.SHIFT_RIGHT) {
+                        shopManager.deleteCategory(cat.getId());
+                        player.sendMessage(TextUtil.format("<red>Deleted shop category '" + cat.getName() + "'.</red>"));
+                        guiManager.openAdminShopHub(player);
+                    }
+                    return;
+                }
+            }
+            return;
+        }
+
+        // Admin Shop Category Item Editor
+        if (holder instanceof com.guildcore.gui.holders.AdminShopCategoryEditorHolder catEditorHolder) {
+            event.setCancelled(true);
+            SoundUtil.playClick(player);
+            int slot = event.getSlot();
+            int catId = catEditorHolder.getCategoryId();
+
+            if (slot == 45) { // Add item in hand
+                ItemStack inHand = player.getInventory().getItemInMainHand();
+                if (inHand != null && !inHand.getType().isAir()) {
+                    ChatInputListener.requestInput(player, "new_shop_buy_price", p -> {
+                        ChatInputListener.requestInput(p, "new_shop_sell_price", p2 -> {
+                            long buy = settingsManager.getLong("new_shop_buy_price", 100);
+                            long sell = settingsManager.getLong("new_shop_sell_price", 50);
+                            ItemStack item = inHand.clone();
+                            item.setAmount(1);
+                            shopManager.addShopItem(catId, item, buy, sell, 10);
+                            p2.sendMessage(TextUtil.format("<green>✔ Added " + item.getType() + " to shop category!</green>"));
+                            guiManager.openAdminShopCategoryEditor(p2, catId);
+                        });
+                    });
+                } else {
+                    player.sendMessage(TextUtil.format("<red>Hold an item in main hand to add to category!</red>"));
+                }
+                return;
+            }
+
+            if (slot == 49) {
+                guiManager.openAdminShopHub(player);
+                return;
+            }
+
+            var items = shopManager.getCategoryItems(catId);
+            for (var shopItem : items) {
+                if (shopItem.getSlot() == slot) {
+                    ClickType click = event.getClick();
+                    if (click == ClickType.LEFT) {
+                        ChatInputListener.requestInput(player, "edit_shop_buy_price", p -> {
+                            long buy = settingsManager.getLong("edit_shop_buy_price", shopItem.getBuyPrice());
+                            shopManager.updateShopItemPrices(shopItem.getId(), catId, buy, shopItem.getSellPrice());
+                            guiManager.openAdminShopCategoryEditor(p, catId);
+                        });
+                    } else if (click == ClickType.RIGHT) {
+                        ChatInputListener.requestInput(player, "edit_shop_sell_price", p -> {
+                            long sell = settingsManager.getLong("edit_shop_sell_price", shopItem.getSellPrice());
+                            shopManager.updateShopItemPrices(shopItem.getId(), catId, shopItem.getBuyPrice(), sell);
+                            guiManager.openAdminShopCategoryEditor(p, catId);
+                        });
+                    } else if (click == ClickType.SHIFT_RIGHT) {
+                        shopManager.deleteShopItem(shopItem.getId(), catId);
+                        player.sendMessage(TextUtil.format("<red>Removed item from category.</red>"));
+                        guiManager.openAdminShopCategoryEditor(player, catId);
+                    }
+                    return;
+                }
+            }
+            return;
+        }
+
+        // Admin Prohibited Items GUI
+        if (holder instanceof com.guildcore.gui.holders.AdminProhibitedHolder) {
+            event.setCancelled(true);
+            SoundUtil.playClick(player);
+            int slot = event.getSlot();
+
+            if (slot == 10) { // Ban held item
+                ItemStack inHand = player.getInventory().getItemInMainHand();
+                if (inHand != null && !inHand.getType().isAir()) {
+                    if (prohibitedManager != null) {
+                        prohibitedManager.addProhibitedItem(inHand.getType(), "Prohibited by Royal Decree", player.getName());
+                        player.sendMessage(TextUtil.format("<red>✔ Added " + inHand.getType().name() + " to Prohibited Items List!</red>"));
+                        prohibitedManager.purgePlayerFull(player);
+                    }
+                } else {
+                    player.sendMessage(TextUtil.format("<red>Hold an item in main hand to ban!</red>"));
+                }
+                guiManager.openAdminProhibitedItems(player);
+                return;
+            }
+
+            if (slot == 49) {
+                guiManager.openAdminSettings(player);
+                return;
+            }
+
+            if (prohibitedManager != null) {
+                var mats = new ArrayList<>(prohibitedManager.getProhibitedMaterials());
+                int itemIndex = 0;
+                int currentSlot = 11;
+                for (Material mat : mats) {
+                    if (currentSlot == 17 || currentSlot == 26 || currentSlot == 35) currentSlot += 2;
+                    if (currentSlot == slot) {
+                        prohibitedManager.removeProhibitedItem(mat);
+                        player.sendMessage(TextUtil.format("<green>✔ Unbanned item " + mat.name() + "!</green>"));
+                        guiManager.openAdminProhibitedItems(player);
+                        return;
+                    }
+                    currentSlot++;
+                    itemIndex++;
+                }
+            }
+            return;
+        }
+
         // 3. Admin Main Settings Hub
         if (holder instanceof SettingsGUIHolder) {
             event.setCancelled(true);
@@ -336,6 +526,7 @@ public class GUIClickListener implements Listener {
             if (slot == 15) { guiManager.openAdminScoreboardSettings(player); return; }
             if (slot == 16) { guiManager.openAdminAuctionSettings(player); return; }
             if (slot == 17) { guiManager.openAdminRtpSettings(player); return; }
+            if (slot == 18) { guiManager.openAdminProhibitedItems(player); return; }
             if (slot == 22) { guiManager.openAdminDebugPanel(player); return; }
             return;
         }

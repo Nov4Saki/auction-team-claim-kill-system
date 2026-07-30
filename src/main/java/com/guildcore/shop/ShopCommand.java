@@ -1,5 +1,6 @@
 package com.guildcore.shop;
 
+import com.guildcore.gui.GUIManager;
 import com.guildcore.util.TextUtil;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
@@ -13,9 +14,11 @@ import java.util.List;
 
 public class ShopCommand implements TabExecutor {
     private final ShopManager shopManager;
+    private final GUIManager guiManager;
 
-    public ShopCommand(ShopManager shopManager) {
+    public ShopCommand(ShopManager shopManager, GUIManager guiManager) {
         this.shopManager = shopManager;
+        this.guiManager = guiManager;
     }
 
     @Override
@@ -42,6 +45,15 @@ public class ShopCommand implements TabExecutor {
         }
 
         String sub = args[0].toLowerCase();
+
+        if (sub.equals("admin")) {
+            if (!player.hasPermission("guildcore.admin")) {
+                player.sendMessage(TextUtil.format("<red>No permission.</red>"));
+                return true;
+            }
+            guiManager.openAdminShopHub(player);
+            return true;
+        }
 
         if (sub.equals("additem")) {
             if (!player.hasPermission("guildcore.admin")) {
@@ -79,3 +91,4 @@ public class ShopCommand implements TabExecutor {
         return true;
     }
 }
+

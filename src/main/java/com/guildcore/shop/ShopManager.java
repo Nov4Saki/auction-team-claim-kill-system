@@ -295,6 +295,97 @@ public class ShopManager {
         });
     }
 
+    public void createCategory(String name, Material icon, int slot) {
+        dbManager.executeAsync(() -> {
+            try (Connection conn = dbManager.getConnection();
+                 PreparedStatement ps = conn.prepareStatement("INSERT INTO shop_categories (name, icon_material, slot) VALUES (?, ?, ?)", Statement.RETURN_GENERATED_KEYS)) {
+                ps.setString(1, name);
+                ps.setString(2, icon.name());
+                ps.setInt(3, slot);
+                ps.executeUpdate();
+                try (ResultSet rs = ps.getGeneratedKeys()) {
+                    if (rs.next()) {
+                        int id = rs.getInt(1);
+                        categories.put(id, new ShopCategory(id, name, icon, slot));
+                    }
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
+    }
+
+    public void deleteCategory(int categoryId) {
+        categories.remove(categoryId);
+        categoryItems.remove(categoryId);
+        dbManager.executeAsync(() -> {
+            try (Connection conn = dbManager.getConnection();
+                 PreparedStatement ps = conn.prepareStatement("DELETE FROM shop_categories WHERE id = ?")) {
+                ps.setInt(1, categoryId);
+                ps.executeUpdate();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
+    }
+
+    public void updateCategoryIcon(int categoryId, Material newIcon) {
+        ShopCategory cat = categories.get(categoryId);
+        if (cat == null) return;
+        ShopCategory updated = new ShopCategory(cat.getId(), cat.getName(), newIcon, cat.getSlot());
+        categories.put(categoryId, updated);
+        dbManager.executeAsync(() -> {
+            try (Connection conn = dbManager.getConnection();
+                 PreparedStatement ps = conn.prepareStatement("UPDATE shop_categories SET icon_material = ? WHERE id = ?")) {
+                ps.setString(1, newIcon.name());
+                ps.setInt(2, categoryId);
+                ps.executeUpdate();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
+    }
+
+    public void deleteShopItem(int itemId, int categoryId) {
+        List<ShopItem> items = categoryItems.get(categoryId);
+        if (items != null) {
+            items.removeIf(i -> i.getId() == itemId);
+        }
+        dbManager.executeAsync(() -> {
+            try (Connection conn = dbManager.getConnection();
+                 PreparedStatement ps = conn.prepareStatement("DELETE FROM shop_items WHERE id = ?")) {
+                ps.setInt(1, itemId);
+                ps.executeUpdate();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
+    }
+
+    public void updateShopItemPrices(int itemId, int categoryId, long newBuyPrice, long newSellPrice) {
+        List<ShopItem> items = categoryItems.get(categoryId);
+        if (items != null) {
+            for (int i = 0; i < items.size(); i++) {
+                ShopItem cur = items.get(i);
+                if (cur.getId() == itemId) {
+                    items.set(i, new ShopItem(cur.getId(), cur.getCategoryId(), cur.getItem(), newBuyPrice, newSellPrice, cur.getSlot()));
+                    break;
+                }
+            }
+        }
+        dbManager.executeAsync(() -> {
+            try (Connection conn = dbManager.getConnection();
+                 PreparedStatement ps = conn.prepareStatement("UPDATE shop_items SET buy_price = ?, sell_price = ? WHERE id = ?")) {
+                ps.setLong(1, newBuyPrice);
+                ps.setLong(2, newSellPrice);
+                ps.setInt(3, itemId);
+                ps.executeUpdate();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
+    }
+
     public Map<Integer, ShopCategory> getCategories() {
         return categories;
     }
