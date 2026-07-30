@@ -158,16 +158,47 @@ public class TeamCommand implements TabExecutor {
                 player.sendMessage(TextUtil.format("<red>Usage: /team kick <player></red>"));
                 return true;
             }
-            player.sendMessage(TextUtil.format("<green>Kicked member " + args[1] + " from team.</green>"));
+            if (!teamManager.kickPlayer(player, args[1])) {
+                player.sendMessage(TextUtil.format("<red>Could not kick member '" + args[1] + "' (player not found or insufficient rank).</red>"));
+            }
             return true;
         }
 
-        if (sub.equals("promote") || sub.equals("demote")) {
+        if (sub.equals("promote")) {
             if (args.length < 2) {
-                player.sendMessage(TextUtil.format("<red>Usage: /team " + sub + " <player></red>"));
+                player.sendMessage(TextUtil.format("<red>Usage: /team promote <player></red>"));
                 return true;
             }
-            player.sendMessage(TextUtil.format("<green>Updated rank for " + args[1] + ".</green>"));
+            teamManager.promotePlayer(player, args[1]);
+            return true;
+        }
+
+        if (sub.equals("demote")) {
+            if (args.length < 2) {
+                player.sendMessage(TextUtil.format("<red>Usage: /team demote <player></red>"));
+                return true;
+            }
+            teamManager.demotePlayer(player, args[1]);
+            return true;
+        }
+
+        if (sub.equals("leave")) {
+            teamManager.leaveTeam(player);
+            return true;
+        }
+
+        if (sub.equals("disband")) {
+            teamManager.disbandTeam(player);
+            return true;
+        }
+
+        if (sub.equals("permissions") || sub.equals("perms")) {
+            Team team = teamManager.getPlayerTeam(player.getUniqueId());
+            if (team == null) {
+                player.sendMessage(TextUtil.format("<red>You must be in a team to inspect permissions.</red>"));
+                return true;
+            }
+            guiManager.openTeamPermissions(player, team, "MEMBER");
             return true;
         }
 

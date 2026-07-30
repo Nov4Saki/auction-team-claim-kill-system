@@ -208,4 +208,207 @@ public class TeamManager {
     public int getTeamMembersCount(int teamId) {
         return (int) playerTeamMap.values().stream().filter(id -> id == teamId).count();
     }
+
+    public boolean kickPlayer(Player kicker, String targetName) {
+        Team team = getPlayerTeam(kicker.getUniqueId());
+        if (team == null) return false;
+
+        UUID targetUuid = null;
+        Player targetPlayer = Bukkit.getPlayer(targetName);
+        if (targetPlayer != null) {
+            targetUuid = targetPlayer.getUniqueId();
+        } else {
+            for (Map.Entry<UUID, Integer> entry : playerTeamMap.entrySet()) {
+                if (entry.getValue() == team.getId()) {
+                    org.bukkit.OfflinePlayer op = Bukkit.getOfflinePlayer(entry.getKey());
+                    if (op.getName() != null && op.getName().equalsIgnoreCase(targetName)) {
+                        targetUuid = entry.getKey();
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (targetUuid == null) return false;
+        if (!playerTeamMap.containsKey(targetUuid) || playerTeamMap.get(targetUuid) != team.getId()) return false;
+
+        String kickerRole = getPlayerRole(kicker.getUniqueId());
+        String targetRole = getPlayerRole(targetUuid);
+
+        if (!kickerRole.equalsIgnoreCase("LEADER")) {
+            if (targetRole.equalsIgnoreCase("LEADER") || targetRole.equalsIgnoreCase("OFFICER")) {
+                kicker.sendMessage(com.guildcore.util.TextUtil.format("<red>You cannot kick higher or equal ranked members!</red>"));
+                return false;
+            }
+        }
+
+        final UUID finalTargetUuid = targetUuid;
+        final String finalTargetName = targetPlayer != null ? targetPlayer.getName() : targetName;
+
+        playerTeamMap.remove(targetUuid);
+        playerRoleMap.remove(targetUuid);
+
+        dbManager.executeAsync(() -> {
+            try (Connection conn = dbManager.getConnection();
+                 PreparedStatement ps = conn.prepareStatement("DELETE FROM team_members WHERE team_id = ? AND player_uuid = ?")) {
+                ps.setInt(1, team.getId());
+                ps.setString(2, finalTargetUuid.toString());
+                ps.executeUpdate();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
+
+        if (targetPlayer != null && targetPlayer.isOnline()) {
+            targetPlayer.sendMessage(com.guildcore.util.TextUtil.format("<gradient:#FF416C:#FF4B2B><b>✖ You were kicked from team " + team.getName() + " by " + kicker.getName() + "!</b></gradient>"));
+        }
+
+        broadcastToTeam(team.getId(), com.guildcore.util.TextUtil.format("<gradient:#FF416C:#FF4B2B><b>🏰 [Guild] Member <yellow>" + finalTargetName + "</yellow> was kicked from the guild by <gold>" + kicker.getName() + "</gold>!</b></gradient>"));
+        return true;
+    }
+
+    public boolean promotePlayer(Player actor, String targetName) {
+        Team team = getPlayerTeam(actor.getUniqueId());
+        if (team == null) return false;
+
+        Player target = Bukkit.getPlayer(targetName);
+        if (target == null) return false;
+        UUID targetUuid = target.getUniqueId();
+        if (!playerTeamMap.containsKey(targetUuid) || playerTeamMap.get(targetUuid) != team.getId()) return false;
+
+        String currentRole = getPlayerRole(targetUuid);
+        String newRole = currentRole;
+        if (currentRole.equalsIgnoreCase("RECRUIT")) newRole = "MEMBER";
+        else if (currentRole.equalsIgnoreCase("MEMBER")) newRole = "OFFICER";
+
+        if (newRole.equals(currentRole)) {
+            actor.sendMessage(com.guildcore.util.TextUtil.format("<red>Player is already at maximum rank!</red>"));
+            return false;
+        }
+
+        final String finalRole = newRole;
+        playerRoleMap.put(targetUuid, finalRole);
+
+        dbManager.executeAsync(() -> {
+            try (Connection conn = dbManager.getConnection();
+                 PreparedStatement ps = conn.prepareStatement("UPDATE team_members SET role = ? WHERE team_id = ? AND player_uuid = ?")) {
+                ps.setString(1, finalRole);
+                ps.setInt(2, team.getId());
+                ps.setString(3, targetUuid.toString());
+                ps.executeUpdate();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
+
+        broadcastToTeam(team.getId(), com.guildcore.util.TextUtil.format("<gradient:#00FF87:#60EFFF><b>🏰 [Guild] Member <yellow>" + target.getName() + "</yellow> was promoted to <gold>" + finalRole + "</gold> by <gold>" + actor.getName() + "</gold>!</b></gradient>"));
+        return true;
+    }
+
+    public boolean demotePlayer(Player actor, String targetName) {
+        Team team = getPlayerTeam(actor.getUniqueId());
+        if (team == null) return false;
+
+        Player target = Bukkit.getPlayer(targetName);
+        if (target == null) return false;
+        UUID targetUuid = target.getUniqueId();
+        if (!playerTeamMap.containsKey(targetUuid) || playerTeamMap.get(targetUuid) != team.getId()) return false;
+
+        String currentRole = getPlayerRole(targetUuid);
+        String newRole = currentRole;
+        if (currentRole.equalsIgnoreCase("OFFICER")) newRole = "MEMBER";
+        else if (currentRole.equalsIgnoreCase("MEMBER")) newRole = "RECRUIT";
+
+        if (newRole.equals(currentRole)) {
+            actor.sendMessage(com.guildcore.util.TextUtil.format("<red>Player is already at lowest rank!</red>"));
+            return false;
+        }
+
+        final String finalRole = newRole;
+        playerRoleMap.put(targetUuid, finalRole);
+
+        dbManager.executeAsync(() -> {
+            try (Connection conn = dbManager.getConnection();
+                 PreparedStatement ps = conn.prepareStatement("UPDATE team_members SET role = ? WHERE team_id = ? AND player_uuid = ?")) {
+                ps.setString(1, finalRole);
+                ps.setInt(2, team.getId());
+                ps.setString(3, targetUuid.toString());
+                ps.executeUpdate();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
+
+        broadcastToTeam(team.getId(), com.guildcore.util.TextUtil.format("<gradient:#FF416C:#FF4B2B><b>🏰 [Guild] Member <yellow>" + target.getName() + "</yellow> was demoted to <gold>" + finalRole + "</gold> by <gold>" + actor.getName() + "</gold>.</b></gradient>"));
+        return true;
+    }
+
+    public boolean leaveTeam(Player player) {
+        Team team = getPlayerTeam(player.getUniqueId());
+        if (team == null) return false;
+
+        if (team.getLeaderUuid().equals(player.getUniqueId())) {
+            player.sendMessage(com.guildcore.util.TextUtil.format("<red>Guild Leaders cannot leave! Transfer leadership or use /team disband.</red>"));
+            return false;
+        }
+
+        UUID uuid = player.getUniqueId();
+        playerTeamMap.remove(uuid);
+        playerRoleMap.remove(uuid);
+
+        dbManager.executeAsync(() -> {
+            try (Connection conn = dbManager.getConnection();
+                 PreparedStatement ps = conn.prepareStatement("DELETE FROM team_members WHERE team_id = ? AND player_uuid = ?")) {
+                ps.setInt(1, team.getId());
+                ps.setString(2, uuid.toString());
+                ps.executeUpdate();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
+
+        player.sendMessage(com.guildcore.util.TextUtil.format("<yellow>You left team " + team.getName() + ".</yellow>"));
+        broadcastToTeam(team.getId(), com.guildcore.util.TextUtil.format("<gradient:#FF416C:#FF4B2B><b>🏰 [Guild] Member <yellow>" + player.getName() + "</yellow> has left the guild.</b></gradient>"));
+        return true;
+    }
+
+    public boolean disbandTeam(Player leader) {
+        Team team = getPlayerTeam(leader.getUniqueId());
+        if (team == null || !team.getLeaderUuid().equals(leader.getUniqueId())) {
+            leader.sendMessage(com.guildcore.util.TextUtil.format("<red>Only the Guild Leader can disband the guild!</red>"));
+            return false;
+        }
+
+        int teamId = team.getId();
+        teamsById.remove(teamId);
+        teamIdByName.remove(team.getName().toLowerCase());
+
+        broadcastToTeam(teamId, com.guildcore.util.TextUtil.format("<gradient:#FF416C:#FF4B2B><b>💥 [Guild] Guild " + team.getName() + " was disbanded by Guild Leader " + leader.getName() + "!</b></gradient>"));
+
+        for (Map.Entry<UUID, Integer> entry : new ConcurrentHashMap<>(playerTeamMap).entrySet()) {
+            if (entry.getValue() == teamId) {
+                playerTeamMap.remove(entry.getKey());
+                playerRoleMap.remove(entry.getKey());
+            }
+        }
+
+        dbManager.executeAsync(() -> {
+            try (Connection conn = dbManager.getConnection()) {
+                try (PreparedStatement ps = conn.prepareStatement("DELETE FROM team_members WHERE team_id = ?")) { ps.setInt(1, teamId); ps.executeUpdate(); }
+                try (PreparedStatement ps = conn.prepareStatement("DELETE FROM teams WHERE id = ?")) { ps.setInt(1, teamId); ps.executeUpdate(); }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
+        return true;
+    }
+
+    public void broadcastToTeam(int teamId, net.kyori.adventure.text.Component message) {
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            Integer pTeamId = playerTeamMap.get(p.getUniqueId());
+            if (pTeamId != null && pTeamId == teamId) {
+                p.sendMessage(message);
+            }
+        }
+    }
 }

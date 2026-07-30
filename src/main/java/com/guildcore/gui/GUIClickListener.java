@@ -746,6 +746,8 @@ public class GUIClickListener implements Listener {
                 scheduler.runSync(player, () -> player.openInventory(vaultInv));
             } else if (slot == 16) { // Upgrades
                 guiManager.openTeamUpgrades(player, team);
+            } else if (slot == 28) { // Permissions Codex
+                guiManager.openTeamPermissions(player, team, "MEMBER");
             } else if (slot == 32) { // Teleport Home
                 if (team.getHomeLocation() != null) {
                     player.teleportAsync(team.getHomeLocation()).thenAccept(success -> {
@@ -755,6 +757,39 @@ public class GUIClickListener implements Listener {
                     });
                 } else {
                     player.sendMessage(TextUtil.format("<red>Team home location is not set.</red>"));
+                }
+            }
+            return;
+        }
+
+        // Team Permissions GUI
+        if (holder instanceof com.guildcore.gui.holders.TeamPermissionsHolder permsHolder) {
+            event.setCancelled(true);
+            SoundUtil.playClick(player);
+            int slot = event.getSlot();
+
+            Team team = teamManager.getTeam(permsHolder.getTeamId());
+            if (team == null) return;
+
+            if (slot == 49) {
+                guiManager.openTeamMenu(player, team);
+                return;
+            }
+
+            if (slot == 10) { guiManager.openTeamPermissions(player, team, "OFFICER"); return; }
+            if (slot == 12) { guiManager.openTeamPermissions(player, team, "MEMBER"); return; }
+            if (slot == 14) { guiManager.openTeamPermissions(player, team, "RECRUIT"); return; }
+
+            String selectedRole = permsHolder.getSelectedRole();
+            String[] nodes = {"BANK_DEPOSIT", "BANK_WITHDRAW", "VAULT_ACCESS", "CLAIM_LAND", "INVITE_MEMBERS", "KICK_MEMBERS", "BUILD", "SET_HOME"};
+            int[] slots = {19, 21, 23, 25, 29, 31, 33, 35};
+
+            for (int i = 0; i < slots.length; i++) {
+                if (slots[i] == slot) {
+                    String node = nodes[i];
+                    guiManager.getPermissionManager().togglePermission(team.getId(), selectedRole, node);
+                    guiManager.openTeamPermissions(player, team, selectedRole);
+                    return;
                 }
             }
             return;

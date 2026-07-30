@@ -57,6 +57,10 @@ public class GUIManager {
         this.shopManager = shopManager;
     }
 
+    public TeamPermissionManager getPermissionManager() {
+        return permissionManager;
+    }
+
     public void openAdminSettings(Player player) {
         Inventory inv = Bukkit.createInventory(new SettingsGUIHolder(), 54, TextUtil.format("<gradient:#FFD700:#FFA500:#DAA520><b>👑 HIGH SOVEREIGN CONTROL PANEL</b></gradient>"));
 
@@ -299,18 +303,18 @@ public class GUIManager {
     }
 
     public void openAuctionHouse(Player player, int page, String category, String searchQuery) {
-        Inventory inv = Bukkit.createInventory(new AuctionGUIHolder(page, category, searchQuery), 54, TextUtil.format("<gradient:#FFD700:#FFA500><b>📜 GRAND BAZAAR OF THE REALM</b></gradient> <gray>(Page " + page + ")</gray>"));
+        Inventory inv = Bukkit.createInventory(new AuctionGUIHolder(page, category, searchQuery), 54, TextUtil.format("<gradient:#D4AF37:#CC7722><b>📜 GRAND BAZAAR OF THE REALM</b></gradient> <gray>(Page " + page + ")</gray>"));
 
-        // Row 1: Mythic Category Banner Buttons (Slots 0-8)
-        inv.setItem(0, createCategoryButton(Material.NETHER_STAR, "⭐ ALL RELICS", category.equalsIgnoreCase("ALL")));
-        inv.setItem(1, createCategoryButton(Material.NETHERITE_SWORD, "🗡 WAR WEAPONS", category.equalsIgnoreCase("WEAPONS")));
-        inv.setItem(2, createCategoryButton(Material.NETHERITE_CHESTPLATE, "🛡 ROYAL ARMOR", category.equalsIgnoreCase("ARMOR")));
-        inv.setItem(3, createCategoryButton(Material.DIAMOND_PICKAXE, "⛏ ANCIENT TOOLS", category.equalsIgnoreCase("TOOLS")));
-        inv.setItem(4, createCategoryButton(Material.DARK_OAK_LOG, "🧱 CASTLE BLOCKS", category.equalsIgnoreCase("BLOCKS")));
-        inv.setItem(5, createCategoryButton(Material.BREWING_STAND, "🧪 ALCHEMY ELIXIRS", category.equalsIgnoreCase("POTIONS")));
-        inv.setItem(6, createCategoryButton(Material.SHULKER_BOX, "📦 VAULT SHULKERS", category.equalsIgnoreCase("SHULKERS")));
-        inv.setItem(7, new GUIItemBuilder(Material.COMPASS).name("<yellow><b>🔍 Search Chronicle</b></yellow>").lore("<gray>Filter by name or material type</gray>", "", "<yellow>▶ Click to set filter query</yellow>").build());
-        inv.setItem(8, new GUIItemBuilder(Material.HOPPER).name("<gold><b>📊 Treasury Sort Order</b></gold>").lore("<gray>Cycle sorting criteria</gray>").build());
+        // Row 1: Category Selector Banner Buttons (Slots 0-8)
+        inv.setItem(0, createCategoryButton(Material.NETHER_STAR, "⭐ ALL WARS", category.equalsIgnoreCase("ALL")));
+        inv.setItem(1, createCategoryButton(Material.NETHERITE_SWORD, "🗡 WEAPONS", category.equalsIgnoreCase("WEAPONS")));
+        inv.setItem(2, createCategoryButton(Material.NETHERITE_CHESTPLATE, "🛡 ARMOR", category.equalsIgnoreCase("ARMOR")));
+        inv.setItem(3, createCategoryButton(Material.DIAMOND_PICKAXE, "⛏ TOOLS", category.equalsIgnoreCase("TOOLS")));
+        inv.setItem(4, createCategoryButton(Material.DARK_OAK_LOG, "🧱 BLOCKS", category.equalsIgnoreCase("BLOCKS")));
+        inv.setItem(5, createCategoryButton(Material.BREWING_STAND, "🧪 POTIONS", category.equalsIgnoreCase("POTIONS")));
+        inv.setItem(6, createCategoryButton(Material.SHULKER_BOX, "📦 SHULKERS", category.equalsIgnoreCase("SHULKERS")));
+        inv.setItem(7, new GUIItemBuilder(Material.COMPASS).name("<gradient:#D4AF37:#CC7722><b>🔍 Search Wares</b></gradient>").lore("<gray>Filter by item name or type</gray>", "", "<yellow>▶ Click to search</yellow>").build());
+        inv.setItem(8, new GUIItemBuilder(Material.HOPPER).name("<gradient:#D4AF37:#CC7722><b>📊 Sort Wares</b></gradient>").lore("<gray>Cycle sorting criteria</gray>").build());
 
         List<AuctionItem> active = auctionManager.getActiveListings();
         List<AuctionItem> filtered = new ArrayList<>();
@@ -339,16 +343,17 @@ public class GUIManager {
 
                 currentLore.add(Component.text(" "));
                 currentLore.add(TextUtil.format("<gray>▪ Merchant: </gray><white><b>" + item.getSellerName() + "</b></white>"));
-                currentLore.add(TextUtil.format("<gray>▪ Price: </gray><gradient:#00FF87:#60EFFF><b>$" + String.format("%,d", item.getPrice()) + " Gold</b></gradient>"));
+                currentLore.add(TextUtil.format("<gray>▪ Price: </gray><#D4AF37><b>$" + String.format("%,d", item.getPrice()) + " Gold</b></#D4AF37>"));
 
                 if (!item.isPurchasable()) {
-                    currentLore.add(TextUtil.format("<gold>⏳ Cooldown: " + item.getRemainingCooldownSec() + "s remaining</gold>"));
+                    currentLore.add(TextUtil.format("<#D4AF37>⏳ GRACE PERIOD - " + item.getRemainingCooldownSec() + "s left</#D4AF37>"));
+                    currentLore.add(TextUtil.format("<gray>▪ Inspecting offer before public listing</gray>"));
                 } else {
-                    currentLore.add(TextUtil.format("<yellow>▶ Click to Purchase Relic</yellow>"));
+                    currentLore.add(TextUtil.format("<gradient:#00FF87:#60EFFF>▶ Click to Buy Relic</gradient>"));
                 }
 
                 if (display.getType().name().contains("SHULKER_BOX")) {
-                    currentLore.add(TextUtil.format("<aqua>✦ Right-Click to Inspect Shulker Contents</aqua>"));
+                    currentLore.add(TextUtil.format("<aqua>📦 Right-Click to Inspect Shulker</aqua>"));
                 }
 
                 meta.lore(currentLore);
@@ -358,20 +363,19 @@ public class GUIManager {
             inv.setItem(slot++, display);
         }
 
-        // Fill empty active listing slots with subtle dark pane structure if empty
         while (slot < 45) {
             inv.setItem(slot++, new GUIItemBuilder(Material.AIR).build());
         }
 
-        // Row 6: Control & Stash Buttons (Slots 45-53)
-        inv.setItem(45, new GUIItemBuilder(Material.PLAYER_HEAD).name("<gradient:#FFD700:#FFA500><b>👤 Personal Offerings</b></gradient>").lore("<gray>View & reclaim your active listings</gray>", "", "<yellow>▶ Click to open</yellow>").build());
+        // Row 6: Controls & Stash
+        inv.setItem(45, new GUIItemBuilder(Material.PLAYER_HEAD).name("<gradient:#D4AF37:#CC7722><b>👤 My Listings</b></gradient>").lore("<gray>Inspect & reclaim your listings</gray>", "", "<yellow>▶ Click to open</yellow>").build());
         if (page > 1) {
-            inv.setItem(48, new GUIItemBuilder(Material.ARROW).name("<yellow><b>◀ Previous Page (" + (page - 1) + ")</b></yellow>").build());
+            inv.setItem(48, new GUIItemBuilder(Material.ARROW).name("<yellow><b>◀ Prev Page (" + (page - 1) + ")</b></yellow>").build());
         } else {
             inv.setItem(48, new GUIItemBuilder(Material.BLACK_STAINED_GLASS_PANE).name("<gray> </gray>").build());
         }
 
-        inv.setItem(49, new GUIItemBuilder(Material.ENDER_CHEST).name("<gradient:#9D50BB:#6E48AA><b>📦 Expired Stash & Overflow</b></gradient>").lore("<gray>Reclaim unsold items and gold refunds</gray>", "", "<yellow>▶ Click to open stash</yellow>").build());
+        inv.setItem(49, new GUIItemBuilder(Material.ENDER_CHEST).name("<gradient:#9D50BB:#6E48AA><b>📦 Expired Stash</b></gradient>").lore("<gray>Reclaim unsold wares & gold</gray>", "", "<yellow>▶ Click to open stash</yellow>").build());
 
         if (endIndex < filtered.size()) {
             inv.setItem(50, new GUIItemBuilder(Material.ARROW).name("<yellow><b>Next Page (" + (page + 1) + ") ▶</b></yellow>").build());
@@ -379,7 +383,7 @@ public class GUIManager {
             inv.setItem(50, new GUIItemBuilder(Material.BLACK_STAINED_GLASS_PANE).name("<gray> </gray>").build());
         }
 
-        inv.setItem(53, new GUIItemBuilder(Material.EMERALD).name("<gradient:#00FF87:#60EFFF><b>➕ Offer Relic to Bazaar</b></gradient>").lore("<gray>Hold an item in hand and type:</gray>", "<white>/ah sell <price></white>").build());
+        inv.setItem(53, new GUIItemBuilder(Material.EMERALD).name("<gradient:#00FF87:#60EFFF><b>➕ Sell Relic (/ah sell <price>)</b></gradient>").lore("<gray>Hold item & run /ah sell <price></gray>").build());
 
         player.openInventory(inv);
         DebugManager.log(DebugFlag.GUI_CLICKS, "Opened auction house GUI page " + page + " for " + player.getName());
@@ -522,6 +526,48 @@ public class GUIManager {
 
         inv.setItem(26, new GUIItemBuilder(Material.BARRIER).name("<red><b>◀ Return to Guild Citadel</b></red>").build());
 
+        player.openInventory(inv);
+    }
+
+    public void openTeamPermissions(Player player, Team team, String selectedRole) {
+        if (selectedRole == null) selectedRole = "MEMBER";
+        Inventory inv = Bukkit.createInventory(new TeamPermissionsHolder(team.getId(), selectedRole), 54, TextUtil.format("<gradient:#D4AF37:#CC7722><b>📜 Rank Codex & Permissions (" + team.getName() + ")</b></gradient>"));
+        fillBorder54(inv, Material.ORANGE_STAINED_GLASS_PANE);
+
+        boolean isOfficer = selectedRole.equalsIgnoreCase("OFFICER");
+        boolean isMember = selectedRole.equalsIgnoreCase("MEMBER");
+        boolean isRecruit = selectedRole.equalsIgnoreCase("RECRUIT");
+
+        inv.setItem(10, new GUIItemBuilder(isOfficer ? Material.GOLDEN_HELMET : Material.LEATHER_HELMET)
+                .name(isOfficer ? "<gradient:#00FF87:#60EFFF><b>▶ OFFICER ROLE [SELECTED]</b></gradient>" : "<gray>▪ OFFICER ROLE</gray>")
+                .lore("<gray>Click to view/toggle Officer privileges</gray>").build());
+
+        inv.setItem(12, new GUIItemBuilder(isMember ? Material.IRON_HELMET : Material.LEATHER_HELMET)
+                .name(isMember ? "<gradient:#00FF87:#60EFFF><b>▶ MEMBER ROLE [SELECTED]</b></gradient>" : "<gray>▪ MEMBER ROLE</gray>")
+                .lore("<gray>Click to view/toggle Member privileges</gray>").build());
+
+        inv.setItem(14, new GUIItemBuilder(isRecruit ? Material.CHAINMAIL_HELMET : Material.LEATHER_HELMET)
+                .name(isRecruit ? "<gradient:#00FF87:#60EFFF><b>▶ RECRUIT ROLE [SELECTED]</b></gradient>" : "<gray>▪ RECRUIT ROLE</gray>")
+                .lore("<gray>Click to view/toggle Recruit privileges</gray>").build());
+
+        String[] nodes = {"BANK_DEPOSIT", "BANK_WITHDRAW", "VAULT_ACCESS", "CLAIM_LAND", "INVITE_MEMBERS", "KICK_MEMBERS", "BUILD", "SET_HOME"};
+        String[] titles = {"Bank Deposit", "Bank Withdraw", "Vault Storage", "Claim Territory", "Invite Members", "Kick Members", "Build & Break", "Set Guild Home"};
+        Material[] icons = {Material.GOLD_INGOT, Material.GOLD_NUGGET, Material.CHEST, Material.GRASS_BLOCK, Material.WRITABLE_BOOK, Material.ANVIL, Material.DIAMOND_PICKAXE, Material.RED_BED};
+        int[] slots = {19, 21, 23, 25, 29, 31, 33, 35};
+
+        for (int i = 0; i < nodes.length; i++) {
+            String node = nodes[i];
+            boolean allowed = permissionManager.hasPermission(team.getId(), selectedRole, node);
+            inv.setItem(slots[i], new GUIItemBuilder(icons[i])
+                    .name("<gradient:#D4AF37:#CC7722><b>" + titles[i] + "</b></gradient>")
+                    .lore(
+                            "<gray>▪ Status: " + (allowed ? "<gradient:#00FF87:#60EFFF><b>[✔ ALLOWED]</b></gradient>" : "<gradient:#FF416C:#FF4B2B><b>[✖ DENIED]</b></gradient>") + "</gray>",
+                            "",
+                            "<yellow>▶ Click to toggle permission for " + selectedRole + "</yellow>"
+                    ).build());
+        }
+
+        inv.setItem(49, new GUIItemBuilder(Material.BARRIER).name("<red><b>◀ Return to Guild Citadel</b></red>").build());
         player.openInventory(inv);
     }
 
