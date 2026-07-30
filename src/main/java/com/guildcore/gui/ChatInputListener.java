@@ -85,7 +85,8 @@ public class ChatInputListener implements Listener {
 
         try {
             long val = Long.parseLong(raw);
-            if (val < 0) {
+            boolean allowNegative = pending.key().contains("min_") || pending.key().endsWith("_x") || pending.key().endsWith("_z") || pending.key().contains("bound");
+            if (!allowNegative && val < 0) {
                 player.sendMessage(TextUtil.format("<red>Number must be non-negative.</red>"));
                 scheduler.runSync(player, () -> pending.callback().accept(player));
                 return;

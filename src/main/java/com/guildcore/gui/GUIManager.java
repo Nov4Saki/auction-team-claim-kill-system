@@ -80,6 +80,9 @@ public class GUIManager {
         inv.setItem(16, new GUIItemBuilder(Material.CHEST).name("<gradient:#FFD700:#FFA500><b>📜 Grand Bazaar Settings Archive</b></gradient>")
                 .lore("<gray>▪ Manage listing taxes, default expiration timers, and delays</gray>", "", "<yellow>▶ Click to inspect Bazaar Archive</yellow>").build());
 
+        inv.setItem(17, new GUIItemBuilder(Material.COMPASS).name("<gradient:#FFD700:#FFA500><b>🎲 RTP & Teleportation Archive</b></gradient>")
+                .lore("<gray>▪ Manage RTP cooldowns, standstill timers, and coordinate bounds</gray>", "", "<yellow>▶ Click to inspect RTP Archive</yellow>").build());
+
         inv.setItem(22, new GUIItemBuilder(Material.LEVER).name("<gradient:#FF416C:#FF4B2B><b>⚡ Sovereign Debug Forge (18 Flags)</b></gradient>")
                 .lore("<gray>▪ Toggle 18 surgical realm diagnostic flags in real-time</gray>", "", "<yellow>▶ Click to open Debug Forge</yellow>").build());
 
@@ -214,7 +217,7 @@ public class GUIManager {
         int fee = settingsManager.getInt("auction.listing_fee", 50);
         int duration = settingsManager.getInt("auction.duration_hours_default", 48);
         long maxPrice = settingsManager.getLong("auction.max_listing_price", 1000000000L);
-        int listingCooldown = settingsManager.getInt("auction.listing_cooldown_sec", 0);
+        int listingCooldown = settingsManager.getInt("auction.listing_cooldown_sec", 30);
 
         fillBorder27(inv, Material.ORANGE_STAINED_GLASS_PANE);
 
@@ -223,6 +226,40 @@ public class GUIManager {
         inv.setItem(14, new GUIItemBuilder(Material.DIAMOND_BLOCK).name("<green><b>Max Listing Price: $" + String.format("%,d", maxPrice) + " Gold</b></green>").lore("<gray>▶ Click to edit in chat</gray>").build());
         inv.setItem(16, new GUIItemBuilder(Material.REPEATER).name("<gold><b>Listing Purchase Delay: " + listingCooldown + "s</b></gold>").lore("<gray>▶ Click to edit in chat</gray>").build());
         inv.setItem(26, new GUIItemBuilder(Material.BARRIER).name("<red><b>◀ Return to High Sovereign Panel</b></red>").build());
+        player.openInventory(inv);
+    }
+
+    public void openAdminRtpSettings(Player player) {
+        Inventory inv = Bukkit.createInventory(new com.guildcore.gui.holders.AdminRtpHolder(), 27, TextUtil.format("<gradient:#FFD700:#FFA500><b>🎲 RTP & Teleportation Settings</b></gradient>"));
+        int cooldown = settingsManager.getInt("rtp.cooldown_sec", 60);
+        int warmup = settingsManager.getInt("rtp.warmup_sec", 3);
+        int minX = settingsManager.getInt("rtp.range.min_x", -3000);
+        int maxX = settingsManager.getInt("rtp.range.max_x", 3000);
+        int minZ = settingsManager.getInt("rtp.range.min_z", -3000);
+        int maxZ = settingsManager.getInt("rtp.range.max_z", 3000);
+
+        fillBorder27(inv, Material.YELLOW_STAINED_GLASS_PANE);
+
+        inv.setItem(10, new GUIItemBuilder(Material.CLOCK).name("<yellow><b>RTP Cooldown: " + cooldown + "s</b></yellow>")
+                .lore("<gray>▪ Delay in seconds between RTP uses</gray>", "", "<yellow>▶ Click to edit value in chat</yellow>").build());
+
+        inv.setItem(11, new GUIItemBuilder(Material.FEATHER).name("<yellow><b>Standstill Warmup: " + warmup + "s</b></yellow>")
+                .lore("<gray>▪ Seconds player must stand still before teleport</gray>", "", "<yellow>▶ Click to edit value in chat</yellow>").build());
+
+        inv.setItem(12, new GUIItemBuilder(Material.MAP).name("<yellow><b>Min X Bound: " + minX + "</b></yellow>")
+                .lore("<gray>▪ Minimum X coordinate bound for random teleport</gray>", "", "<yellow>▶ Click to edit value in chat</yellow>").build());
+
+        inv.setItem(13, new GUIItemBuilder(Material.MAP).name("<yellow><b>Max X Bound: " + maxX + "</b></yellow>")
+                .lore("<gray>▪ Maximum X coordinate bound for random teleport</gray>", "", "<yellow>▶ Click to edit value in chat</yellow>").build());
+
+        inv.setItem(14, new GUIItemBuilder(Material.MAP).name("<yellow><b>Min Z Bound: " + minZ + "</b></yellow>")
+                .lore("<gray>▪ Minimum Z coordinate bound for random teleport</gray>", "", "<yellow>▶ Click to edit value in chat</yellow>").build());
+
+        inv.setItem(15, new GUIItemBuilder(Material.MAP).name("<yellow><b>Max Z Bound: " + maxZ + "</b></yellow>")
+                .lore("<gray>▪ Maximum Z coordinate bound for random teleport</gray>", "", "<yellow>▶ Click to edit value in chat</yellow>").build());
+
+        inv.setItem(26, new GUIItemBuilder(Material.BARRIER).name("<red><b>◀ Return to High Sovereign Panel</b></red>").build());
+
         player.openInventory(inv);
     }
 
@@ -361,6 +398,11 @@ public class GUIManager {
                 if (lore == null) lore = new ArrayList<>();
                 lore.add(Component.text(" "));
                 lore.add(TextUtil.format("<gray>▪ Listing Price: </gray><gradient:#00FF87:#60EFFF><b>$" + String.format("%,d", item.getPrice()) + " Gold</b></gradient>"));
+                if (!item.isPurchasable()) {
+                    lore.add(TextUtil.format("<gradient:#FFD700:#FFA500><b>⏳ Grace Period: " + item.getRemainingCooldownSec() + "s remaining (Only seller can cancel!)</b></gradient>"));
+                } else {
+                    lore.add(TextUtil.format("<gradient:#00FF87:#60EFFF><b>✔ Active on Public Auction</b></gradient>"));
+                }
                 lore.add(TextUtil.format("<gradient:#FF416C:#FF4B2B><b>[CLICK TO CANCEL & RECLAIM RELIC]</b></gradient>"));
                 meta.lore(lore);
                 display.setItemMeta(meta);

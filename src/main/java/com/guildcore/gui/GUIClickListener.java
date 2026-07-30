@@ -335,7 +335,32 @@ public class GUIClickListener implements Listener {
             if (slot == 14) { guiManager.openAdminCombatSettings(player); return; }
             if (slot == 15) { guiManager.openAdminScoreboardSettings(player); return; }
             if (slot == 16) { guiManager.openAdminAuctionSettings(player); return; }
+            if (slot == 17) { guiManager.openAdminRtpSettings(player); return; }
             if (slot == 22) { guiManager.openAdminDebugPanel(player); return; }
+            return;
+        }
+
+        // Admin RTP Settings Sub-GUI
+        if (holder instanceof com.guildcore.gui.holders.AdminRtpHolder) {
+            event.setCancelled(true);
+            SoundUtil.playClick(player);
+            int slot = event.getSlot();
+
+            if (slot == 10) {
+                ChatInputListener.requestInput(player, "rtp.cooldown_sec", p -> guiManager.openAdminRtpSettings(p));
+            } else if (slot == 11) {
+                ChatInputListener.requestInput(player, "rtp.warmup_sec", p -> guiManager.openAdminRtpSettings(p));
+            } else if (slot == 12) {
+                ChatInputListener.requestInput(player, "rtp.range.min_x", p -> guiManager.openAdminRtpSettings(p));
+            } else if (slot == 13) {
+                ChatInputListener.requestInput(player, "rtp.range.max_x", p -> guiManager.openAdminRtpSettings(p));
+            } else if (slot == 14) {
+                ChatInputListener.requestInput(player, "rtp.range.min_z", p -> guiManager.openAdminRtpSettings(p));
+            } else if (slot == 15) {
+                ChatInputListener.requestInput(player, "rtp.range.max_z", p -> guiManager.openAdminRtpSettings(p));
+            } else if (slot == 26) {
+                guiManager.openAdminSettings(player);
+            }
             return;
         }
 

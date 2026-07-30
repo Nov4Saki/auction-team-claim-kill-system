@@ -171,7 +171,7 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
         SettingsCommand settingsCmd = new SettingsCommand(guiManager);
         registerCmd("settings", settingsCmd);
 
-        TeleportCommand tpCmd = new TeleportCommand(databaseManager);
+        TeleportCommand tpCmd = new TeleportCommand(databaseManager, settingsManager, scheduler);
         registerCmd("tpa", tpCmd);
         registerCmd("tpaccept", tpCmd);
         registerCmd("tpdeny", tpCmd);

@@ -39,6 +39,7 @@ public class AuctionManager {
                  ResultSet rs = ps.executeQuery()) {
 
                 auctionItems.clear();
+                long now = System.currentTimeMillis();
                 while (rs.next()) {
                     int id = rs.getInt("id");
                     UUID seller = UUID.fromString(rs.getString("seller_uuid"));
@@ -50,9 +51,10 @@ public class AuctionManager {
                     String bidderStr = rs.getString("bidder_uuid");
                     UUID bidder = bidderStr != null ? UUID.fromString(bidderStr) : null;
                     ItemStack item = ItemSerializer.deserializeItem(rs.getString("item_data"));
-                    long createdMs = rs.getTimestamp("created_at") != null ? rs.getTimestamp("created_at").getTime() : System.currentTimeMillis();
-                    long purchasableMs = rs.getTimestamp("purchasable_at") != null ? rs.getTimestamp("purchasable_at").getTime() : System.currentTimeMillis();
-                    long expiresAt = rs.getTimestamp("expires_at").getTime();
+
+                    long createdMs = parseTimestampToMs(rs, "created_at", now);
+                    long purchasableMs = parseTimestampToMs(rs, "purchasable_at", now);
+                    long expiresAt = parseTimestampToMs(rs, "expires_at", now + (48 * 3600 * 1000L));
                     boolean isSold = rs.getBoolean("is_sold");
                     boolean isExpired = rs.getBoolean("is_expired");
 
@@ -60,10 +62,50 @@ public class AuctionManager {
                     auctionItems.put(id, auction);
                 }
                 DebugManager.log(DebugFlag.AUCTION_PURCHASES, "Loaded " + auctionItems.size() + " active auction listings from database.");
+                checkAndSweepExpiredItems();
             } catch (Exception e) {
                 e.printStackTrace();
             }
         });
+    }
+
+    private long parseTimestampToMs(ResultSet rs, String columnName, long fallbackMs) {
+        try {
+            java.sql.Timestamp ts = rs.getTimestamp(columnName);
+            if (ts != null) return ts.getTime();
+        } catch (Exception ignored) {}
+        try {
+            long val = rs.getLong(columnName);
+            if (val > 0) return val > 2000000000L ? val : val * 1000L;
+        } catch (Exception ignored) {}
+        return fallbackMs;
+    }
+
+    public void checkAndSweepExpiredItems() {
+        long now = System.currentTimeMillis();
+        for (AuctionItem item : new ArrayList<>(auctionItems.values())) {
+            if (!item.isSold() && !item.isExpired() && now >= item.getExpiresAtMs()) {
+                item.setExpired(true);
+                auctionItems.remove(item.getId());
+
+                addToStash(item.getSellerUuid(), item.getItem());
+                dbManager.executeAsync(() -> {
+                    try (Connection conn = dbManager.getConnection();
+                         PreparedStatement ps = conn.prepareStatement("UPDATE auction_items SET is_expired = 1 WHERE id = ?")) {
+                        ps.setInt(1, item.getId());
+                        ps.executeUpdate();
+                        DebugManager.log(DebugFlag.AUCTION_PURCHASES, "Swept expired auction item #" + item.getId() + " to stash for " + item.getSellerName());
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                });
+
+                Player seller = org.bukkit.Bukkit.getPlayer(item.getSellerUuid());
+                if (seller != null && seller.isOnline()) {
+                    seller.sendMessage(com.guildcore.util.TextUtil.format("<gold>📜 [Auction] Your listing for <yellow>" + item.getItem().getType() + "</yellow> expired and was moved to your Auction Stash (/ah stash).</gold>"));
+                }
+            }
+        }
     }
 
     public int getMaxListingsForPlayer(Player player) {
@@ -87,6 +129,7 @@ public class AuctionManager {
     }
 
     public int getPlayerActiveListingCount(UUID playerUuid) {
+        checkAndSweepExpiredItems();
         int count = 0;
         for (AuctionItem item : auctionItems.values()) {
             if (item.getSellerUuid().equals(playerUuid) && !item.isSold() && !item.isExpired()) {
@@ -97,6 +140,7 @@ public class AuctionManager {
     }
 
     public List<AuctionItem> getPlayerListings(UUID playerUuid) {
+        checkAndSweepExpiredItems();
         List<AuctionItem> list = new ArrayList<>();
         for (AuctionItem item : auctionItems.values()) {
             if (item.getSellerUuid().equals(playerUuid) && !item.isSold() && !item.isExpired()) {
@@ -111,13 +155,13 @@ public class AuctionManager {
 
         long maxPrice = settingsManager.getLong("auction.max_listing_price", 1000000000L);
         if (price > maxPrice) {
-            seller.sendMessage("§c[Auction] Price exceeds max listing price limit of $" + maxPrice + "!");
+            seller.sendMessage(com.guildcore.util.TextUtil.format("<red>[Auction] Price exceeds max listing price limit of $" + String.format("%,d", maxPrice) + "!</red>"));
             return false;
         }
 
         int maxListings = getMaxListingsForPlayer(seller);
         if (getPlayerActiveListingCount(seller.getUniqueId()) >= maxListings) {
-            seller.sendMessage("§c[Auction] You have reached your maximum active listings limit (" + maxListings + ")!");
+            seller.sendMessage(com.guildcore.util.TextUtil.format("<red>[Auction] You have reached your maximum active listings limit (" + maxListings + ")!</red>"));
             return false;
         }
 
@@ -126,7 +170,7 @@ public class AuctionManager {
         String category = AuctionCategoryUtil.getCategory(item.getType());
         String itemData = ItemSerializer.serializeItem(item);
         long now = System.currentTimeMillis();
-        int cooldownSec = settingsManager.getInt("auction.listing_cooldown_sec", 0);
+        int cooldownSec = settingsManager.getInt("auction.listing_cooldown_sec", 30);
         long purchasableAtMs = now + (cooldownSec * 1000L);
         int durationHours = getListingDurationHoursForPlayer(seller);
         long durationMs = durationHours * 3600 * 1000L;
@@ -135,7 +179,7 @@ public class AuctionManager {
         dbManager.executeAsync(() -> {
             try (Connection conn = dbManager.getConnection();
                  PreparedStatement ps = conn.prepareStatement(
-                         "INSERT INTO auction_items (seller_uuid, seller_name, category, price, is_bid, current_bid, item_data, purchasable_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, datetime(?, 'unixepoch', 'localtime'), datetime(?, 'unixepoch', 'localtime'))",
+                         "INSERT INTO auction_items (seller_uuid, seller_name, category, price, is_bid, current_bid, item_data, purchasable_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, datetime(?, 'unixepoch'), datetime(?, 'unixepoch'))",
                          Statement.RETURN_GENERATED_KEYS)) {
 
                 ps.setString(1, sellerUuid.toString());
@@ -162,6 +206,13 @@ public class AuctionManager {
             }
         });
 
+        if (cooldownSec > 0) {
+            seller.sendMessage(com.guildcore.util.TextUtil.format("<green>✔ Offered item to Grand Bazaar for $" + String.format("%,d", price) + " Gold!</green>"));
+            seller.sendMessage(com.guildcore.util.TextUtil.format("<yellow>⏳ In " + cooldownSec + "s grace period. View/cancel in <gold>/ah list</gold> before it becomes publicly purchasable!</yellow>"));
+        } else {
+            seller.sendMessage(com.guildcore.util.TextUtil.format("<green>✔ Listed item on Grand Bazaar for $" + String.format("%,d", price) + " Gold!</green>"));
+        }
+
         return true;
     }
 
@@ -174,10 +225,10 @@ public class AuctionManager {
 
         if (seller.getInventory().firstEmpty() == -1) {
             addToStash(seller.getUniqueId(), item.getItem());
-            seller.sendMessage("§e[Auction] Your inventory was full! Cancelled item sent to your Auction Stash (/ah stash).");
+            seller.sendMessage(com.guildcore.util.TextUtil.format("<yellow>[Auction] Your inventory was full! Cancelled item sent to your Auction Stash (/ah stash).</yellow>"));
         } else {
             seller.getInventory().addItem(item.getItem());
-            seller.sendMessage("§a[Auction] Listing cancelled! Item returned to your inventory.");
+            seller.sendMessage(com.guildcore.util.TextUtil.format("<green>[Auction] Listing cancelled! Item returned to your inventory.</green>"));
         }
 
         dbManager.executeAsync(() -> {
@@ -199,7 +250,7 @@ public class AuctionManager {
         if (buyer.getUniqueId().equals(item.getSellerUuid())) return false;
 
         if (!item.isPurchasable()) {
-            buyer.sendMessage("§c[Auction] This listing is on cooldown and cannot be purchased for another " + item.getRemainingCooldownSec() + " seconds!");
+            buyer.sendMessage(com.guildcore.util.TextUtil.format("<red>[Auction] This listing is currently in its seller grace period and cannot be purchased for another " + item.getRemainingCooldownSec() + " seconds!</red>"));
             return false;
         }
 
@@ -218,7 +269,7 @@ public class AuctionManager {
 
         if (buyer.getInventory().firstEmpty() == -1) {
             addToStash(buyer.getUniqueId(), item.getItem());
-            buyer.sendMessage("§e[Auction] Your inventory was full! Item sent to your Auction Stash (/ah stash).");
+            buyer.sendMessage(com.guildcore.util.TextUtil.format("<yellow>[Auction] Your inventory was full! Purchased item sent to your Auction Stash (/ah stash).</yellow>"));
         } else {
             buyer.getInventory().addItem(item.getItem());
         }
@@ -252,6 +303,7 @@ public class AuctionManager {
     }
 
     public List<AuctionItem> getActiveListings() {
+        checkAndSweepExpiredItems();
         List<AuctionItem> active = new ArrayList<>();
         for (AuctionItem item : auctionItems.values()) {
             if (!item.isSold() && !item.isExpired()) {

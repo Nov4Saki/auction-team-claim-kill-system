@@ -1,6 +1,8 @@
 package com.guildcore.commands;
 
+import com.guildcore.config.SettingsManager;
 import com.guildcore.database.DatabaseManager;
+import com.guildcore.scheduler.SchedulerWrapper;
 import com.guildcore.util.TextUtil;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
@@ -30,11 +32,16 @@ import java.util.function.Consumer;
 
 public class TeleportCommand implements TabExecutor {
     private final DatabaseManager dbManager;
+    private final SettingsManager settingsManager;
+    private final SchedulerWrapper scheduler;
     private final Map<UUID, UUID> tpaRequests = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> rtpCooldowns = new ConcurrentHashMap<>();
     private final Random random = new Random();
 
-    public TeleportCommand(DatabaseManager dbManager) {
+    public TeleportCommand(DatabaseManager dbManager, SettingsManager settingsManager, SchedulerWrapper scheduler) {
         this.dbManager = dbManager;
+        this.settingsManager = settingsManager;
+        this.scheduler = scheduler;
     }
 
     @Override
@@ -88,7 +95,6 @@ public class TeleportCommand implements TabExecutor {
             tpaRequests.put(target.getUniqueId(), player.getUniqueId());
             player.sendMessage(TextUtil.format("<green>Sent teleport request to " + target.getName() + ".</green>"));
 
-            // Interactive Clickable Chat Text Component (NO GUI)
             Component tpaMsg = Component.text("⚡ ")
                     .color(NamedTextColor.GOLD)
                     .append(Component.text(player.getName()).color(NamedTextColor.YELLOW))
@@ -145,7 +151,7 @@ public class TeleportCommand implements TabExecutor {
             return true;
         }
 
-        // 4. /rtp [world_name] (High-Performance World Choice & Safe Surface Validation)
+        // 4. /rtp [world_name] (Configurable Cooldown, Standstill Warmup & Range Bounds)
         if (cmd.equals("rtp")) {
             World targetWorld = player.getWorld();
             if (args.length >= 1) {
@@ -161,18 +167,37 @@ public class TeleportCommand implements TabExecutor {
                 targetWorld = specifiedWorld;
             }
 
-            player.sendMessage(TextUtil.format("<yellow>Searching for safe surface location in " + targetWorld.getName() + "...</yellow>"));
-            findSafeRTPLocation(targetWorld, 0, loc -> {
-                if (loc != null) {
-                    player.teleportAsync(loc).thenAccept(success -> {
-                        if (success) {
-                            player.sendMessage(TextUtil.format("<green>🎲 Randomly teleported to safe surface at (" + loc.getBlockX() + ", " + loc.getBlockY() + ", " + loc.getBlockZ() + ") in " + loc.getWorld().getName() + "!</green>"));
-                        }
-                    });
-                } else {
-                    player.sendMessage(TextUtil.format("<red>Could not find a safe surface location. Please try /rtp again!</red>"));
+            boolean isBypass = player.hasPermission("guildcore.admin.bypass") || player.isOp();
+            int cooldownSec = settingsManager.getInt("rtp.cooldown_sec", 60);
+            if (!isBypass && cooldownSec > 0) {
+                long lastUse = rtpCooldowns.getOrDefault(player.getUniqueId(), 0L);
+                long elapsedSec = (System.currentTimeMillis() - lastUse) / 1000L;
+                if (elapsedSec < cooldownSec) {
+                    long remaining = cooldownSec - elapsedSec;
+                    player.sendMessage(TextUtil.format("<red>🎲 RTP is on cooldown! Please wait " + remaining + " more seconds.</red>"));
+                    return true;
                 }
-            });
+            }
+
+            int warmupSec = settingsManager.getInt("rtp.warmup_sec", 3);
+            World finalWorld = targetWorld;
+            if (!isBypass && warmupSec > 0) {
+                Location startLoc = player.getLocation().clone();
+                player.sendMessage(TextUtil.format("<yellow>⌛ Preparing random teleport in <gold>" + warmupSec + "s</gold>... Stay completely still!</yellow>"));
+
+                org.bukkit.plugin.Plugin plugin = com.guildcore.GuildCorePlugin.getPlugin(com.guildcore.GuildCorePlugin.class);
+                Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                    if (!player.isOnline()) return;
+                    Location currentLoc = player.getLocation();
+                    if (!startLoc.getWorld().equals(currentLoc.getWorld()) || startLoc.distanceSquared(currentLoc) > 1.5) {
+                        player.sendMessage(TextUtil.format("<red>✖ Teleport cancelled! You moved during the warmup period.</red>"));
+                        return;
+                    }
+                    executeRTP(player, finalWorld);
+                }, warmupSec * 20L);
+            } else {
+                executeRTP(player, finalWorld);
+            }
             return true;
         }
 
@@ -332,15 +357,43 @@ public class TeleportCommand implements TabExecutor {
         return true;
     }
 
+    private void executeRTP(Player player, World targetWorld) {
+        rtpCooldowns.put(player.getUniqueId(), System.currentTimeMillis());
+        player.sendMessage(TextUtil.format("<yellow>Searching for safe surface location in " + targetWorld.getName() + "...</yellow>"));
+        findSafeRTPLocation(targetWorld, 0, loc -> {
+            if (loc != null) {
+                player.teleportAsync(loc).thenAccept(success -> {
+                    if (success) {
+                        player.sendMessage(TextUtil.format("<green>🎲 Randomly teleported to safe surface at (" + loc.getBlockX() + ", " + loc.getBlockY() + ", " + loc.getBlockZ() + ") in " + loc.getWorld().getName() + "!</green>"));
+                    }
+                });
+            } else {
+                player.sendMessage(TextUtil.format("<red>Could not find a safe surface location. Please try /rtp again!</red>"));
+            }
+        });
+    }
+
     private void findSafeRTPLocation(World world, int attempts, Consumer<Location> callback) {
         if (attempts >= 25) {
             callback.accept(null);
             return;
         }
 
-        int radius = 3000;
-        int x = (random.nextInt(radius * 2) - radius);
-        int z = (random.nextInt(radius * 2) - radius);
+        int minX = settingsManager.getInt("rtp.range.min_x", -3000);
+        int maxX = settingsManager.getInt("rtp.range.max_x", 3000);
+        int minZ = settingsManager.getInt("rtp.range.min_z", -3000);
+        int maxZ = settingsManager.getInt("rtp.range.max_z", 3000);
+
+        int boundMinX = Math.min(minX, maxX);
+        int boundMaxX = Math.max(minX, maxX);
+        int boundMinZ = Math.min(minZ, maxZ);
+        int boundMaxZ = Math.max(minZ, maxZ);
+
+        int rangeX = Math.max(1, boundMaxX - boundMinX);
+        int rangeZ = Math.max(1, boundMaxZ - boundMinZ);
+
+        int x = boundMinX + random.nextInt(rangeX + 1);
+        int z = boundMinZ + random.nextInt(rangeZ + 1);
         int chunkX = x >> 4;
         int chunkZ = z >> 4;
 
@@ -371,3 +424,4 @@ public class TeleportCommand implements TabExecutor {
         });
     }
 }
+
