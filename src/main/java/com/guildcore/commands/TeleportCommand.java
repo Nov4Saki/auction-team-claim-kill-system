@@ -397,8 +397,20 @@ public class TeleportCommand implements TabExecutor {
         int chunkZ = z >> 4;
 
         world.getChunkAtAsync(chunkX, chunkZ).thenAccept(chunk -> {
-            int topY = Math.min(319, world.getMaxHeight() - 1);
-            int minY = Math.max(63, world.getMinHeight() + 5);
+            int topY;
+            int minY;
+
+            World.Environment env = world.getEnvironment();
+            if (env == World.Environment.NETHER) {
+                topY = 120; // Below Nether bedrock ceiling (Y=127)
+                minY = 32;  // Above Nether lava sea level (Y=31)
+            } else if (env == World.Environment.THE_END) {
+                topY = 120; // Island height threshold
+                minY = 45;  // Safe height above End void
+            } else {
+                topY = Math.min(319, world.getMaxHeight() - 1);
+                minY = Math.max(63, world.getMinHeight() + 5); // Overworld surface above Y=63
+            }
 
             int targetY = -1;
             for (int y = topY; y >= minY; y--) {
