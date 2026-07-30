@@ -84,4 +84,20 @@ public class SchedulerWrapper {
             }, delayTicks, periodTicks);
         }
     }
+
+    public void runLater(Entity entity, Runnable runnable, long delayTicks) {
+        if (isFolia && entity != null) {
+            entity.getScheduler().runDelayed(plugin, task -> runnable.run(), null, Math.max(1L, delayTicks));
+        } else {
+            Bukkit.getScheduler().runTaskLater(plugin, runnable, Math.max(1L, delayTicks));
+        }
+    }
+
+    public void runLater(Location location, Runnable runnable, long delayTicks) {
+        if (isFolia && location != null) {
+            Bukkit.getRegionScheduler().runDelayed(plugin, location, task -> runnable.run(), Math.max(1L, delayTicks));
+        } else {
+            Bukkit.getScheduler().runTaskLater(plugin, runnable, Math.max(1L, delayTicks));
+        }
+    }
 }

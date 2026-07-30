@@ -185,8 +185,7 @@ public class TeleportCommand implements TabExecutor {
                 Location startLoc = player.getLocation().clone();
                 player.sendMessage(TextUtil.format("<yellow>⌛ Preparing random teleport in <gold>" + warmupSec + "s</gold>... Stay completely still!</yellow>"));
 
-                org.bukkit.plugin.Plugin plugin = com.guildcore.GuildCorePlugin.getPlugin(com.guildcore.GuildCorePlugin.class);
-                Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                scheduler.runLater(player, () -> {
                     if (!player.isOnline()) return;
                     Location currentLoc = player.getLocation();
                     if (!startLoc.getWorld().equals(currentLoc.getWorld()) || startLoc.distanceSquared(currentLoc) > 1.5) {
