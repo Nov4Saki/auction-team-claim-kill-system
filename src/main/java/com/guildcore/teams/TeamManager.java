@@ -193,4 +193,8 @@ public class TeamManager {
 
         return true;
     }
+
+    public int getTeamMembersCount(int teamId) {
+        return (int) playerTeamMap.values().stream().filter(id -> id == teamId).count();
+    }
 }

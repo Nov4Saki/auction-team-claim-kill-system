@@ -179,14 +179,23 @@ public class ShopManager {
     }
 
     public void openShopMainMenu(Player player) {
-        Inventory inv = Bukkit.createInventory(new ShopGUIHolder(0), 27, TextUtil.format("<gold>🛒 Server Shop</gold>"));
+        Inventory inv = Bukkit.createInventory(new ShopGUIHolder(0), 27, TextUtil.format("<gradient:#45B6FE:#3750B2><b>⚜ MERCHANT GUILD EMPORIUM</b></gradient>"));
 
-        // Fill background border
+        // Fill background glass frame with cyan corners
         for (int i = 0; i < 27; i++) {
-            inv.setItem(i, new GUIItemBuilder(Material.BLACK_STAINED_GLASS_PANE).name("<gray> </gray>").build());
+            if (i == 0 || i == 8 || i == 18 || i == 26) {
+                inv.setItem(i, new GUIItemBuilder(Material.CYAN_STAINED_GLASS_PANE).name("<gradient:#45B6FE:#3750B2><b>✦ Royal Emblem</b></gradient>").build());
+            } else {
+                inv.setItem(i, new GUIItemBuilder(Material.BLACK_STAINED_GLASS_PANE).name("<gray> </gray>").build());
+            }
         }
 
-        // Dynamically center category slots
+        // Center Slot 4: Player Purse Card
+        long balance = economyManager.getBalance(player.getUniqueId());
+        inv.setItem(4, new GUIItemBuilder(Material.GOLD_BLOCK).name("<gradient:#FFD700:#FFA500><b>💰 Merchant Purse Balance</b></gradient>")
+                .lore("<gray>Current Wealth: </gray><gradient:#00FF87:#60EFFF><b>$" + String.format("%,d", balance) + " Gold Coins</b></gradient>").build());
+
+        // Dynamically center category slots in row 2 (Slots 10-16)
         List<ShopCategory> list = new ArrayList<>(categories.values());
         int count = Math.min(7, list.size());
         int startSlot = 10 + (7 - count) / 2;
@@ -195,8 +204,13 @@ public class ShopManager {
             ShopCategory cat = list.get(i);
             int targetSlot = startSlot + i;
             cat.setSlot(targetSlot);
-            inv.setItem(targetSlot, new GUIItemBuilder(cat.getIcon()).name("<gold>" + cat.getName() + "</gold>")
-                    .lore(List.of("<yellow>Click to browse items</yellow>")).build());
+            int itemAmount = categoryItems.getOrDefault(cat.getId(), new ArrayList<>()).size();
+            inv.setItem(targetSlot, new GUIItemBuilder(cat.getIcon()).name("<gradient:#FFD700:#FFA500><b>⚜ " + cat.getName() + "</b></gradient>")
+                    .lore(
+                            "<gray>Available Wares: </gray><white><b>" + itemAmount + " Items</b></white>",
+                            "",
+                            "<yellow>▶ Click to browse category items</yellow>"
+                    ).build());
         }
 
         scheduler.runSync(player, () -> player.openInventory(inv));
@@ -206,16 +220,20 @@ public class ShopManager {
         ShopCategory cat = categories.get(categoryId);
         if (cat == null) return;
 
-        Inventory inv = Bukkit.createInventory(new ShopGUIHolder(categoryId), 54, TextUtil.format("<gold>🛒 Shop: " + cat.getName() + "</gold>"));
+        Inventory inv = Bukkit.createInventory(new ShopGUIHolder(categoryId), 54, TextUtil.format("<gradient:#45B6FE:#3750B2><b>⚜ MERCHANT GUILD: " + cat.getName() + "</b></gradient>"));
 
         // Fill border
         for (int i = 0; i < 54; i++) {
-            if (i < 9 || i >= 45 || i % 9 == 0 || i % 9 == 8) {
+            if (i == 0 || i == 8 || i == 45 || i == 53) {
+                inv.setItem(i, new GUIItemBuilder(Material.CYAN_STAINED_GLASS_PANE).name("<gradient:#45B6FE:#3750B2><b>✦ Royal Emblem</b></gradient>").build());
+            } else if (i < 9 || i >= 45 || i % 9 == 0 || i % 9 == 8) {
                 inv.setItem(i, new GUIItemBuilder(Material.BLACK_STAINED_GLASS_PANE).name("<gray> </gray>").build());
             }
         }
 
         List<ShopItem> items = categoryItems.getOrDefault(categoryId, new ArrayList<>());
+        int playerLimit = getMaxQuantityLimitForPlayer(player);
+        String limitStr = (playerLimit == Integer.MAX_VALUE) ? "UNLIMITED" : playerLimit + " Items";
 
         // Centered grid slots inside 6-row inventory (Slots 10-16, 19-25, 28-34, 37-43)
         int[] innerSlots = {
@@ -233,18 +251,21 @@ public class ShopManager {
             ItemStack display = shopItem.getItem().clone();
             ItemMeta meta = display.getItemMeta();
             if (meta != null) {
-                List<String> lore = meta.hasLore() && meta.getLore() != null ? meta.getLore() : new ArrayList<>();
-                lore.add("§aBuy Price: §e$" + shopItem.getBuyPrice());
-                lore.add("§cSell Price: §e$" + shopItem.getSellPrice());
-                lore.add("§a[Left-Click] Buy 1 | [Shift-Left] Buy 16");
-                lore.add("§c[Right-Click] Sell 1 | [Shift-Right] Sell 16");
-                meta.setLore(lore);
+                List<net.kyori.adventure.text.Component> lore = meta.hasLore() && meta.lore() != null ? meta.lore() : new ArrayList<>();
+                if (lore == null) lore = new ArrayList<>();
+                lore.add(net.kyori.adventure.text.Component.text(" "));
+                lore.add(TextUtil.format("<gray>▪ Buy Price: </gray><gradient:#00FF87:#60EFFF><b>$" + String.format("%,d", shopItem.getBuyPrice()) + " Gold</b></gradient>"));
+                lore.add(TextUtil.format("<gray>▪ Sell Price: </gray><gradient:#FF416C:#FF4B2B><b>$" + String.format("%,d", shopItem.getSellPrice()) + " Gold</b></gradient>"));
+                lore.add(TextUtil.format("<gray>▪ License Limit: </gray><gold><b>" + limitStr + "</b></gold>"));
+                lore.add(TextUtil.format("<gradient:#00FF87:#60EFFF>[Left-Click]</gradient> <white>Buy 1</white> | <gradient:#00FF87:#60EFFF>[Shift-Left]</gradient> <white>Buy 16</white>"));
+                lore.add(TextUtil.format("<gradient:#FF416C:#FF4B2B>[Right-Click]</gradient> <white>Sell 1</white> | <gradient:#FF416C:#FF4B2B>[Shift-Right]</gradient> <white>Sell 16</white>"));
+                meta.lore(lore);
                 display.setItemMeta(meta);
             }
             inv.setItem(slot, display);
         }
 
-        inv.setItem(49, new GUIItemBuilder(Material.BARRIER).name("<red>◀ Back to Shop Categories</red>").build());
+        inv.setItem(49, new GUIItemBuilder(Material.BARRIER).name("<red><b>◀ Return to Merchant Guild Emporium</b></red>").build());
         scheduler.runSync(player, () -> player.openInventory(inv));
     }
 

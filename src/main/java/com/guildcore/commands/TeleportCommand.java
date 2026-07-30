@@ -48,6 +48,14 @@ public class TeleportCommand implements TabExecutor {
                     if (p.getName().toLowerCase().startsWith(args[0].toLowerCase())) completions.add(p.getName());
                 }
             }
+        } else if (cmd.equals("rtp")) {
+            if (args.length == 1) {
+                for (World w : Bukkit.getWorlds()) {
+                    if (w.getEnvironment() == World.Environment.NORMAL && w.getName().toLowerCase().startsWith(args[0].toLowerCase())) {
+                        completions.add(w.getName());
+                    }
+                }
+            }
         }
         return completions;
     }
@@ -137,14 +145,28 @@ public class TeleportCommand implements TabExecutor {
             return true;
         }
 
-        // 4. /rtp (Guaranteed Safe Surface Location)
+        // 4. /rtp [world_name] (High-Performance World Choice & Safe Surface Validation)
         if (cmd.equals("rtp")) {
-            player.sendMessage(TextUtil.format("<yellow>Searching for safe surface location in wilderness...</yellow>"));
-            findSafeRTPLocation(player.getWorld(), 0, loc -> {
+            World targetWorld = player.getWorld();
+            if (args.length >= 1) {
+                World specifiedWorld = Bukkit.getWorld(args[0]);
+                if (specifiedWorld == null) {
+                    player.sendMessage(TextUtil.format("<red>World '" + args[0] + "' not found!</red>"));
+                    return true;
+                }
+                if (specifiedWorld.getEnvironment() != World.Environment.NORMAL) {
+                    player.sendMessage(TextUtil.format("<red>RTP is only allowed in Overworld environments.</red>"));
+                    return true;
+                }
+                targetWorld = specifiedWorld;
+            }
+
+            player.sendMessage(TextUtil.format("<yellow>Searching for safe surface location in " + targetWorld.getName() + "...</yellow>"));
+            findSafeRTPLocation(targetWorld, 0, loc -> {
                 if (loc != null) {
                     player.teleportAsync(loc).thenAccept(success -> {
                         if (success) {
-                            player.sendMessage(TextUtil.format("<green>🎲 Randomly teleported to safe surface at (" + loc.getBlockX() + ", " + loc.getBlockY() + ", " + loc.getBlockZ() + ")!</green>"));
+                            player.sendMessage(TextUtil.format("<green>🎲 Randomly teleported to safe surface at (" + loc.getBlockX() + ", " + loc.getBlockY() + ", " + loc.getBlockZ() + ") in " + loc.getWorld().getName() + "!</green>"));
                         }
                     });
                 } else {
@@ -311,30 +333,37 @@ public class TeleportCommand implements TabExecutor {
     }
 
     private void findSafeRTPLocation(World world, int attempts, Consumer<Location> callback) {
-        if (attempts >= 15) {
+        if (attempts >= 25) {
             callback.accept(null);
             return;
         }
 
-        int x = (random.nextInt(5000) - 2500);
-        int z = (random.nextInt(5000) - 2500);
+        int radius = 3000;
+        int x = (random.nextInt(radius * 2) - radius);
+        int z = (random.nextInt(radius * 2) - radius);
         int chunkX = x >> 4;
         int chunkZ = z >> 4;
 
         world.getChunkAtAsync(chunkX, chunkZ).thenAccept(chunk -> {
-            int highestY = world.getHighestBlockYAt(x, z);
-            if (highestY <= world.getMinHeight() + 5) {
-                findSafeRTPLocation(world, attempts + 1, callback);
-                return;
+            int topY = Math.min(319, world.getMaxHeight() - 1);
+            int minY = world.getMinHeight() + 5;
+
+            int targetY = -1;
+            for (int y = topY; y >= minY; y--) {
+                Block b = world.getBlockAt(x, y, z);
+                Material m = b.getType();
+                if (m.isSolid() && m != Material.LAVA && m != Material.WATER && m != Material.MAGMA_BLOCK && m != Material.FIRE && m != Material.CACTUS && m != Material.BEDROCK) {
+                    Block feet = world.getBlockAt(x, y + 1, z);
+                    Block head = world.getBlockAt(x, y + 2, z);
+                    if (feet.isPassable() && head.isPassable() && feet.getType() != Material.WATER && feet.getType() != Material.LAVA) {
+                        targetY = y;
+                        break;
+                    }
+                }
             }
 
-            Block ground = world.getBlockAt(x, highestY, z);
-            Block feet = world.getBlockAt(x, highestY + 1, z);
-            Block head = world.getBlockAt(x, highestY + 2, z);
-
-            Material gMat = ground.getType();
-            if (gMat.isSolid() && gMat != Material.LAVA && gMat != Material.WATER && gMat != Material.MAGMA_BLOCK && gMat != Material.FIRE && feet.isPassable() && head.isPassable()) {
-                Location safeLoc = new Location(world, x + 0.5, highestY + 1.0, z + 0.5);
+            if (targetY != -1) {
+                Location safeLoc = new Location(world, x + 0.5, targetY + 1.0, z + 0.5);
                 callback.accept(safeLoc);
             } else {
                 findSafeRTPLocation(world, attempts + 1, callback);

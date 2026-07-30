@@ -6,6 +6,7 @@ import com.guildcore.config.SettingsManager;
 import com.guildcore.crates.Crate;
 import com.guildcore.crates.CrateAdminGUIHolder;
 import com.guildcore.crates.CrateAdminHubHolder;
+import com.guildcore.crates.CrateConfirmGUIHolder;
 import com.guildcore.crates.CrateGUIHolder;
 import com.guildcore.crates.CrateManager;
 import com.guildcore.debug.DebugFlag;
@@ -91,6 +92,30 @@ public class GUIClickListener implements Listener {
 
         if (!(event.getWhoClicked() instanceof Player player)) return;
 
+        // Crate Choice Confirmation GUI
+        if (holder instanceof CrateConfirmGUIHolder confirmHolder) {
+            event.setCancelled(true);
+            SoundUtil.playClick(player);
+            int slot = event.getSlot();
+
+            Crate crate = crateManager.getCrate(confirmHolder.getCrateName());
+            if (crate == null) return;
+
+            if (slot == 11) { // Confirm
+                if (crateManager.consumeKey(player, crate)) {
+                    ItemStack selected = confirmHolder.getSelectedItem().clone();
+                    player.getInventory().addItem(selected);
+                    player.sendMessage(TextUtil.format("<green>🎁 You chose " + selected.getType() + " from crate '" + crate.getDisplayName() + "'!</green>"));
+                } else {
+                    player.sendMessage(TextUtil.format("<red>No crate key found in inventory!</red>"));
+                }
+                player.closeInventory();
+            } else if (slot == 15) { // Cancel
+                crateManager.openCrateChoiceMenu(player, crate);
+            }
+            return;
+        }
+
         // Crate Admin Hub GUI Navigation & Actions
         if (holder instanceof CrateAdminHubHolder) {
             event.setCancelled(true);
@@ -98,7 +123,7 @@ public class GUIClickListener implements Listener {
             int slot = event.getSlot();
 
             if (slot == 45) { // Create New Crate
-                ChatInputListener.requestInput(player, "new_crate_name", p -> {
+                ChatInputListener.requestStringInput(player, "new_crate_name", p -> {
                     String name = settingsManager.getString("new_crate_name", "");
                     if (!name.isEmpty()) {
                         ItemStack inHand = p.getInventory().getItemInMainHand();
@@ -141,7 +166,7 @@ public class GUIClickListener implements Listener {
             return;
         }
 
-        // Choice Crate GUI Selection (Consumes key ONLY upon clicking chosen item!)
+        // Choice Crate GUI Selection & Inspection
         if (holder instanceof CrateGUIHolder crateHolder) {
             event.setCancelled(true);
             SoundUtil.playClick(player);
@@ -149,14 +174,12 @@ public class GUIClickListener implements Listener {
 
             Crate crate = crateManager.getCrate(crateHolder.getCrateName());
             if (crate != null && slot >= 0 && slot < crate.getContents().size()) {
-                if (crateManager.consumeKey(player, crate)) {
+                if (crateManager.hasKey(player, crate)) {
                     ItemStack selected = crate.getContents().get(slot).clone();
-                    player.getInventory().addItem(selected);
-                    player.sendMessage(TextUtil.format("<green>🎁 You chose " + selected.getType() + " from crate '" + crate.getDisplayName() + "'!</green>"));
+                    crateManager.openCrateConfirmMenu(player, crate, slot, selected);
                 } else {
-                    player.sendMessage(TextUtil.format("<red>No crate key found in inventory!</red>"));
+                    player.sendMessage(TextUtil.format("<red>You need a matching Crate Key (" + crate.getKeyItem().getType() + ") in your inventory to claim items!</red>"));
                 }
-                player.closeInventory();
             }
             return;
         }
@@ -260,7 +283,7 @@ public class GUIClickListener implements Listener {
             ItemStack clicked = event.getCurrentItem();
             if (clicked != null && event.getClick() == ClickType.RIGHT && clicked.getType().name().contains("SHULKER_BOX")) {
                 if (clicked.getItemMeta() instanceof BlockStateMeta bsm && bsm.getBlockState() instanceof ShulkerBox shulker) {
-                    Inventory preview = Bukkit.createInventory(new ShulkerPreviewHolder(), 27, TextUtil.format("<gold>📦 Shulker Preview (Read-Only)</gold>"));
+                    Inventory preview = Bukkit.createInventory(new ShulkerPreviewHolder(), 27, TextUtil.format("<gradient:#9D50BB:#6E48AA><b>📦 Shulker Vault Inspection</b></gradient> <gray>(Read-Only)</gray>"));
                     preview.setContents(shulker.getInventory().getContents());
                     scheduler.runSync(player, () -> player.openInventory(preview));
                     return;

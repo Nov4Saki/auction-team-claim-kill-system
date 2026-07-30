@@ -164,18 +164,28 @@ public class CrateManager {
         if (crate == null) return;
 
         List<ItemStack> contents = crate.getContents();
-        int size = Math.min(54, (int) Math.ceil((contents.size() + 9) / 9.0) * 9);
+        int size = Math.min(54, (int) Math.ceil((contents.size()) / 9.0) * 9);
         if (size < 27) size = 27;
 
-        Inventory inv = Bukkit.createInventory(new CrateGUIHolder(crate.getName()), size, TextUtil.format("<gold>🎁 Choice Crate: " + crate.getDisplayName() + "</gold>"));
+        boolean hasKey = hasKey(player, crate);
+        String title = hasKey ? "<gradient:#9D50BB:#6E48AA><b>🔮 ANCIENT RELIC VAULT: " + crate.getDisplayName() + "</b></gradient>"
+                              : "<gradient:#9D50BB:#6E48AA><b>🔍 INSPECTING VAULT: " + crate.getDisplayName() + "</b></gradient>";
+
+        Inventory inv = Bukkit.createInventory(new CrateGUIHolder(crate.getName()), size, TextUtil.format(title));
 
         for (int i = 0; i < contents.size(); i++) {
             ItemStack item = contents.get(i).clone();
             ItemMeta meta = item.getItemMeta();
             if (meta != null) {
-                List<String> lore = meta.hasLore() && meta.getLore() != null ? meta.getLore() : new ArrayList<>();
-                lore.add("§e§lCLICK TO CHOOSE THIS ITEM");
-                meta.setLore(lore);
+                List<net.kyori.adventure.text.Component> lore = meta.hasLore() && meta.lore() != null ? meta.lore() : new ArrayList<>();
+                if (lore == null) lore = new ArrayList<>();
+                lore.add(net.kyori.adventure.text.Component.text(" "));
+                if (hasKey) {
+                    lore.add(TextUtil.format("<gradient:#00FF87:#60EFFF><b>✔ [CLICK TO CLAIM THIS ANCIENT RELIC]</b></gradient>"));
+                } else {
+                    lore.add(TextUtil.format("<gradient:#FF416C:#FF4B2B><b>✖ [KEY REQUIRED: " + crate.getKeyItem().getType() + "]</b></gradient>"));
+                }
+                meta.lore(lore);
                 item.setItemMeta(meta);
             }
             inv.setItem(i, item);
@@ -184,24 +194,53 @@ public class CrateManager {
         scheduler.runSync(player, () -> player.openInventory(inv));
     }
 
+    public void openCrateConfirmMenu(Player player, Crate crate, int slotIndex, ItemStack selectedItem) {
+        Inventory inv = Bukkit.createInventory(new CrateConfirmGUIHolder(crate.getName(), slotIndex, selectedItem), 27, TextUtil.format("<gradient:#9D50BB:#6E48AA><b>🔮 Confirm Relic Claim Choice?</b></gradient>"));
+
+        for (int i = 0; i < 27; i++) {
+            if (i == 0 || i == 8 || i == 18 || i == 26) {
+                inv.setItem(i, new GUIItemBuilder(Material.PURPLE_STAINED_GLASS_PANE).name("<gradient:#9D50BB:#6E48AA><b>✦ Arcane Seal</b></gradient>").build());
+            } else {
+                inv.setItem(i, new GUIItemBuilder(Material.BLACK_STAINED_GLASS_PANE).name("<gray> </gray>").build());
+            }
+        }
+
+        inv.setItem(11, new GUIItemBuilder(Material.LIME_WOOL).name("<gradient:#00FF87:#60EFFF><b>✔ CONFIRM RELIC CLAIM</b></gradient>")
+                .lore("<gray>Consumes 1x Ancient Key and grants item</gray>", "", "<yellow>▶ Click to claim</yellow>").build());
+
+        inv.setItem(13, selectedItem.clone());
+
+        inv.setItem(15, new GUIItemBuilder(Material.RED_WOOL).name("<gradient:#FF416C:#FF4B2B><b>✖ CANCEL & RETURN</b></gradient>")
+                .lore("<gray>Return to Relic Vault inspection</gray>").build());
+
+        scheduler.runSync(player, () -> player.openInventory(inv));
+    }
+
     public void openCrateAdminHub(Player player) {
-        Inventory inv = Bukkit.createInventory(new CrateAdminHubHolder(), 54, TextUtil.format("<red>⚙ Modular Choice Crates Admin Hub</red>"));
+        Inventory inv = Bukkit.createInventory(new CrateAdminHubHolder(), 54, TextUtil.format("<gradient:#800000:#DC143C><b>⚡ RELIC VAULT FORGE (ADMIN)</b></gradient>"));
+
+        for (int i = 0; i < 54; i++) {
+            if (i >= 45 && i != 45 && i != 53) {
+                inv.setItem(i, new GUIItemBuilder(Material.BLACK_STAINED_GLASS_PANE).name("<gray> </gray>").build());
+            }
+        }
 
         List<Crate> list = getAllCrates();
         for (int i = 0; i < Math.min(45, list.size()); i++) {
             Crate crate = list.get(i);
-            inv.setItem(i, new GUIItemBuilder(Material.CHEST).name("<gold>" + crate.getDisplayName() + "</gold>")
-                    .lore(List.of(
-                            "<gray>Items Inside: <white>" + crate.getContents().size() + "</white></gray>",
-                            "<gray>Key Item: <yellow>" + crate.getKeyItem().getType() + "</yellow></gray>",
-                            "<green>[Left-Click] Edit Crate Items</green>",
-                            "<yellow>[Right-Click] Set Key (Item in Main Hand)</yellow>",
-                            "<red>[Shift-Right-Click] Delete Crate</red>"
-                    )).build());
+            inv.setItem(i, new GUIItemBuilder(Material.CHEST).name("<gradient:#FFD700:#FFA500><b>🔮 Vault: " + crate.getDisplayName() + "</b></gradient>")
+                    .lore(
+                            "<gray>▪ Relics Inside: </gray><white><b>" + crate.getContents().size() + " Items</b></white>",
+                            "<gray>▪ Required Key: </gray><yellow><b>" + crate.getKeyItem().getType() + "</b></yellow>",
+                            "",
+                            "<gradient:#00FF87:#60EFFF>[Left-Click]</gradient> <white>Edit Vault Items</white>",
+                            "<gold>[Right-Click]</gold> <white>Set Key (Item in Main Hand)</white>",
+                            "<gradient:#FF416C:#FF4B2B>[Shift-Right-Click]</gradient> <white>Banish Crate</white>"
+                    ).build());
         }
 
-        inv.setItem(45, new GUIItemBuilder(Material.EMERALD_BLOCK).name("<green>➕ Create New Choice Crate</green>").lore(List.of("<gray>Click to type crate name in chat</gray>")).build());
-        inv.setItem(53, new GUIItemBuilder(Material.BARRIER).name("<red>✖ Close Menu</red>").build());
+        inv.setItem(45, new GUIItemBuilder(Material.EMERALD_BLOCK).name("<gradient:#00FF87:#60EFFF><b>➕ Forge New Relic Vault</b></gradient>").lore("<gray>Click to type crate name in chat</gray>").build());
+        inv.setItem(53, new GUIItemBuilder(Material.BARRIER).name("<red><b>✖ Close Forge Hub</b></red>").build());
 
         scheduler.runSync(player, () -> player.openInventory(inv));
     }
@@ -209,11 +248,11 @@ public class CrateManager {
     public void openCrateAdminEditor(Player player, Crate crate) {
         if (crate == null) return;
 
-        Inventory inv = Bukkit.createInventory(new CrateAdminGUIHolder(crate.getName()), 54, TextUtil.format("<red>⚙ Edit Crate: " + crate.getDisplayName() + "</red>"));
+        Inventory inv = Bukkit.createInventory(new CrateAdminGUIHolder(crate.getName()), 54, TextUtil.format("<gradient:#800000:#DC143C><b>⚡ Edit Vault: " + crate.getDisplayName() + "</b></gradient>"));
         for (int i = 0; i < crate.getContents().size(); i++) {
             if (i < 53) inv.setItem(i, crate.getContents().get(i).clone());
         }
-        inv.setItem(53, new GUIItemBuilder(Material.GREEN_WOOL).name("<green>✔ SAVE CRATE CONTENTS</green>").build());
+        inv.setItem(53, new GUIItemBuilder(Material.GREEN_WOOL).name("<gradient:#00FF87:#60EFFF><b>✔ SAVE VAULT CONTENTS</b></gradient>").build());
 
         scheduler.runSync(player, () -> player.openInventory(inv));
     }
