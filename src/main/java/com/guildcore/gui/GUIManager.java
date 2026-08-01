@@ -22,6 +22,7 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.Material;
+import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
@@ -61,6 +62,18 @@ public class GUIManager {
         return permissionManager;
     }
 
+    public ClaimManager getClaimManager() {
+        return claimManager;
+    }
+
+    public SettingsManager getSettingsManager() {
+        return settingsManager;
+    }
+
+    public TeamManager getTeamManager() {
+        return teamManager;
+    }
+
     public void openAdminSettings(Player player) {
         Inventory inv = Bukkit.createInventory(new SettingsGUIHolder(), 54, TextUtil.format("<gradient:#FFD700:#FFA500:#DAA520><b>👑 HIGH SOVEREIGN CONTROL PANEL</b></gradient>"));
 
@@ -70,11 +83,12 @@ public class GUIManager {
                 inv.setItem(i, new GUIItemBuilder(Material.PURPLE_STAINED_GLASS_PANE).name("<gradient:#9D50BB:#6E48AA><b>✦ Sovereign Seal</b></gradient>").build());
             } else if (i < 9 || i >= 45 || i % 9 == 0 || i % 9 == 8) {
                 inv.setItem(i, new GUIItemBuilder(Material.BLACK_STAINED_GLASS_PANE).name("<gray> </gray>").build());
-            } else if (i >= 18 && i <= 26) {
+            } else {
                 inv.setItem(i, new GUIItemBuilder(Material.GRAY_STAINED_GLASS_PANE).name("<gray> </gray>").build());
             }
         }
 
+        // Row 1: Primary Module Archives (Slots 10 - 16)
         inv.setItem(10, new GUIItemBuilder(Material.GOLD_INGOT).name("<gradient:#FFD700:#FFA500><b>💰 Economy Treasury Archive</b></gradient>")
                 .lore("<gray>▪ Manage kingdom starting funds, PvP bounties, and royal sales tax</gray>", "", "<yellow>▶ Click to inspect Treasury Archive</yellow>").build());
 
@@ -96,14 +110,21 @@ public class GUIManager {
         inv.setItem(16, new GUIItemBuilder(Material.CHEST).name("<gradient:#FFD700:#FFA500><b>📜 Grand Bazaar Settings Archive</b></gradient>")
                 .lore("<gray>▪ Manage listing taxes, default expiration timers, and delays</gray>", "", "<yellow>▶ Click to inspect Bazaar Archive</yellow>").build());
 
-        inv.setItem(17, new GUIItemBuilder(Material.COMPASS).name("<gradient:#FFD700:#FFA500><b>🎲 RTP & Teleportation Archive</b></gradient>")
+        // Row 2: Secondary & Administrative Hubs (Slots 19 - 25)
+        inv.setItem(19, new GUIItemBuilder(Material.COMPASS).name("<gradient:#FFD700:#FFA500><b>🎲 RTP & Teleportation Archive</b></gradient>")
                 .lore("<gray>▪ Manage RTP cooldowns, standstill timers, and coordinate bounds</gray>", "", "<yellow>▶ Click to inspect RTP Archive</yellow>").build());
 
-        inv.setItem(18, new GUIItemBuilder(Material.ANVIL).name("<gradient:#800000:#DC143C><b>🚫 Prohibited Items Archive</b></gradient>")
+        inv.setItem(20, new GUIItemBuilder(Material.ANVIL).name("<gradient:#800000:#DC143C><b>🚫 Prohibited Items Archive</b></gradient>")
                 .lore("<gray>▪ Manage server item bans, crafting blocks, and inventory purges</gray>", "", "<yellow>▶ Click to inspect Prohibited Archive</yellow>").build());
+
+        inv.setItem(21, new GUIItemBuilder(Material.EMERALD).name("<gradient:#00FF87:#60EFFF><b>🛒 Server Admin Shop Hub</b></gradient>")
+                .lore("<gray>▪ Manage shop categories, buy/sell items, and pricing</gray>", "", "<yellow>▶ Click to inspect Admin Shop Hub</yellow>").build());
 
         inv.setItem(22, new GUIItemBuilder(Material.LEVER).name("<gradient:#FF416C:#FF4B2B><b>⚡ Sovereign Debug Forge (18 Flags)</b></gradient>")
                 .lore("<gray>▪ Toggle 18 surgical realm diagnostic flags in real-time</gray>", "", "<yellow>▶ Click to open Debug Forge</yellow>").build());
+
+        inv.setItem(23, new GUIItemBuilder(Material.TRIPWIRE_HOOK).name("<gradient:#9D50BB:#6E48AA><b>🎁 Modular Choice Crates Hub</b></gradient>")
+                .lore("<gray>▪ Manage key crates, reward tables, and choice menu configurations</gray>", "", "<yellow>▶ Click to inspect Crates Hub</yellow>").build());
 
         inv.setItem(49, new GUIItemBuilder(Material.BARRIER).name("<red><b>✖ Close Sovereign Control Panel</b></red>").build());
 
@@ -687,24 +708,151 @@ public class GUIManager {
     }
 
     public void openAdminProhibitedItems(Player player) {
+        openAdminProhibitedItems(player, 1);
+    }
+
+    public void openAdminProhibitedItems(Player player, int page) {
         if (prohibitedManager == null) return;
-        Inventory inv = Bukkit.createInventory(new com.guildcore.gui.holders.AdminProhibitedHolder(), 54, TextUtil.format("<gradient:#800000:#DC143C><b>🚫 Prohibited Items Codex</b></gradient>"));
+        List<Material> mats = new ArrayList<>(prohibitedManager.getProhibitedMaterials());
+        int pageSize = 28;
+        int totalPages = Math.max(1, (int) Math.ceil((double) mats.size() / pageSize));
+        if (page < 1) page = 1;
+        if (page > totalPages) page = totalPages;
+
+        Inventory inv = Bukkit.createInventory(new com.guildcore.gui.holders.AdminProhibitedHolder(page), 54, TextUtil.format("<gradient:#800000:#DC143C><b>🚫 Prohibited Items Codex</b></gradient> <gray>(" + page + "/" + totalPages + ")</gray>"));
         fillBorder54(inv, Material.RED_STAINED_GLASS_PANE);
 
-        inv.setItem(10, new GUIItemBuilder(Material.ANVIL).name("<gradient:#FF416C:#FF4B2B><b>➕ Ban Item in Main Hand</b></gradient>")
-                .lore("<gray>▪ Click while holding an item to ban it</gray>").build());
+        inv.setItem(4, new GUIItemBuilder(Material.ANVIL).name("<gradient:#FF416C:#FF4B2B><b>🔨 Ban Item in Main Hand</b></gradient>")
+                .lore("<gray>▪ Click while holding an item to add it to ban list</gray>", "", "<yellow>▶ Click to ban item in hand</yellow>").build());
 
-        var mats = new ArrayList<>(prohibitedManager.getProhibitedMaterials());
-        int slot = 11;
-        for (int i = 0; i < Math.min(mats.size(), 34); i++) {
-            if (slot == 17 || slot == 26 || slot == 35) slot += 2;
+        int startIndex = (page - 1) * pageSize;
+        int endIndex = Math.min(startIndex + pageSize, mats.size());
+
+        int[] itemSlots = {
+            10, 11, 12, 13, 14, 15, 16,
+            19, 20, 21, 22, 23, 24, 25,
+            28, 29, 30, 31, 32, 33, 34,
+            37, 38, 39, 40, 41, 42, 43
+        };
+
+        for (int i = startIndex; i < endIndex; i++) {
             Material mat = mats.get(i);
-            inv.setItem(slot++, new GUIItemBuilder(mat).name("<gradient:#FF416C:#FF4B2B><b>🚫 " + mat.name() + "</b></gradient>")
+            int slot = itemSlots[i - startIndex];
+            inv.setItem(slot, new GUIItemBuilder(mat).name("<gradient:#FF416C:#FF4B2B><b>🚫 " + mat.name() + "</b></gradient>")
                     .lore("<gray>▪ Prohibited by Royal Decree</gray>", "", "<red>▶ Click to Unban & Allow Item</red>").build());
         }
 
+        if (page > 1) {
+            inv.setItem(45, new GUIItemBuilder(Material.ARROW).name("<yellow><b>◀ Previous Page (" + (page - 1) + ")</b></yellow>").build());
+        }
+        inv.setItem(48, new GUIItemBuilder(Material.BOOK).name("<gold><b>📖 Page " + page + " of " + totalPages + "</b></gold>")
+                .lore("<gray>▪ Total Banned Items: " + mats.size() + "</gray>").build());
         inv.setItem(49, new GUIItemBuilder(Material.BARRIER).name("<red><b>◀ Return to High Sovereign Panel</b></red>").build());
+        if (page < totalPages) {
+            inv.setItem(53, new GUIItemBuilder(Material.ARROW).name("<yellow><b>Next Page (" + (page + 1) + ") ▶</b></yellow>").build());
+        }
+
+        player.openInventory(inv);
+    }
+
+    public String getClaimOwnerName(ClaimInfo claim) {
+        if (claim == null) return "Wilderness";
+        if (claim.isTeamClaim() && claim.getTeamId() != null) {
+            Team t = teamManager.getTeam(claim.getTeamId());
+            return t != null ? t.getName() : "Guild #" + claim.getTeamId();
+        }
+        if (claim.getOwnerUuid() != null) {
+            org.bukkit.OfflinePlayer op = Bukkit.getOfflinePlayer(claim.getOwnerUuid());
+            return op.getName() != null ? op.getName() : "Player";
+        }
+        return "Unknown";
+    }
+
+    public void openTeamMapGUI(Player player) {
+        if (player == null) return;
+        Chunk center = player.getLocation().getChunk();
+        World world = center.getWorld();
+        int centerCx = center.getX();
+        int centerCz = center.getZ();
+
+        Team team = teamManager.getPlayerTeam(player.getUniqueId());
+
+        long costCoins = settingsManager.getLong("claims.map.cost_coins", 500);
+        int costXpLevels = settingsManager.getInt("claims.map.cost_xp_levels", 2);
+        int costXpPoints = settingsManager.getInt("claims.map.cost_xp_points", 0);
+        String itemMatStr = settingsManager.getString("claims.map.cost_item_material", "DIAMOND");
+        int costItemAmount = settingsManager.getInt("claims.map.cost_item_amount", 2);
+        Material costItemMat = Material.matchMaterial(itemMatStr);
+        if (costItemMat == null) costItemMat = Material.DIAMOND;
+
+        Inventory inv = Bukkit.createInventory(new com.guildcore.gui.holders.TeamMapGUIHolder(centerCx, centerCz), 54, TextUtil.format("<gradient:#56ab2f:#a8e063><b>🗺 REALM TERRITORY MAP</b></gradient>"));
+
+        fillBorder54(inv, Material.GREEN_STAINED_GLASS_PANE);
+
+        // Header info bar (Row 0)
+        inv.setItem(0, new GUIItemBuilder(Material.COMPASS).name("<gradient:#FFD700:#FFA500><b>📍 Current Position</b></gradient>")
+                .lore("<gray>▪ Chunk Coords: </gray><yellow>X=" + centerCx + ", Z=" + centerCz + "</yellow>",
+                      "<gray>▪ World: </gray><white>" + world.getName() + "</white>").build());
+
+        int activeClaims = team != null ? claimManager.getTeamClaimsCount(team.getId()) : 0;
+        inv.setItem(4, new GUIItemBuilder(Material.BEACON).name("<gradient:#00c6ff:#0072ff><b>🏰 " + (team != null ? team.getName() : "No Team") + " Territory</b></gradient>")
+                .lore("<gray>▪ Active Claims: </gray><green>" + (team != null ? activeClaims + " / " + team.getMaxClaims() : "0") + " Chunks</green>",
+                      "<gray>▪ Bank Balance: </gray><gold>$" + (team != null ? String.format("%,d", team.getBankBalance()) : "0") + " Gold</gold>").build());
+
+        inv.setItem(8, new GUIItemBuilder(Material.GOLD_BLOCK).name("<gradient:#FFD700:#FFA500><b>📜 Claim Level Cost</b></gradient>")
+                .lore("<gray>▪ Coins: </gray><gold>$" + String.format("%,d", costCoins) + "</gold>",
+                      "<gray>▪ XP Levels: </gray><green>" + costXpLevels + " Levels</green>" + (costXpPoints > 0 ? " <gray>(" + costXpPoints + " pts)</gray>" : ""),
+                      "<gray>▪ Item Cost: </gray><aqua>" + costItemAmount + "x " + costItemMat.name() + "</aqua>",
+                      "",
+                      "<yellow>▶ Click any gray pane to claim chunk!</yellow>").build());
+
+        // Grid (Slots 10-16, 19-25, 28-34, 37-43) - 7 columns x 4 rows
+        int[] mapSlots = {
+            10, 11, 12, 13, 14, 15, 16,
+            19, 20, 21, 22, 23, 24, 25,
+            28, 29, 30, 31, 32, 33, 34,
+            37, 38, 39, 40, 41, 42, 43
+        };
+
+        int idx = 0;
+        for (int dz = -1; dz <= 2; dz++) {
+            for (int dx = -3; dx <= 3; dx++) {
+                if (idx >= mapSlots.length) break;
+                int slot = mapSlots[idx++];
+                int cx = centerCx + dx;
+                int cz = centerCz + dz;
+
+                boolean isPlayerChunk = (dx == 0 && dz == 0);
+                ClaimInfo claim = claimManager.getClaimAt(world, cx, cz);
+
+                if (isPlayerChunk) {
+                    inv.setItem(slot, new GUIItemBuilder(Material.YELLOW_STAINED_GLASS_PANE).name("<gradient:#FFD700:#FFA500><b>📍 YOUR CURRENT CHUNK (" + cx + ", " + cz + ")</b></gradient>")
+                            .lore("<gray>▪ Status: </gray>" + (claim == null ? "<gray>Wilderness</gray>" : (team != null && claim.getTeamId() != null && team.getId() == claim.getTeamId() ? "<green>Your Team Claim</green>" : "<red>Claimed by " + getClaimOwnerName(claim) + "</red>")),
+                                  "",
+                                  (claim == null ? "<yellow>▶ Click to claim this chunk!</yellow>" : "<gray>Already claimed</gray>")).build());
+                } else if (claim == null) {
+                    inv.setItem(slot, new GUIItemBuilder(Material.GRAY_STAINED_GLASS_PANE).name("<gray><b>Unclaimed Chunk (" + cx + ", " + cz + ")</b></gray>")
+                            .lore("<gray>▪ Status: </gray><white>Wilderness</white>",
+                                  "<gray>▪ Cost: </gray><gold>$" + String.format("%,d", costCoins) + "</gold> <gray>|</gray> <green>" + costXpLevels + " Lvl</green> <gray>|</gray> <aqua>" + costItemAmount + "x " + costItemMat.name() + "</aqua>",
+                                  "",
+                                  "<yellow>▶ Click to claim chunk for your team</yellow>").build());
+                } else if (team != null && claim.getTeamId() != null && team.getId() == claim.getTeamId()) {
+                    inv.setItem(slot, new GUIItemBuilder(Material.LIME_STAINED_GLASS_PANE).name("<gradient:#11998e:#38ef7d><b>🛡 Your Guild Territory (" + cx + ", " + cz + ")</b></gradient>")
+                            .lore("<gray>▪ Status: </gray><green>Secured & Protected</green>",
+                                  "<gray>▪ Owner: </gray><white>" + getClaimOwnerName(claim) + "</white>").build());
+                } else {
+                    inv.setItem(slot, new GUIItemBuilder(Material.RED_STAINED_GLASS_PANE).name("<gradient:#800000:#DC143C><b>⚔ Foreign Territory (" + cx + ", " + cz + ")</b></gradient>")
+                            .lore("<gray>▪ Status: </gray><red>Occupied</red>",
+                                  "<gray>▪ Owner: </gray><white>" + getClaimOwnerName(claim) + "</white>").build());
+                }
+            }
+        }
+
+        inv.setItem(45, new GUIItemBuilder(Material.CLOCK).name("<yellow><b>🔄 Refresh Map</b></yellow>").lore("<gray>Update claim visual status</gray>").build());
+        inv.setItem(49, new GUIItemBuilder(Material.BARRIER).name("<red><b>✖ Close Territory Map</b></red>").build());
+
         player.openInventory(inv);
     }
 }
+
 

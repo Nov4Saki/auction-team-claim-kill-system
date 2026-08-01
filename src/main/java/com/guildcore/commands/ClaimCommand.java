@@ -106,7 +106,7 @@ public class ClaimCommand implements TabExecutor {
         }
 
         if (args.length > 0 && args[0].equalsIgnoreCase("map")) {
-            visualizer.sendAsciiMap(player);
+            guiManager.openTeamMapGUI(player);
             return true;
         }
 

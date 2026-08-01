@@ -36,7 +36,7 @@ public class TeamCommand implements TabExecutor {
 
     private static final List<String> SUBCOMMANDS = Arrays.asList(
             "create", "invite", "add", "join", "leave", "kick", "promote", "demote",
-            "info", "list", "bank", "vault", "deposit", "withdraw", "claim", "unclaim",
+            "info", "list", "bank", "vault", "deposit", "withdraw", "claim", "unclaim", "map",
             "home", "sethome", "setnexus", "permissions", "upgrade", "raid", "disband", "rename"
     );
 
@@ -278,6 +278,11 @@ public class TeamCommand implements TabExecutor {
             } else {
                 player.sendMessage(TextUtil.format("<red>Chunk is already claimed.</red>"));
             }
+            return true;
+        }
+
+        if (sub.equals("map")) {
+            guiManager.openTeamMapGUI(player);
             return true;
         }
 

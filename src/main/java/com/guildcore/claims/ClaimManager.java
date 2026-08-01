@@ -201,4 +201,14 @@ public class ClaimManager {
         String trust = getTrustLevel(chunk, player.getUniqueId());
         return "BUILD".equalsIgnoreCase(trust) || "MANAGER".equalsIgnoreCase(trust);
     }
+
+    public int getTeamClaimsCount(int teamId) {
+        int count = 0;
+        for (ClaimInfo info : claimsCache.values()) {
+            if (info.isTeamClaim() && info.getTeamId() != null && info.getTeamId() == teamId) {
+                count++;
+            }
+        }
+        return count;
+    }
 }

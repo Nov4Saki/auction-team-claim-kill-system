@@ -36,7 +36,7 @@ public class TeamBankManager {
         return true;
     }
 
-    private void saveBankBalance(int teamId, long balance) {
+    public void saveBankBalance(int teamId, long balance) {
         dbManager.executeAsync(() -> {
             try (Connection conn = dbManager.getConnection();
                  PreparedStatement ps = conn.prepareStatement("UPDATE teams SET bank_balance = ? WHERE id = ?")) {

@@ -467,13 +467,125 @@ public class GUIClickListener implements Listener {
             return;
         }
 
-        // Admin Prohibited Items GUI
-        if (holder instanceof com.guildcore.gui.holders.AdminProhibitedHolder) {
+        // Interactive Glass Pane Team Map GUI
+        if (holder instanceof com.guildcore.gui.holders.TeamMapGUIHolder mapHolder) {
             event.setCancelled(true);
             SoundUtil.playClick(player);
             int slot = event.getSlot();
 
-            if (slot == 10) { // Ban held item
+            if (slot == 45) {
+                guiManager.openTeamMapGUI(player);
+                return;
+            }
+
+            if (slot == 49) {
+                player.closeInventory();
+                return;
+            }
+
+            int[] mapSlots = {
+                10, 11, 12, 13, 14, 15, 16,
+                19, 20, 21, 22, 23, 24, 25,
+                28, 29, 30, 31, 32, 33, 34,
+                37, 38, 39, 40, 41, 42, 43
+            };
+
+            int clickedIdx = -1;
+            for (int i = 0; i < mapSlots.length; i++) {
+                if (mapSlots[i] == slot) {
+                    clickedIdx = i;
+                    break;
+                }
+            }
+
+            if (clickedIdx != -1) {
+                int dx = (clickedIdx % 7) - 3;
+                int dz = (clickedIdx / 7) - 1;
+                int targetCx = mapHolder.getCenterChunkX() + dx;
+                int targetCz = mapHolder.getCenterChunkZ() + dz;
+                org.bukkit.Chunk targetChunk = player.getWorld().getChunkAt(targetCx, targetCz);
+
+                Team team = teamManager.getPlayerTeam(player.getUniqueId());
+                if (team == null) {
+                    player.sendMessage(TextUtil.format("<red>✖ You must belong to a Guild/Team to claim land!</red>"));
+                    return;
+                }
+
+                String role = teamManager.getPlayerRole(player.getUniqueId());
+                if (!guiManager.getPermissionManager().hasPermission(team.getId(), role, "CLAIM")) {
+                    player.sendMessage(TextUtil.format("<red>✖ You do not have team permission to claim land!</red>"));
+                    return;
+                }
+
+                com.guildcore.claims.ClaimInfo existing = guiManager.getClaimManager().getClaimAt(player.getWorld(), targetCx, targetCz);
+                if (existing != null) {
+                    if (existing.isTeamClaim() && existing.getTeamId() != null && team.getId() == existing.getTeamId()) {
+                        player.sendMessage(TextUtil.format("<yellow>This chunk is already claimed by your team!</yellow>"));
+                    } else {
+                        player.sendMessage(TextUtil.format("<red>✖ This chunk belongs to another team (" + guiManager.getClaimOwnerName(existing) + ")!</red>"));
+                    }
+                    return;
+                }
+
+                int currentClaims = guiManager.getClaimManager().getTeamClaimsCount(team.getId());
+                if (currentClaims >= team.getMaxClaims()) {
+                    player.sendMessage(TextUtil.format("<red>✖ Team claim capacity reached (" + currentClaims + "/" + team.getMaxClaims() + ")!</red>"));
+                    return;
+                }
+
+                long costCoins = settingsManager.getLong("claims.map.cost_coins", 500);
+                int costXpLevels = settingsManager.getInt("claims.map.cost_xp_levels", 2);
+                int costXpPoints = settingsManager.getInt("claims.map.cost_xp_points", 0);
+                String itemMatStr = settingsManager.getString("claims.map.cost_item_material", "DIAMOND");
+                int costItemAmount = settingsManager.getInt("claims.map.cost_item_amount", 2);
+                Material costItemMat = Material.matchMaterial(itemMatStr);
+                if (costItemMat == null) costItemMat = Material.DIAMOND;
+
+                if (team.getBankBalance() < costCoins) {
+                    player.sendMessage(TextUtil.format("<red>✖ Team Bank lacks funds! Required: $" + String.format("%,d", costCoins) + " Gold (Bank balance: $" + String.format("%,d", team.getBankBalance()) + ").</red>"));
+                    return;
+                }
+
+                if (player.getLevel() < costXpLevels) {
+                    player.sendMessage(TextUtil.format("<red>✖ You need at least " + costXpLevels + " XP Levels to claim this chunk!</red>"));
+                    return;
+                }
+
+                if (costItemAmount > 0 && !player.getInventory().containsAtLeast(new ItemStack(costItemMat), costItemAmount)) {
+                    player.sendMessage(TextUtil.format("<red>✖ You need " + costItemAmount + "x " + costItemMat.name() + " in your inventory to claim this chunk!</red>"));
+                    return;
+                }
+
+                if (costCoins > 0) {
+                    team.setBankBalance(team.getBankBalance() - costCoins);
+                }
+                if (costXpLevels > 0) {
+                    player.setLevel(player.getLevel() - costXpLevels);
+                }
+                if (costItemAmount > 0) {
+                    player.getInventory().removeItem(new ItemStack(costItemMat, costItemAmount));
+                }
+
+                boolean success = guiManager.getClaimManager().createTeamClaim(team.getId(), targetChunk);
+                if (success) {
+                    SoundUtil.playSuccess(player);
+                    player.sendMessage(TextUtil.format("<green>✔ Successfully claimed chunk (" + targetCx + ", " + targetCz + ") for your Guild!</green>"));
+                    guiManager.openTeamMapGUI(player);
+                } else {
+                    player.sendMessage(TextUtil.format("<red>✖ Failed to claim chunk!</red>"));
+                }
+            }
+            return;
+        }
+
+        // Admin Prohibited Items GUI
+        if (holder instanceof com.guildcore.gui.holders.AdminProhibitedHolder prohibitedHolder) {
+            event.setCancelled(true);
+            SoundUtil.playClick(player);
+            int slot = event.getSlot();
+            int currentPage = prohibitedHolder.getPage();
+
+            if (slot == 4) {
                 ItemStack inHand = player.getInventory().getItemInMainHand();
                 if (inHand != null && !inHand.getType().isAir()) {
                     if (prohibitedManager != null) {
@@ -484,7 +596,19 @@ public class GUIClickListener implements Listener {
                 } else {
                     player.sendMessage(TextUtil.format("<red>Hold an item in main hand to ban!</red>"));
                 }
-                guiManager.openAdminProhibitedItems(player);
+                guiManager.openAdminProhibitedItems(player, currentPage);
+                return;
+            }
+
+            if (slot == 45) {
+                if (currentPage > 1) {
+                    guiManager.openAdminProhibitedItems(player, currentPage - 1);
+                }
+                return;
+            }
+
+            if (slot == 53) {
+                guiManager.openAdminProhibitedItems(player, currentPage + 1);
                 return;
             }
 
@@ -495,18 +619,26 @@ public class GUIClickListener implements Listener {
 
             if (prohibitedManager != null) {
                 var mats = new ArrayList<>(prohibitedManager.getProhibitedMaterials());
-                int itemIndex = 0;
-                int currentSlot = 11;
-                for (Material mat : mats) {
-                    if (currentSlot == 17 || currentSlot == 26 || currentSlot == 35) currentSlot += 2;
-                    if (currentSlot == slot) {
+                int pageSize = 28;
+                int[] itemSlots = {
+                    10, 11, 12, 13, 14, 15, 16,
+                    19, 20, 21, 22, 23, 24, 25,
+                    28, 29, 30, 31, 32, 33, 34,
+                    37, 38, 39, 40, 41, 42, 43
+                };
+
+                int startIndex = (currentPage - 1) * pageSize;
+                int endIndex = Math.min(startIndex + pageSize, mats.size());
+
+                for (int i = startIndex; i < endIndex; i++) {
+                    int slotForIndex = itemSlots[i - startIndex];
+                    if (slotForIndex == slot) {
+                        Material mat = mats.get(i);
                         prohibitedManager.removeProhibitedItem(mat);
                         player.sendMessage(TextUtil.format("<green>✔ Unbanned item " + mat.name() + "!</green>"));
-                        guiManager.openAdminProhibitedItems(player);
+                        guiManager.openAdminProhibitedItems(player, currentPage);
                         return;
                     }
-                    currentSlot++;
-                    itemIndex++;
                 }
             }
             return;
@@ -525,9 +657,13 @@ public class GUIClickListener implements Listener {
             if (slot == 14) { guiManager.openAdminCombatSettings(player); return; }
             if (slot == 15) { guiManager.openAdminScoreboardSettings(player); return; }
             if (slot == 16) { guiManager.openAdminAuctionSettings(player); return; }
-            if (slot == 17) { guiManager.openAdminRtpSettings(player); return; }
-            if (slot == 18) { guiManager.openAdminProhibitedItems(player); return; }
+
+            if (slot == 19) { guiManager.openAdminRtpSettings(player); return; }
+            if (slot == 20) { guiManager.openAdminProhibitedItems(player, 1); return; }
+            if (slot == 21) { guiManager.openAdminShopHub(player); return; }
             if (slot == 22) { guiManager.openAdminDebugPanel(player); return; }
+            if (slot == 23) { crateManager.openCrateAdminHub(player); return; }
+            if (slot == 49) { player.closeInventory(); return; }
             return;
         }
 
