@@ -211,4 +211,18 @@ public class ClaimManager {
         }
         return count;
     }
+
+    public void removeAllTeamClaims(int teamId) {
+        claimsCache.values().removeIf(info -> info.isTeamClaim() && info.getTeamId() != null && info.getTeamId() == teamId);
+        dbManager.executeAsync(() -> {
+            try (Connection conn = dbManager.getConnection();
+                 PreparedStatement ps = conn.prepareStatement("DELETE FROM claims WHERE team_id = ?")) {
+                ps.setInt(1, teamId);
+                ps.executeUpdate();
+                DebugManager.log(DebugFlag.CLAIM_PROTECTION, "Removed all claims for disbanded team " + teamId);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
+    }
 }

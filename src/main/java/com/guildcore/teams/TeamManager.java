@@ -18,6 +18,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class TeamManager {
     private final DatabaseManager dbManager;
+    private com.guildcore.claims.ClaimManager claimManager;
     private final Map<Integer, Team> teamsById = new ConcurrentHashMap<>();
     private final Map<String, Integer> teamIdByName = new ConcurrentHashMap<>();
     private final Map<UUID, Integer> playerTeamMap = new ConcurrentHashMap<>();
@@ -392,6 +393,10 @@ public class TeamManager {
             }
         }
 
+        if (claimManager != null) {
+            claimManager.removeAllTeamClaims(teamId);
+        }
+
         dbManager.executeAsync(() -> {
             try (Connection conn = dbManager.getConnection()) {
                 try (PreparedStatement ps = conn.prepareStatement("DELETE FROM team_members WHERE team_id = ?")) { ps.setInt(1, teamId); ps.executeUpdate(); }
@@ -401,6 +406,34 @@ public class TeamManager {
             }
         });
         return true;
+    }
+
+    public void setClaimManager(com.guildcore.claims.ClaimManager claimManager) {
+        this.claimManager = claimManager;
+    }
+
+    public java.util.List<UUID> getTeamMembers(int teamId) {
+        java.util.List<UUID> members = new java.util.ArrayList<>();
+        for (Map.Entry<UUID, Integer> entry : playerTeamMap.entrySet()) {
+            if (entry.getValue() == teamId) {
+                members.add(entry.getKey());
+            }
+        }
+        return members;
+    }
+
+    public int getMaxClaimsForTeam(Team team, com.guildcore.config.SettingsManager settingsManager) {
+        if (team == null) return 5;
+        int lvl = Math.min(Math.max(1, team.getLevel()), 5);
+        int defaultMax = team.getMaxClaims();
+        switch (lvl) {
+            case 1: return settingsManager.getInt("teams.max_claims_level_1", Math.max(defaultMax, 5));
+            case 2: return settingsManager.getInt("teams.max_claims_level_2", Math.max(defaultMax, 12));
+            case 3: return settingsManager.getInt("teams.max_claims_level_3", Math.max(defaultMax, 25));
+            case 4: return settingsManager.getInt("teams.max_claims_level_4", Math.max(defaultMax, 40));
+            case 5: return settingsManager.getInt("teams.max_claims_level_5", Math.max(defaultMax, 60));
+            default: return defaultMax;
+        }
     }
 
     public void broadcastToTeam(int teamId, net.kyori.adventure.text.Component message) {

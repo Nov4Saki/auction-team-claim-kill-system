@@ -43,6 +43,7 @@ import org.bukkit.inventory.meta.BlockStateMeta;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 public class GUIClickListener implements Listener {
 
@@ -537,13 +538,17 @@ public class GUIClickListener implements Listener {
                 }
 
                 int currentClaims = guiManager.getClaimManager().getTeamClaimsCount(team.getId());
-                if (currentClaims >= team.getMaxClaims()) {
-                    player.sendMessage(TextUtil.format("<red>✖ Team claim capacity reached (" + currentClaims + "/" + team.getMaxClaims() + ")!</red>"));
+                int maxClaims = teamManager.getMaxClaimsForTeam(team, settingsManager);
+                if (currentClaims >= maxClaims) {
+                    player.sendMessage(TextUtil.format("<red>✖ Team claim capacity reached (" + currentClaims + "/" + maxClaims + ")!</red>"));
                     return;
                 }
 
-                long costCoins = settingsManager.getLong("claims.map.cost_coins", 500);
-                int costXpLevels = settingsManager.getInt("claims.map.cost_xp_levels", 2);
+                double scale = settingsManager.getDouble("claims.cost.multiplier", 1.15);
+                long baseCoins = settingsManager.getLong("claims.map.cost_coins", 500);
+                long costCoins = (long) (baseCoins * Math.pow(scale, currentClaims));
+                int baseLvl = settingsManager.getInt("claims.map.cost_xp_levels", 2);
+                int costXpLevels = (int) Math.round(baseLvl * Math.pow(1.08, currentClaims));
                 int costXpPoints = settingsManager.getInt("claims.map.cost_xp_points", 0);
                 String itemMatStr = settingsManager.getString("claims.map.cost_item_material", "DIAMOND");
                 int costItemAmount = settingsManager.getInt("claims.map.cost_item_amount", 2);
@@ -881,7 +886,9 @@ public class GUIClickListener implements Listener {
             Team team = teamManager.getTeam(teamHolder.getTeamId());
             if (team == null) return;
 
-            if (slot == 12) { // Bank
+            if (slot == 11) { // Guild Members Roster
+                guiManager.openTeamMembersGUI(player, team, 1);
+            } else if (slot == 12) { // Bank
                 player.sendMessage(TextUtil.format("<gold>🏦 Team Bank: <green>$" + team.getBankBalance() + "</green> | Use /team bank deposit <amount> or withdraw</gold>"));
             } else if (slot == 14) { // Vault
                 ItemStack[] contents = vaultManager.getVaultPage(team.getId(), 1);
@@ -904,6 +911,65 @@ public class GUIClickListener implements Listener {
                     });
                 } else {
                     player.sendMessage(TextUtil.format("<red>Team home location is not set.</red>"));
+                }
+            }
+            return;
+        }
+
+        // Guild Members Roster GUI
+        if (holder instanceof com.guildcore.gui.holders.TeamMembersHolder membersHolder) {
+            event.setCancelled(true);
+            SoundUtil.playClick(player);
+            int slot = event.getSlot();
+
+            Team team = teamManager.getTeam(membersHolder.getTeamId());
+            if (team == null) return;
+
+            if (slot == 45 && membersHolder.getPage() > 1) {
+                guiManager.openTeamMembersGUI(player, team, membersHolder.getPage() - 1);
+                return;
+            }
+            if (slot == 53) {
+                guiManager.openTeamMembersGUI(player, team, membersHolder.getPage() + 1);
+                return;
+            }
+            if (slot == 49) {
+                guiManager.openTeamMenu(player, team);
+                return;
+            }
+
+            int[] itemSlots = {
+                10, 11, 12, 13, 14, 15, 16,
+                19, 20, 21, 22, 23, 24, 25,
+                28, 29, 30, 31, 32, 33, 34,
+                37, 38, 39, 40, 41, 42, 43
+            };
+
+            int clickedIdx = -1;
+            for (int i = 0; i < itemSlots.length; i++) {
+                if (itemSlots[i] == slot) {
+                    clickedIdx = i;
+                    break;
+                }
+            }
+
+            if (clickedIdx != -1) {
+                List<UUID> memberUuids = teamManager.getTeamMembers(team.getId());
+                int targetIndex = (membersHolder.getPage() - 1) * 28 + clickedIdx;
+                if (targetIndex < memberUuids.size()) {
+                    UUID targetUuid = memberUuids.get(targetIndex);
+                    org.bukkit.OfflinePlayer targetOp = Bukkit.getPlayer(targetUuid) != null ? Bukkit.getPlayer(targetUuid) : Bukkit.getOfflinePlayer(targetUuid);
+                    String targetName = targetOp.getName();
+                    if (targetName != null) {
+                        if (event.isShiftClick() && event.isRightClick()) {
+                            teamManager.kickPlayer(player, targetName);
+                        } else if (event.isRightClick()) {
+                            teamManager.demotePlayer(player, targetName);
+                        } else {
+                            teamManager.promotePlayer(player, targetName);
+                        }
+                        guiManager.openTeamMembersGUI(player, team, membersHolder.getPage());
+                    }
                 }
             }
             return;

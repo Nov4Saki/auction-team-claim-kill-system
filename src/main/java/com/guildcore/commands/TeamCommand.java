@@ -36,7 +36,7 @@ public class TeamCommand implements TabExecutor {
 
     private static final List<String> SUBCOMMANDS = Arrays.asList(
             "create", "invite", "add", "join", "leave", "kick", "promote", "demote",
-            "info", "list", "bank", "vault", "deposit", "withdraw", "claim", "unclaim", "map",
+            "info", "list", "bank", "vault", "deposit", "withdraw", "claim", "unclaim", "map", "members", "roster",
             "home", "sethome", "setnexus", "permissions", "upgrade", "raid", "disband", "rename"
     );
 
@@ -283,6 +283,16 @@ public class TeamCommand implements TabExecutor {
 
         if (sub.equals("map")) {
             guiManager.openTeamMapGUI(player);
+            return true;
+        }
+
+        if (sub.equals("members") || sub.equals("roster")) {
+            Team team = teamManager.getPlayerTeam(player.getUniqueId());
+            if (team == null) {
+                player.sendMessage(TextUtil.format("<red>You must belong to a Guild to view the members roster.</red>"));
+                return true;
+            }
+            guiManager.openTeamMembersGUI(player, team, 1);
             return true;
         }
 

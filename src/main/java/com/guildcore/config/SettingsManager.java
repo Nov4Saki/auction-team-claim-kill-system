@@ -57,6 +57,16 @@ public class SettingsManager {
         }
     }
 
+    public double getDouble(String key, double defaultValue) {
+        String val = settingsCache.get(key);
+        if (val == null) return defaultValue;
+        try {
+            return Double.parseDouble(val);
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
+    }
+
     public boolean getBoolean(String key, boolean defaultValue) {
         String val = settingsCache.get(key);
         if (val == null) return defaultValue;

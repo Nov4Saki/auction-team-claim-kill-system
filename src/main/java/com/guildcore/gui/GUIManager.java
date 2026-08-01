@@ -22,14 +22,17 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.Material;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.inventory.meta.SkullMeta;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 public class GUIManager {
     private final SettingsManager settingsManager;
@@ -492,6 +495,9 @@ public class GUIManager {
                         "<gray>▪ Guild Treasury: </gray><gradient:#00FF87:#60EFFF><b>$" + String.format("%,d", team.getBankBalance()) + " Gold</b></gradient>"
                 ).build());
 
+        inv.setItem(11, new GUIItemBuilder(Material.PLAYER_HEAD).name("<gradient:#00c6ff:#0072ff><b>👥 Guild Members Roster</b></gradient>")
+                .lore("<gray>Inspect citizen roster, ranks, and player heads</gray>", "", "<yellow>▶ Click to open roster</yellow>").build());
+
         inv.setItem(12, new GUIItemBuilder(Material.GOLD_BLOCK).name("<gold><b>🏦 Guild Treasury Bank</b></gold>")
                 .lore("<gray>View bank balance and make deposits/withdrawals</gray>", "", "<yellow>▶ Click for bank details</yellow>").build());
 
@@ -768,6 +774,16 @@ public class GUIManager {
         return "Unknown";
     }
 
+    public String formatChunkCoord(int cx, int cz) {
+        boolean isBlock = "BLOCK".equalsIgnoreCase(settingsManager.getString("claims.map.coord_format", "CHUNK"));
+        if (isBlock) {
+            int minX = cx * 16;
+            int minZ = cz * 16;
+            return "Block (" + minX + ", " + minZ + ")";
+        }
+        return "Chunk (" + cx + ", " + cz + ")";
+    }
+
     public void openTeamMapGUI(Player player) {
         if (player == null) return;
         Chunk center = player.getLocation().getChunk();
@@ -776,9 +792,14 @@ public class GUIManager {
         int centerCz = center.getZ();
 
         Team team = teamManager.getPlayerTeam(player.getUniqueId());
+        int activeClaims = team != null ? claimManager.getTeamClaimsCount(team.getId()) : 0;
+        int maxClaims = team != null ? teamManager.getMaxClaimsForTeam(team, settingsManager) : 5;
 
-        long costCoins = settingsManager.getLong("claims.map.cost_coins", 500);
-        int costXpLevels = settingsManager.getInt("claims.map.cost_xp_levels", 2);
+        double scale = settingsManager.getDouble("claims.cost.multiplier", 1.15);
+        long baseCoins = settingsManager.getLong("claims.map.cost_coins", 500);
+        long costCoins = (long) (baseCoins * Math.pow(scale, activeClaims));
+        int baseLvl = settingsManager.getInt("claims.map.cost_xp_levels", 2);
+        int costXpLevels = (int) Math.round(baseLvl * Math.pow(1.08, activeClaims));
         int costXpPoints = settingsManager.getInt("claims.map.cost_xp_points", 0);
         String itemMatStr = settingsManager.getString("claims.map.cost_item_material", "DIAMOND");
         int costItemAmount = settingsManager.getInt("claims.map.cost_item_amount", 2);
@@ -789,19 +810,18 @@ public class GUIManager {
 
         // Header controls (Row 0)
         inv.setItem(0, new GUIItemBuilder(Material.COMPASS).name("<gradient:#FFD700:#FFA500><b>📍 Current Position</b></gradient>")
-                .lore("<gray>▪ Chunk Coords: </gray><yellow>X=" + centerCx + ", Z=" + centerCz + "</yellow>",
+                .lore("<gray>▪ Position: </gray><yellow>" + formatChunkCoord(centerCx, centerCz) + "</yellow>",
                       "<gray>▪ World: </gray><white>" + world.getName() + "</white>").build());
 
         inv.setItem(1, new GUIItemBuilder(Material.CLOCK).name("<yellow><b>🔄 Refresh Map</b></yellow>").lore("<gray>Click to refresh claim grid</gray>").build());
 
-        int activeClaims = team != null ? claimManager.getTeamClaimsCount(team.getId()) : 0;
         inv.setItem(4, new GUIItemBuilder(Material.BEACON).name("<gradient:#00c6ff:#0072ff><b>🏰 " + (team != null ? team.getName() : "No Team") + " Territory</b></gradient>")
-                .lore("<gray>▪ Active Claims: </gray><green>" + (team != null ? activeClaims + " / " + team.getMaxClaims() : "0") + " Chunks</green>",
+                .lore("<gray>▪ Active Claims: </gray><green>" + (team != null ? activeClaims + " / " + maxClaims : "0") + " Chunks</green>",
                       "<gray>▪ Bank Balance: </gray><gold>$" + (team != null ? String.format("%,d", team.getBankBalance()) : "0") + " Gold</gold>").build());
 
         inv.setItem(7, new GUIItemBuilder(Material.BARRIER).name("<red><b>✖ Close Map</b></red>").build());
 
-        inv.setItem(8, new GUIItemBuilder(Material.GOLD_BLOCK).name("<gradient:#FFD700:#FFA500><b>📜 Team Claim Cost</b></gradient>")
+        inv.setItem(8, new GUIItemBuilder(Material.GOLD_BLOCK).name("<gradient:#FFD700:#FFA500><b>📜 Team Claim Cost (Lvl " + (activeClaims + 1) + ")</b></gradient>")
                 .lore("<gray>▪ Team Bank Coins: </gray><gold>$" + String.format("%,d", costCoins) + "</gold>",
                       "<gray>▪ XP Levels: </gray><green>" + costXpLevels + " Levels</green>" + (costXpPoints > 0 ? " <gray>(" + costXpPoints + " pts)</gray>" : ""),
                       "<gray>▪ Required Items: </gray><aqua>" + costItemAmount + "x " + costItemMat.name() + "</aqua>",
@@ -827,28 +847,91 @@ public class GUIManager {
             ClaimInfo claim = claimManager.getClaimAt(world, cx, cz);
 
             if (isPlayerChunk) {
-                inv.setItem(slot, new GUIItemBuilder(Material.YELLOW_STAINED_GLASS_PANE).name("<gradient:#FFD700:#FFA500><b>📍 YOUR CURRENT CHUNK (" + cx + ", " + cz + ")</b></gradient>")
+                inv.setItem(slot, new GUIItemBuilder(Material.YELLOW_STAINED_GLASS_PANE).name("<gradient:#FFD700:#FFA500><b>📍 YOUR LOCATION (" + formatChunkCoord(cx, cz) + ")</b></gradient>")
                         .lore("<gray>▪ Status: </gray>" + (claim == null ? "<gray>Wilderness</gray>" : (team != null && claim.getTeamId() != null && team.getId() == claim.getTeamId() ? "<green>Your Guild Domain</green>" : "<red>Claimed by " + getClaimOwnerName(claim) + "</red>")),
                               "",
                               (claim == null ? "<yellow>▶ Left-Click to claim chunk for your Guild!</yellow>" : (team != null && claim.getTeamId() != null && team.getId() == claim.getTeamId() ? "<red>▶ Right-Click to unclaim</red>" : "<gray>Secured by foreign guild</gray>"))).build());
             } else if (claim == null) {
-                inv.setItem(slot, new GUIItemBuilder(Material.GRAY_STAINED_GLASS_PANE).name("<gray><b>Unclaimed Chunk (" + cx + ", " + cz + ")</b></gray>")
+                inv.setItem(slot, new GUIItemBuilder(Material.GRAY_STAINED_GLASS_PANE).name("<gray><b>Unclaimed " + formatChunkCoord(cx, cz) + "</b></gray>")
                         .lore("<gray>▪ Status: </gray><white>Wilderness</white>",
                               "<gray>▪ Team Bank: </gray><gold>$" + String.format("%,d", costCoins) + "</gold>",
                               "<gray>▪ Required Items: </gray><aqua>" + costItemAmount + "x " + costItemMat.name() + "</aqua>",
                               "",
                               "<yellow>▶ Left-Click to claim for your Guild</yellow>").build());
             } else if (team != null && claim.getTeamId() != null && team.getId() == claim.getTeamId()) {
-                inv.setItem(slot, new GUIItemBuilder(Material.LIME_STAINED_GLASS_PANE).name("<gradient:#11998e:#38ef7d><b>🛡 Your Guild Territory (" + cx + ", " + cz + ")</b></gradient>")
+                inv.setItem(slot, new GUIItemBuilder(Material.LIME_STAINED_GLASS_PANE).name("<gradient:#11998e:#38ef7d><b>🛡 Your Guild Territory (" + formatChunkCoord(cx, cz) + ")</b></gradient>")
                         .lore("<gray>▪ Status: </gray><green>Secured & Protected</green>",
                               "<gray>▪ Owner: </gray><white>" + getClaimOwnerName(claim) + "</white>",
                               "",
                               "<red>▶ Right-Click to unclaim chunk</red>").build());
             } else {
-                inv.setItem(slot, new GUIItemBuilder(Material.RED_STAINED_GLASS_PANE).name("<gradient:#800000:#DC143C><b>⚔ Foreign Territory (" + cx + ", " + cz + ")</b></gradient>")
+                inv.setItem(slot, new GUIItemBuilder(Material.RED_STAINED_GLASS_PANE).name("<gradient:#800000:#DC143C><b>⚔ Foreign Territory (" + formatChunkCoord(cx, cz) + ")</b></gradient>")
                         .lore("<gray>▪ Status: </gray><red>Occupied by Enemy</red>",
                               "<gray>▪ Owner: </gray><white>" + getClaimOwnerName(claim) + "</white>").build());
             }
+        }
+
+        player.openInventory(inv);
+    }
+
+    public void openTeamMembersGUI(Player player, Team team, int page) {
+        if (player == null || team == null) return;
+        List<UUID> members = teamManager.getTeamMembers(team.getId());
+        int pageSize = 28;
+        int totalPages = Math.max(1, (int) Math.ceil((double) members.size() / pageSize));
+        if (page < 1) page = 1;
+        if (page > totalPages) page = totalPages;
+
+        Inventory inv = Bukkit.createInventory(new com.guildcore.gui.holders.TeamMembersHolder(team.getId(), page), 54, TextUtil.format("<gradient:#00c6ff:#0072ff><b>👥 GUILD MEMBERS ROSTER</b></gradient> <gray>(" + page + "/" + totalPages + ")</gray>"));
+        fillBorder54(inv, Material.BLUE_STAINED_GLASS_PANE);
+
+        inv.setItem(4, new GUIItemBuilder(Material.BEACON).name("<gradient:#FFD700:#FFA500><b>🏰 " + team.getName() + " Guild Roster</b></gradient>")
+                .lore("<gray>▪ Active Roster: </gray><green>" + members.size() + " / " + team.getMaxMembers() + " Members</green>",
+                      "<gray>▪ Guild Level: </gray><yellow>Level " + team.getLevel() + "</yellow>").build());
+
+        int startIndex = (page - 1) * pageSize;
+        int endIndex = Math.min(startIndex + pageSize, members.size());
+
+        int[] itemSlots = {
+            10, 11, 12, 13, 14, 15, 16,
+            19, 20, 21, 22, 23, 24, 25,
+            28, 29, 30, 31, 32, 33, 34,
+            37, 38, 39, 40, 41, 42, 43
+        };
+
+        for (int i = startIndex; i < endIndex; i++) {
+            UUID memberUuid = members.get(i);
+            int slot = itemSlots[i - startIndex];
+
+            OfflinePlayer op = Bukkit.getOfflinePlayer(memberUuid);
+            String role = teamManager.getPlayerRole(memberUuid);
+
+            ItemStack head = new ItemStack(Material.PLAYER_HEAD);
+            SkullMeta meta = (SkullMeta) head.getItemMeta();
+            if (meta != null) {
+                meta.setOwningPlayer(op);
+                meta.displayName(TextUtil.format("<gradient:#FFD700:#FFA500><b>" + (op.getName() != null ? op.getName() : "Citizen") + "</b></gradient> <gray>(" + role + ")</gray>"));
+                List<Component> lore = new ArrayList<>();
+                lore.add(TextUtil.format("<gray>▪ Rank Privilege: </gray><gold><b>" + role + "</b></gold>"));
+                lore.add(TextUtil.format("<gray>▪ Online Status: </gray>" + (op.isOnline() ? "<gradient:#00FF87:#60EFFF><b>ONLINE</b></gradient>" : "<gray>OFFLINE</gray>")));
+                lore.add(Component.text(" "));
+                lore.add(TextUtil.format("<gradient:#00FF87:#60EFFF>▶ Left-Click to Promote Rank</gradient>"));
+                lore.add(TextUtil.format("<gradient:#FF416C:#FF4B2B>▶ Right-Click to Demote Rank</gradient>"));
+                lore.add(TextUtil.format("<red>▶ Shift-Right to Kick Member</red>"));
+                meta.lore(lore);
+                head.setItemMeta(meta);
+            }
+            inv.setItem(slot, head);
+        }
+
+        if (page > 1) {
+            inv.setItem(45, new GUIItemBuilder(Material.ARROW).name("<yellow><b>◀ Previous Page (" + (page - 1) + ")</b></yellow>").build());
+        }
+        inv.setItem(48, new GUIItemBuilder(Material.BOOK).name("<gold><b>📖 Page " + page + " of " + totalPages + "</b></gold>")
+                .lore("<gray>▪ Total Guild Citizens: " + members.size() + "</gray>").build());
+        inv.setItem(49, new GUIItemBuilder(Material.BARRIER).name("<red><b>◀ Return to Guild Citadel</b></red>").build());
+        if (page < totalPages) {
+            inv.setItem(53, new GUIItemBuilder(Material.ARROW).name("<yellow><b>Next Page (" + (page + 1) + ") ▶</b></yellow>").build());
         }
 
         player.openInventory(inv);
