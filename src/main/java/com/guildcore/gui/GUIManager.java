@@ -855,15 +855,18 @@ public class GUIManager {
 
     public String getClaimOwnerName(ClaimInfo claim) {
         if (claim == null) return "Wilderness";
-        if (claim.isTeamClaim() && claim.getTeamId() != null) {
+        if (claim.getTeamId() != null) {
             Team t = teamManager.getTeam(claim.getTeamId());
-            return t != null ? t.getName() : "Guild #" + claim.getTeamId();
+            if (t != null) return t.getName();
+            return "Guild #" + claim.getTeamId();
         }
         if (claim.getOwnerUuid() != null) {
+            Team t = teamManager.getPlayerTeam(claim.getOwnerUuid());
+            if (t != null) return t.getName();
             org.bukkit.OfflinePlayer op = Bukkit.getOfflinePlayer(claim.getOwnerUuid());
-            return op.getName() != null ? op.getName() : "Player";
+            return op.getName() != null ? "Guild " + op.getName() : "Unknown Guild";
         }
-        return "Unknown";
+        return "Unknown Guild";
     }
 
     public String formatChunkCoord(int cx, int cz) {
@@ -949,13 +952,13 @@ public class GUIManager {
             } else if (team != null && claim.getTeamId() != null && team.getId() == claim.getTeamId()) {
                 inv.setItem(slot, new GUIItemBuilder(Material.LIME_STAINED_GLASS_PANE).name("<gradient:#11998e:#38ef7d><b>🛡 Your Guild Territory (" + formatChunkCoord(cx, cz) + ")</b></gradient>")
                         .lore("<gray>▪ Status: </gray><green>Secured & Protected</green>",
-                              "<gray>▪ Owner: </gray><white>" + getClaimOwnerName(claim) + "</white>",
+                              "<gray>▪ Guild: </gray><white>" + getClaimOwnerName(claim) + "</white>",
                               "",
                               "<red>▶ Right-Click to unclaim chunk</red>").build());
             } else {
                 inv.setItem(slot, new GUIItemBuilder(Material.RED_STAINED_GLASS_PANE).name("<gradient:#800000:#DC143C><b>⚔ Foreign Territory (" + formatChunkCoord(cx, cz) + ")</b></gradient>")
                         .lore("<gray>▪ Status: </gray><red>Occupied by Enemy</red>",
-                              "<gray>▪ Owner: </gray><white>" + getClaimOwnerName(claim) + "</white>").build());
+                              "<gray>▪ Claimed Guild: </gray><white>" + getClaimOwnerName(claim) + "</white>").build());
             }
         }
 
