@@ -29,7 +29,7 @@ public class ChatInputListener implements Listener {
     }
 
     public static void requestInput(Player player, String key, Consumer<Player> callback) {
-        boolean isString = key.endsWith("_name") || key.endsWith("_tag") || key.endsWith("_desc") || key.endsWith("_title");
+        boolean isString = key.endsWith("_name") || key.endsWith("_tag") || key.endsWith("_desc") || key.endsWith("_title") || key.endsWith("_material") || key.endsWith("_mode") || key.endsWith("_format");
         requestInputInternal(player, key, isString, callback);
     }
 
@@ -84,6 +84,13 @@ public class ChatInputListener implements Listener {
         }
 
         try {
+            if (pending.key().contains("multiplier") || pending.key().contains("scale")) {
+                double doubleVal = Double.parseDouble(raw);
+                settingsManager.set(pending.key(), String.valueOf(doubleVal));
+                player.sendMessage(TextUtil.format("<green>✔ Successfully set <gold>" + pending.key() + "</gold> to <white>" + doubleVal + "</white>!</green>"));
+                scheduler.runSync(player, () -> pending.callback().accept(player));
+                return;
+            }
             long val = Long.parseLong(raw);
             boolean allowNegative = pending.key().contains("min_") || pending.key().endsWith("_x") || pending.key().endsWith("_z") || pending.key().contains("bound");
             if (!allowNegative && val < 0) {

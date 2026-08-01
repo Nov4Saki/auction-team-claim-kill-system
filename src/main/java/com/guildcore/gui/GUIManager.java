@@ -174,20 +174,96 @@ public class GUIManager {
         player.openInventory(inv);
     }
 
+    public static class ClaimCostResult {
+        public final long coins;
+        public final int xpLevels;
+        public final Material itemMat;
+        public final int itemAmount;
+
+        public ClaimCostResult(long coins, int xpLevels, Material itemMat, int itemAmount) {
+            this.coins = coins;
+            this.xpLevels = xpLevels;
+            this.itemMat = itemMat;
+            this.itemAmount = itemAmount;
+        }
+    }
+
+    public ClaimCostResult calculateClaimCost(int activeClaims) {
+        String mode = settingsManager.getString("claims.cost.mode", "SCALER");
+        int targetClaimNum = activeClaims + 1;
+
+        long costCoins;
+        int costXp;
+        int costItemAmount;
+        Material costItemMat;
+
+        String itemMatStr = settingsManager.getString("claims.map.cost_item_material", "DIAMOND");
+        costItemMat = Material.matchMaterial(itemMatStr);
+        if (costItemMat == null) costItemMat = Material.DIAMOND;
+
+        if ("CUSTOM".equalsIgnoreCase(mode)) {
+            costCoins = settingsManager.getLong("claims.cost.custom_coins_" + targetClaimNum, -1);
+            if (costCoins < 0) {
+                double scale = settingsManager.getDouble("claims.cost.multiplier", 1.15);
+                long baseCoins = settingsManager.getLong("claims.map.cost_coins", 500);
+                costCoins = (long) (baseCoins * Math.pow(scale, activeClaims));
+            }
+
+            costXp = settingsManager.getInt("claims.cost.custom_xp_" + targetClaimNum, -1);
+            if (costXp < 0) {
+                int baseLvl = settingsManager.getInt("claims.map.cost_xp_levels", 2);
+                costXp = (int) Math.round(baseLvl * Math.pow(1.08, activeClaims));
+            }
+
+            costItemAmount = settingsManager.getInt("claims.cost.custom_item_amount_" + targetClaimNum, -1);
+            if (costItemAmount < 0) {
+                costItemAmount = settingsManager.getInt("claims.map.cost_item_amount", 2);
+            }
+        } else {
+            double scale = settingsManager.getDouble("claims.cost.multiplier", 1.15);
+            long baseCoins = settingsManager.getLong("claims.map.cost_coins", 500);
+            costCoins = (long) (baseCoins * Math.pow(scale, activeClaims));
+            int baseLvl = settingsManager.getInt("claims.map.cost_xp_levels", 2);
+            costXp = (int) Math.round(baseLvl * Math.pow(1.08, activeClaims));
+            costItemAmount = settingsManager.getInt("claims.map.cost_item_amount", 2);
+        }
+
+        return new ClaimCostResult(costCoins, costXp, costItemMat, costItemAmount);
+    }
+
     public void openAdminClaimSettings(Player player) {
         Inventory inv = Bukkit.createInventory(new AdminClaimHolder(), 27, TextUtil.format("<gradient:#11998e:#38ef7d><b>🏠 Domain & Realm Settings</b></gradient>"));
-        int earnRate = settingsManager.getInt("claims.blocks_per_hour", 50);
+        
+        String mode = settingsManager.getString("claims.cost.mode", "SCALER");
+        long baseCoins = settingsManager.getLong("claims.map.cost_coins", 500);
+        int baseLvl = settingsManager.getInt("claims.map.cost_xp_levels", 2);
+        String itemMatStr = settingsManager.getString("claims.map.cost_item_material", "DIAMOND");
+        int itemAmount = settingsManager.getInt("claims.map.cost_item_amount", 2);
+        double multiplier = settingsManager.getDouble("claims.cost.multiplier", 1.15);
+        String coordFormat = settingsManager.getString("claims.map.coord_format", "CHUNK");
         boolean disableExplosions = settingsManager.getBoolean("world.disable_explosions", false);
 
         fillBorder27(inv, Material.LIME_STAINED_GLASS_PANE);
 
-        inv.setItem(10, new GUIItemBuilder(Material.GOLDEN_SHOVEL).name("<yellow><b>Claim Blocks Earn Rate: " + earnRate + "/hr</b></yellow>")
-                .lore("<gray>▪ Blocks accrued by players per active hour</gray>", "", "<yellow>▶ Click to edit value in chat</yellow>").build());
+        inv.setItem(9, new GUIItemBuilder(Material.COMPASS).name("<yellow><b>Pricing Mode: " + ("CUSTOM".equalsIgnoreCase(mode) ? "<gradient:#00FF87:#60EFFF>[CUSTOM PER-CLAIM TIER]</gradient>" : "<gradient:#FFD700:#FFA500>[SCALER FORMULA]</gradient>") + "</b></yellow>")
+                .lore("<gray>▪ Determines how land claim costs scale per purchase</gray>", "", "<yellow>▶ Click to toggle pricing mode</yellow>").build());
 
-        inv.setItem(12, new GUIItemBuilder(Material.GRASS_BLOCK).name("<green><b>Default Domain Immunity: STRICT 16x16</b></green>")
-                .lore("<gray>▪ All claimed chunks possess 100% explosion immunity</gray>").build());
+        inv.setItem(10, new GUIItemBuilder(Material.GOLD_INGOT).name("<yellow><b>Base Claim Gold Cost: $" + String.format("%,d", baseCoins) + " Gold</b></yellow>")
+                .lore("<gray>▪ Base Gold cost per land claim</gray>", "", "<yellow>▶ Click to edit value in chat</yellow>").build());
 
-        inv.setItem(14, new GUIItemBuilder(Material.TNT).name("<red><b>Global World Explosions: " + (disableExplosions ? "<gradient:#FF416C:#FF4B2B>[✖ DISENGAGED]</gradient>" : "<gradient:#00FF87:#60EFFF>[✔ ENGAGED]</gradient>") + "</b></red>")
+        inv.setItem(11, new GUIItemBuilder(Material.EXPERIENCE_BOTTLE).name("<green><b>Base Claim XP Cost: " + baseLvl + " Levels</b></green>")
+                .lore("<gray>▪ Base XP levels cost per land claim</gray>", "", "<yellow>▶ Click to edit value in chat</yellow>").build());
+
+        inv.setItem(12, new GUIItemBuilder(Material.DIAMOND).name("<aqua><b>Required Item: " + itemAmount + "x " + itemMatStr + "</b></aqua>")
+                .lore("<gray>▪ Required material item and quantity</gray>", "", "<gradient:#00FF87:#60EFFF>▶ Left-Click to edit material</gradient>", "<gradient:#FF416C:#FF4B2B>▶ Right-Click to edit quantity</gradient>").build());
+
+        inv.setItem(13, new GUIItemBuilder(Material.REPEATER).name("<gold><b>Price Scaling Multiplier: " + multiplier + "x</b></gold>")
+                .lore("<gray>▪ Scaler multiplier applied per existing claim</gray>", "", "<yellow>▶ Click to edit value in chat</yellow>").build());
+
+        inv.setItem(14, new GUIItemBuilder(Material.MAP).name("<light_purple><b>Coordinate Format: [" + coordFormat.toUpperCase() + "]</b></light_purple>")
+                .lore("<gray>▪ Display mode: CHUNK (X, Z) vs BLOCK (X, Z)</gray>", "", "<yellow>▶ Click to toggle coordinate format</yellow>").build());
+
+        inv.setItem(15, new GUIItemBuilder(Material.TNT).name("<red><b>Global Explosions: " + (disableExplosions ? "<gradient:#FF416C:#FF4B2B>[✖ DISENGAGED]</gradient>" : "<gradient:#00FF87:#60EFFF>[✔ ENGAGED]</gradient>") + "</b></red>")
                 .lore("<gray>▪ Controls TNT, Creeper, and End Crystal blasts server-wide</gray>", "", "<yellow>▶ Click to toggle setting</yellow>").build());
 
         inv.setItem(26, new GUIItemBuilder(Material.BARRIER).name("<red><b>◀ Return to High Sovereign Panel</b></red>").build());
@@ -198,14 +274,30 @@ public class GUIManager {
         Inventory inv = Bukkit.createInventory(new AdminTeamHolder(), 27, TextUtil.format("<gradient:#00c6ff:#0072ff><b>🏰 Guild Charter Settings</b></gradient>"));
         int cost = settingsManager.getInt("teams.creation_cost", 5000);
         int baseMembers = settingsManager.getInt("teams.base_max_members", 3);
+        boolean autoTransfer = settingsManager.getBoolean("teams.auto_transfer_leader_on_leave", true);
+
+        int maxLvl1 = settingsManager.getInt("teams.max_claims_level_1", 5);
+        int maxLvl2 = settingsManager.getInt("teams.max_claims_level_2", 12);
+        int maxLvl3 = settingsManager.getInt("teams.max_claims_level_3", 25);
+        int maxLvl4 = settingsManager.getInt("teams.max_claims_level_4", 40);
+        int maxLvl5 = settingsManager.getInt("teams.max_claims_level_5", 60);
 
         fillBorder27(inv, Material.BLUE_STAINED_GLASS_PANE);
 
-        inv.setItem(11, new GUIItemBuilder(Material.GOLD_BLOCK).name("<yellow><b>Guild Charter Creation Cost: $" + String.format("%,d", cost) + " Gold</b></yellow>")
-                .lore("<gray>▪ Gold required from player to register a new guild</gray>", "", "<yellow>▶ Click to edit value in chat</yellow>").build());
+        inv.setItem(9, new GUIItemBuilder(Material.GOLD_BLOCK).name("<yellow><b>Creation Fee: $" + String.format("%,d", cost) + " Gold</b></yellow>")
+                .lore("<gray>▪ Gold required to register a new guild</gray>", "", "<yellow>▶ Click to edit value in chat</yellow>").build());
 
-        inv.setItem(15, new GUIItemBuilder(Material.PLAYER_HEAD).name("<yellow><b>Base Guild Roster Limit: " + baseMembers + " Members</b></yellow>")
-                .lore("<gray>▪ Initial maximum member capacity for new guilds</gray>", "", "<yellow>▶ Click to edit value in chat</yellow>").build());
+        inv.setItem(10, new GUIItemBuilder(Material.PLAYER_HEAD).name("<yellow><b>Base Member Cap: " + baseMembers + " Members</b></yellow>")
+                .lore("<gray>▪ Initial maximum member capacity</gray>", "", "<yellow>▶ Click to edit value in chat</yellow>").build());
+
+        inv.setItem(11, new GUIItemBuilder(Material.NETHER_STAR).name("<gradient:#FFD700:#FFA500><b>Leader Auto-Transfer: " + (autoTransfer ? "<gradient:#00FF87:#60EFFF>[✔ ENGAGED]</gradient>" : "<gradient:#FF416C:#FF4B2B>[✖ DISENGAGED]</gradient>") + "</b></gradient>")
+                .lore("<gray>▪ Automatically transfer leadership to highest rank when leader leaves</gray>", "", "<yellow>▶ Click to toggle setting</yellow>").build());
+
+        inv.setItem(12, new GUIItemBuilder(Material.EMERALD_BLOCK).name("<green><b>Lvl 1 Max Claims: " + maxLvl1 + " Chunks</b></green>").lore("<gray>▶ Click to edit in chat</gray>").build());
+        inv.setItem(13, new GUIItemBuilder(Material.EMERALD_BLOCK).name("<green><b>Lvl 2 Max Claims: " + maxLvl2 + " Chunks</b></green>").lore("<gray>▶ Click to edit in chat</gray>").build());
+        inv.setItem(14, new GUIItemBuilder(Material.EMERALD_BLOCK).name("<green><b>Lvl 3 Max Claims: " + maxLvl3 + " Chunks</b></green>").lore("<gray>▶ Click to edit in chat</gray>").build());
+        inv.setItem(15, new GUIItemBuilder(Material.EMERALD_BLOCK).name("<green><b>Lvl 4 Max Claims: " + maxLvl4 + " Chunks</b></green>").lore("<gray>▶ Click to edit in chat</gray>").build());
+        inv.setItem(16, new GUIItemBuilder(Material.EMERALD_BLOCK).name("<green><b>Lvl 5 Max Claims: " + maxLvl5 + " Chunks</b></green>").lore("<gray>▶ Click to edit in chat</gray>").build());
 
         inv.setItem(26, new GUIItemBuilder(Material.BARRIER).name("<red><b>◀ Return to High Sovereign Panel</b></red>").build());
         player.openInventory(inv);
@@ -795,16 +887,12 @@ public class GUIManager {
         int activeClaims = team != null ? claimManager.getTeamClaimsCount(team.getId()) : 0;
         int maxClaims = team != null ? teamManager.getMaxClaimsForTeam(team, settingsManager) : 5;
 
-        double scale = settingsManager.getDouble("claims.cost.multiplier", 1.15);
-        long baseCoins = settingsManager.getLong("claims.map.cost_coins", 500);
-        long costCoins = (long) (baseCoins * Math.pow(scale, activeClaims));
-        int baseLvl = settingsManager.getInt("claims.map.cost_xp_levels", 2);
-        int costXpLevels = (int) Math.round(baseLvl * Math.pow(1.08, activeClaims));
+        ClaimCostResult costRes = calculateClaimCost(activeClaims);
+        long costCoins = costRes.coins;
+        int costXpLevels = costRes.xpLevels;
+        Material costItemMat = costRes.itemMat;
+        int costItemAmount = costRes.itemAmount;
         int costXpPoints = settingsManager.getInt("claims.map.cost_xp_points", 0);
-        String itemMatStr = settingsManager.getString("claims.map.cost_item_material", "DIAMOND");
-        int costItemAmount = settingsManager.getInt("claims.map.cost_item_amount", 2);
-        Material costItemMat = Material.matchMaterial(itemMatStr);
-        if (costItemMat == null) costItemMat = Material.DIAMOND;
 
         Inventory inv = Bukkit.createInventory(new com.guildcore.gui.holders.TeamMapGUIHolder(centerCx, centerCz), 54, TextUtil.format("<gradient:#56ab2f:#a8e063><b>🗺 REALM TERRITORY MAP</b></gradient>"));
 

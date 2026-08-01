@@ -544,16 +544,11 @@ public class GUIClickListener implements Listener {
                     return;
                 }
 
-                double scale = settingsManager.getDouble("claims.cost.multiplier", 1.15);
-                long baseCoins = settingsManager.getLong("claims.map.cost_coins", 500);
-                long costCoins = (long) (baseCoins * Math.pow(scale, currentClaims));
-                int baseLvl = settingsManager.getInt("claims.map.cost_xp_levels", 2);
-                int costXpLevels = (int) Math.round(baseLvl * Math.pow(1.08, currentClaims));
-                int costXpPoints = settingsManager.getInt("claims.map.cost_xp_points", 0);
-                String itemMatStr = settingsManager.getString("claims.map.cost_item_material", "DIAMOND");
-                int costItemAmount = settingsManager.getInt("claims.map.cost_item_amount", 2);
-                Material costItemMat = Material.matchMaterial(itemMatStr);
-                if (costItemMat == null) costItemMat = Material.DIAMOND;
+                GUIManager.ClaimCostResult costRes = guiManager.calculateClaimCost(currentClaims);
+                long costCoins = costRes.coins;
+                int costXpLevels = costRes.xpLevels;
+                Material costItemMat = costRes.itemMat;
+                int costItemAmount = costRes.itemAmount;
 
                 if (team.getBankBalance() < costCoins) {
                     player.sendMessage(TextUtil.format("<red>✖ Team Bank lacks funds! Required: $" + String.format("%,d", costCoins) + " Gold (Bank balance: $" + String.format("%,d", team.getBankBalance()) + ").</red>"));
@@ -733,13 +728,73 @@ public class GUIClickListener implements Listener {
             SoundUtil.playClick(player);
             int slot = event.getSlot();
 
-            if (slot == 10) {
-                ChatInputListener.requestInput(player, "claims.blocks_per_hour", p -> guiManager.openAdminClaimSettings(p));
-            } else if (slot == 14) {
+            if (slot == 9) { // Pricing mode toggle
+                String current = settingsManager.getString("claims.cost.mode", "SCALER");
+                String next = "CUSTOM".equalsIgnoreCase(current) ? "SCALER" : "CUSTOM";
+                settingsManager.set("claims.cost.mode", next);
+                guiManager.openAdminClaimSettings(player);
+            } else if (slot == 10) {
+                ChatInputListener.requestInput(player, "claims.map.cost_coins", p -> guiManager.openAdminClaimSettings(p));
+            } else if (slot == 11) {
+                ChatInputListener.requestInput(player, "claims.map.cost_xp_levels", p -> guiManager.openAdminClaimSettings(p));
+            } else if (slot == 12) {
+                if (event.isRightClick()) {
+                    ChatInputListener.requestInput(player, "claims.map.cost_item_amount", p -> guiManager.openAdminClaimSettings(p));
+                } else {
+                    ChatInputListener.requestInput(player, "claims.map.cost_item_material", p -> guiManager.openAdminClaimSettings(p));
+                }
+            } else if (slot == 13) {
+                ChatInputListener.requestInput(player, "claims.cost.multiplier", p -> guiManager.openAdminClaimSettings(p));
+            } else if (slot == 14) { // Coord format toggle
+                String current = settingsManager.getString("claims.map.coord_format", "CHUNK");
+                String next = "BLOCK".equalsIgnoreCase(current) ? "CHUNK" : "BLOCK";
+                settingsManager.set("claims.map.coord_format", next);
+                guiManager.openAdminClaimSettings(player);
+            } else if (slot == 15) { // Global explosions toggle
                 boolean disableExplosions = settingsManager.getBoolean("world.disable_explosions", false);
                 settingsManager.set("world.disable_explosions", String.valueOf(!disableExplosions));
                 guiManager.openAdminClaimSettings(player);
             } else if (slot == 26) {
+                guiManager.openAdminSettings(player);
+            }
+            return;
+        }
+
+        // Admin Team Sub-GUI
+        if (holder instanceof AdminTeamHolder) {
+            event.setCancelled(true);
+            SoundUtil.playClick(player);
+            int slot = event.getSlot();
+
+            if (slot == 9) {
+                ChatInputListener.requestInput(player, "teams.creation_cost", p -> guiManager.openAdminTeamSettings(p));
+            } else if (slot == 10) {
+                ChatInputListener.requestInput(player, "teams.base_max_members", p -> guiManager.openAdminTeamSettings(p));
+            } else if (slot == 11) { // Leader auto-transfer toggle
+                boolean current = settingsManager.getBoolean("teams.auto_transfer_leader_on_leave", true);
+                settingsManager.set("teams.auto_transfer_leader_on_leave", String.valueOf(!current));
+                guiManager.openAdminTeamSettings(player);
+            } else if (slot == 12) {
+                ChatInputListener.requestInput(player, "teams.max_claims_level_1", p -> guiManager.openAdminTeamSettings(p));
+            } else if (slot == 13) {
+                ChatInputListener.requestInput(player, "teams.max_claims_level_2", p -> guiManager.openAdminTeamSettings(p));
+            } else if (slot == 14) {
+                ChatInputListener.requestInput(player, "teams.max_claims_level_3", p -> guiManager.openAdminTeamSettings(p));
+            } else if (slot == 15) {
+                ChatInputListener.requestInput(player, "teams.max_claims_level_4", p -> guiManager.openAdminTeamSettings(p));
+            } else if (slot == 16) {
+                ChatInputListener.requestInput(player, "teams.max_claims_level_5", p -> guiManager.openAdminTeamSettings(p));
+            } else if (slot == 26) {
+                guiManager.openAdminSettings(player);
+            }
+            return;
+        }
+
+        // 10. Simple Back-Button Sub-GUIs
+        if (holder instanceof AdminKillHolder) {
+            event.setCancelled(true);
+            SoundUtil.playClick(player);
+            if (event.getSlot() == 26) {
                 guiManager.openAdminSettings(player);
             }
             return;

@@ -156,12 +156,11 @@ public class ClaimCommand implements TabExecutor {
             return true;
         }
 
-        long costCoins = guiManager.getSettingsManager().getLong("claims.map.cost_coins", 500);
-        int costXpLevels = guiManager.getSettingsManager().getInt("claims.map.cost_xp_levels", 2);
-        String itemMatStr = guiManager.getSettingsManager().getString("claims.map.cost_item_material", "DIAMOND");
-        int costItemAmount = guiManager.getSettingsManager().getInt("claims.map.cost_item_amount", 2);
-        org.bukkit.Material costItemMat = org.bukkit.Material.matchMaterial(itemMatStr);
-        if (costItemMat == null) costItemMat = org.bukkit.Material.DIAMOND;
+        GUIManager.ClaimCostResult costRes = guiManager.calculateClaimCost(currentClaims);
+        long costCoins = costRes.coins;
+        int costXpLevels = costRes.xpLevels;
+        org.bukkit.Material costItemMat = costRes.itemMat;
+        int costItemAmount = costRes.itemAmount;
 
         if (team.getBankBalance() < costCoins) {
             player.sendMessage(TextUtil.format("<red>✖ Team Bank lacks funds! Required: $" + String.format("%,d", costCoins) + " Gold (Bank balance: $" + String.format("%,d", team.getBankBalance()) + ").</red>"));
