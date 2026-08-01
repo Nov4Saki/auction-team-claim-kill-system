@@ -504,7 +504,7 @@ public class GUIClickListener implements Listener {
 
                 if (event.isRightClick()) {
                     com.guildcore.claims.ClaimInfo existing = guiManager.getClaimManager().getClaimAt(player.getWorld(), targetCx, targetCz);
-                    if (existing != null && existing.isTeamClaim() && existing.getTeamId() != null && team.getId() == existing.getTeamId()) {
+                    if (existing != null && guiManager.isGuildClaim(player, team, existing)) {
                         if (!guiManager.getPermissionManager().hasPermission(team.getId(), role, "CLAIM")) {
                             player.sendMessage(TextUtil.format("<red>✖ You do not have team permission to unclaim land!</red>"));
                             return;
@@ -529,10 +529,10 @@ public class GUIClickListener implements Listener {
 
                 com.guildcore.claims.ClaimInfo existing = guiManager.getClaimManager().getClaimAt(player.getWorld(), targetCx, targetCz);
                 if (existing != null) {
-                    if (existing.isTeamClaim() && existing.getTeamId() != null && team.getId() == existing.getTeamId()) {
+                    if (guiManager.isGuildClaim(player, team, existing)) {
                         player.sendMessage(TextUtil.format("<yellow>This chunk is already claimed by your team!</yellow>"));
                     } else {
-                        player.sendMessage(TextUtil.format("<red>✖ This chunk belongs to another team (" + guiManager.getClaimOwnerName(existing) + ")!</red>"));
+                        player.sendMessage(TextUtil.format("<red>✖ This chunk belongs to another team (" + guiManager.getForeignGuildDisplay(existing) + ")!</red>"));
                     }
                     return;
                 }
@@ -665,13 +665,13 @@ public class GUIClickListener implements Listener {
             if (slot == 13) { guiManager.openAdminTeamSettings(player); return; }
             if (slot == 14) { guiManager.openAdminCombatSettings(player); return; }
             if (slot == 15) { guiManager.openAdminScoreboardSettings(player); return; }
-            if (slot == 16) { guiManager.openAdminAuctionSettings(player); return; }
 
-            if (slot == 19) { guiManager.openAdminRtpSettings(player); return; }
-            if (slot == 20) { guiManager.openAdminProhibitedItems(player, 1); return; }
-            if (slot == 21) { guiManager.openAdminShopHub(player); return; }
-            if (slot == 22) { guiManager.openAdminDebugPanel(player); return; }
-            if (slot == 23) { crateManager.openCrateAdminHub(player); return; }
+            if (slot == 19) { guiManager.openAdminAuctionSettings(player); return; }
+            if (slot == 20) { guiManager.openAdminRtpSettings(player); return; }
+            if (slot == 21) { guiManager.openAdminProhibitedItems(player, 1); return; }
+            if (slot == 22) { guiManager.openAdminShopHub(player); return; }
+            if (slot == 23) { guiManager.openAdminDebugPanel(player); return; }
+            if (slot == 24) { crateManager.openCrateAdminHub(player); return; }
             if (slot == 49) { player.closeInventory(); return; }
             return;
         }

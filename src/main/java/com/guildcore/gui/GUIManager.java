@@ -91,7 +91,7 @@ public class GUIManager {
             }
         }
 
-        // Row 1: Primary Module Archives (Slots 10 - 16)
+        // Row 1: Primary Module Archives (Slots 10 - 15)
         inv.setItem(10, new GUIItemBuilder(Material.GOLD_INGOT).name("<gradient:#FFD700:#FFA500><b>💰 Economy Treasury Archive</b></gradient>")
                 .lore("<gray>▪ Manage kingdom starting funds, PvP bounties, and royal sales tax</gray>", "", "<yellow>▶ Click to inspect Treasury Archive</yellow>").build());
 
@@ -110,23 +110,23 @@ public class GUIManager {
         inv.setItem(15, new GUIItemBuilder(Material.WRITABLE_BOOK).name("<gradient:#8E9EAB:#EEF2F3><b>📜 Scoreboard Scrolls Archive</b></gradient>")
                 .lore("<gray>▪ Manage scroll refresh tick-rates and server-wide objective wipes</gray>", "", "<yellow>▶ Click to inspect Scoreboard Archive</yellow>").build());
 
-        inv.setItem(16, new GUIItemBuilder(Material.CHEST).name("<gradient:#FFD700:#FFA500><b>📜 Grand Bazaar Settings Archive</b></gradient>")
+        // Row 2: Secondary & Administrative Hubs (Slots 19 - 24)
+        inv.setItem(19, new GUIItemBuilder(Material.CHEST).name("<gradient:#FFD700:#FFA500><b>📜 Grand Bazaar Settings Archive</b></gradient>")
                 .lore("<gray>▪ Manage listing taxes, default expiration timers, and delays</gray>", "", "<yellow>▶ Click to inspect Bazaar Archive</yellow>").build());
 
-        // Row 2: Secondary & Administrative Hubs (Slots 19 - 25)
-        inv.setItem(19, new GUIItemBuilder(Material.COMPASS).name("<gradient:#FFD700:#FFA500><b>🎲 RTP & Teleportation Archive</b></gradient>")
+        inv.setItem(20, new GUIItemBuilder(Material.COMPASS).name("<gradient:#FFD700:#FFA500><b>🎲 RTP & Teleportation Archive</b></gradient>")
                 .lore("<gray>▪ Manage RTP cooldowns, standstill timers, and coordinate bounds</gray>", "", "<yellow>▶ Click to inspect RTP Archive</yellow>").build());
 
-        inv.setItem(20, new GUIItemBuilder(Material.ANVIL).name("<gradient:#800000:#DC143C><b>🚫 Prohibited Items Archive</b></gradient>")
+        inv.setItem(21, new GUIItemBuilder(Material.ANVIL).name("<gradient:#800000:#DC143C><b>🚫 Prohibited Items Archive</b></gradient>")
                 .lore("<gray>▪ Manage server item bans, crafting blocks, and inventory purges</gray>", "", "<yellow>▶ Click to inspect Prohibited Archive</yellow>").build());
 
-        inv.setItem(21, new GUIItemBuilder(Material.EMERALD).name("<gradient:#00FF87:#60EFFF><b>🛒 Server Admin Shop Hub</b></gradient>")
+        inv.setItem(22, new GUIItemBuilder(Material.EMERALD).name("<gradient:#00FF87:#60EFFF><b>🛒 Server Admin Shop Hub</b></gradient>")
                 .lore("<gray>▪ Manage shop categories, buy/sell items, and pricing</gray>", "", "<yellow>▶ Click to inspect Admin Shop Hub</yellow>").build());
 
-        inv.setItem(22, new GUIItemBuilder(Material.LEVER).name("<gradient:#FF416C:#FF4B2B><b>⚡ Sovereign Debug Forge (18 Flags)</b></gradient>")
+        inv.setItem(23, new GUIItemBuilder(Material.LEVER).name("<gradient:#FF416C:#FF4B2B><b>⚡ Sovereign Debug Forge (18 Flags)</b></gradient>")
                 .lore("<gray>▪ Toggle 18 surgical realm diagnostic flags in real-time</gray>", "", "<yellow>▶ Click to open Debug Forge</yellow>").build());
 
-        inv.setItem(23, new GUIItemBuilder(Material.TRIPWIRE_HOOK).name("<gradient:#9D50BB:#6E48AA><b>🎁 Modular Choice Crates Hub</b></gradient>")
+        inv.setItem(24, new GUIItemBuilder(Material.TRIPWIRE_HOOK).name("<gradient:#9D50BB:#6E48AA><b>🎁 Modular Choice Crates Hub</b></gradient>")
                 .lore("<gray>▪ Manage key crates, reward tables, and choice menu configurations</gray>", "", "<yellow>▶ Click to inspect Crates Hub</yellow>").build());
 
         inv.setItem(49, new GUIItemBuilder(Material.BARRIER).name("<red><b>✖ Close Sovereign Control Panel</b></red>").build());
@@ -857,12 +857,20 @@ public class GUIManager {
         player.openInventory(inv);
     }
 
-    public boolean isGuildClaim(Team team, ClaimInfo claim) {
-        if (team == null || claim == null) return false;
-        if (claim.getTeamId() != null && claim.getTeamId() == team.getId()) return true;
-        if (claim.getOwnerUuid() != null) {
-            Team ownerTeam = teamManager.getPlayerTeam(claim.getOwnerUuid());
-            return ownerTeam != null && ownerTeam.getId() == team.getId();
+    public boolean isGuildClaim(Player player, Team team, ClaimInfo claim) {
+        if (claim == null) return false;
+        if (team != null) {
+            if (claim.getTeamId() != null && claim.getTeamId().equals(team.getId())) return true;
+            if (claim.getOwnerUuid() != null) {
+                if (player != null && claim.getOwnerUuid().equals(player.getUniqueId())) return true;
+                if (claim.getOwnerUuid().equals(team.getLeaderUuid())) return true;
+                Team ownerTeam = teamManager.getPlayerTeam(claim.getOwnerUuid());
+                if (ownerTeam != null && ownerTeam.getId() == team.getId()) return true;
+            }
+            return false;
+        }
+        if (player != null && claim.getOwnerUuid() != null && claim.getOwnerUuid().equals(player.getUniqueId())) {
+            return true;
         }
         return false;
     }
@@ -877,7 +885,7 @@ public class GUIManager {
 
     public String getClaimOwnerName(ClaimInfo claim) {
         if (claim == null) return "Wilderness";
-        if (claim.getTeamId() != null) {
+        if (claim.getTeamId() != null && claim.getTeamId() > 0) {
             Team t = teamManager.getTeam(claim.getTeamId());
             if (t != null) return t.getName();
             return "Guild #" + claim.getTeamId();
@@ -886,9 +894,9 @@ public class GUIManager {
             Team t = teamManager.getPlayerTeam(claim.getOwnerUuid());
             if (t != null) return t.getName();
             org.bukkit.OfflinePlayer op = Bukkit.getOfflinePlayer(claim.getOwnerUuid());
-            return op.getName() != null ? "Guild " + op.getName() : "Unknown Guild";
+            return op.getName() != null ? op.getName() : "Unknown";
         }
-        return "Unknown Guild";
+        return "Unknown";
     }
 
     public String formatChunkCoord(int cx, int cz) {
@@ -958,7 +966,7 @@ public class GUIManager {
 
             boolean isPlayerChunk = (dx == 0 && dz == 0);
             ClaimInfo claim = claimManager.getClaimAt(world, cx, cz);
-            boolean isOwnGuild = isGuildClaim(team, claim);
+            boolean isOwnGuild = isGuildClaim(player, team, claim);
 
             if (isPlayerChunk) {
                 inv.setItem(slot, new GUIItemBuilder(Material.YELLOW_STAINED_GLASS_PANE).name("<gradient:#FFD700:#FFA500><b>📍 YOUR LOCATION (" + formatChunkCoord(cx, cz) + ")</b></gradient>")
@@ -980,7 +988,7 @@ public class GUIManager {
                               "<red>▶ Right-Click to unclaim chunk</red>").build());
             } else {
                 inv.setItem(slot, new GUIItemBuilder(Material.RED_STAINED_GLASS_PANE).name("<gradient:#800000:#DC143C><b>⚔ Foreign Territory (" + formatChunkCoord(cx, cz) + ")</b></gradient>")
-                        .lore("<gray>▪ Status: </gray><red>Occupied by Enemy</red>",
+                        .lore("<gray>▪ Status: </gray><red>Occupied Territory</red>",
                               "<gray>▪ Claimed Guild: </gray><white>" + getForeignGuildDisplay(claim) + "</white>").build());
             }
         }
