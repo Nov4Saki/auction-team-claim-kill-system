@@ -266,6 +266,10 @@ public class GUIManager {
         inv.setItem(15, new GUIItemBuilder(Material.TNT).name("<red><b>Global Explosions: " + (disableExplosions ? "<gradient:#FF416C:#FF4B2B>[✖ DISENGAGED]</gradient>" : "<gradient:#00FF87:#60EFFF>[✔ ENGAGED]</gradient>") + "</b></red>")
                 .lore("<gray>▪ Controls TNT, Creeper, and End Crystal blasts server-wide</gray>", "", "<yellow>▶ Click to toggle setting</yellow>").build());
 
+        boolean hideForeignNames = settingsManager.getBoolean("claims.map.hide_foreign_guild_names", false);
+        inv.setItem(16, new GUIItemBuilder(Material.SPYGLASS).name("<yellow><b>Foreign Guild Names: " + (hideForeignNames ? "<gradient:#FF416C:#FF4B2B>[HIDDEN ON MAP]</gradient>" : "<gradient:#00FF87:#60EFFF>[REVEALED ON MAP]</gradient>") + "</b></yellow>")
+                .lore("<gray>▪ Controls whether rival guild names are visible on Territory Map</gray>", "", "<yellow>▶ Click to toggle setting</yellow>").build());
+
         inv.setItem(26, new GUIItemBuilder(Material.BARRIER).name("<red><b>◀ Return to High Sovereign Panel</b></red>").build());
         player.openInventory(inv);
     }
@@ -853,6 +857,24 @@ public class GUIManager {
         player.openInventory(inv);
     }
 
+    public boolean isGuildClaim(Team team, ClaimInfo claim) {
+        if (team == null || claim == null) return false;
+        if (claim.getTeamId() != null && claim.getTeamId() == team.getId()) return true;
+        if (claim.getOwnerUuid() != null) {
+            Team ownerTeam = teamManager.getPlayerTeam(claim.getOwnerUuid());
+            return ownerTeam != null && ownerTeam.getId() == team.getId();
+        }
+        return false;
+    }
+
+    public String getForeignGuildDisplay(ClaimInfo claim) {
+        boolean hide = settingsManager.getBoolean("claims.map.hide_foreign_guild_names", false);
+        if (hide) {
+            return "??? (Hidden)";
+        }
+        return getClaimOwnerName(claim);
+    }
+
     public String getClaimOwnerName(ClaimInfo claim) {
         if (claim == null) return "Wilderness";
         if (claim.getTeamId() != null) {
@@ -936,12 +958,13 @@ public class GUIManager {
 
             boolean isPlayerChunk = (dx == 0 && dz == 0);
             ClaimInfo claim = claimManager.getClaimAt(world, cx, cz);
+            boolean isOwnGuild = isGuildClaim(team, claim);
 
             if (isPlayerChunk) {
                 inv.setItem(slot, new GUIItemBuilder(Material.YELLOW_STAINED_GLASS_PANE).name("<gradient:#FFD700:#FFA500><b>📍 YOUR LOCATION (" + formatChunkCoord(cx, cz) + ")</b></gradient>")
-                        .lore("<gray>▪ Status: </gray>" + (claim == null ? "<gray>Wilderness</gray>" : (team != null && claim.getTeamId() != null && team.getId() == claim.getTeamId() ? "<green>Your Guild Domain</green>" : "<red>Claimed by " + getClaimOwnerName(claim) + "</red>")),
+                        .lore("<gray>▪ Status: </gray>" + (claim == null ? "<gray>Wilderness</gray>" : (isOwnGuild ? "<green>Your Guild Domain</green>" : "<red>Claimed by " + getForeignGuildDisplay(claim) + "</red>")),
                               "",
-                              (claim == null ? "<yellow>▶ Left-Click to claim chunk for your Guild!</yellow>" : (team != null && claim.getTeamId() != null && team.getId() == claim.getTeamId() ? "<red>▶ Right-Click to unclaim</red>" : "<gray>Secured by foreign guild</gray>"))).build());
+                              (claim == null ? "<yellow>▶ Left-Click to claim chunk for your Guild!</yellow>" : (isOwnGuild ? "<red>▶ Right-Click to unclaim</red>" : "<gray>Secured by foreign guild</gray>"))).build());
             } else if (claim == null) {
                 inv.setItem(slot, new GUIItemBuilder(Material.GRAY_STAINED_GLASS_PANE).name("<gray><b>Unclaimed " + formatChunkCoord(cx, cz) + "</b></gray>")
                         .lore("<gray>▪ Status: </gray><white>Wilderness</white>",
@@ -949,7 +972,7 @@ public class GUIManager {
                               "<gray>▪ Required Items: </gray><aqua>" + costItemAmount + "x " + costItemMat.name() + "</aqua>",
                               "",
                               "<yellow>▶ Left-Click to claim for your Guild</yellow>").build());
-            } else if (team != null && claim.getTeamId() != null && team.getId() == claim.getTeamId()) {
+            } else if (isOwnGuild) {
                 inv.setItem(slot, new GUIItemBuilder(Material.LIME_STAINED_GLASS_PANE).name("<gradient:#11998e:#38ef7d><b>🛡 Your Guild Territory (" + formatChunkCoord(cx, cz) + ")</b></gradient>")
                         .lore("<gray>▪ Status: </gray><green>Secured & Protected</green>",
                               "<gray>▪ Guild: </gray><white>" + getClaimOwnerName(claim) + "</white>",
@@ -958,7 +981,7 @@ public class GUIManager {
             } else {
                 inv.setItem(slot, new GUIItemBuilder(Material.RED_STAINED_GLASS_PANE).name("<gradient:#800000:#DC143C><b>⚔ Foreign Territory (" + formatChunkCoord(cx, cz) + ")</b></gradient>")
                         .lore("<gray>▪ Status: </gray><red>Occupied by Enemy</red>",
-                              "<gray>▪ Claimed Guild: </gray><white>" + getClaimOwnerName(claim) + "</white>").build());
+                              "<gray>▪ Claimed Guild: </gray><white>" + getForeignGuildDisplay(claim) + "</white>").build());
             }
         }
 

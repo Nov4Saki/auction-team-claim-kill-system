@@ -754,6 +754,10 @@ public class GUIClickListener implements Listener {
                 boolean disableExplosions = settingsManager.getBoolean("world.disable_explosions", false);
                 settingsManager.set("world.disable_explosions", String.valueOf(!disableExplosions));
                 guiManager.openAdminClaimSettings(player);
+            } else if (slot == 16) { // Hide foreign guild names toggle
+                boolean current = settingsManager.getBoolean("claims.map.hide_foreign_guild_names", false);
+                settingsManager.set("claims.map.hide_foreign_guild_names", String.valueOf(!current));
+                guiManager.openAdminClaimSettings(player);
             } else if (slot == 26) {
                 guiManager.openAdminSettings(player);
             }
