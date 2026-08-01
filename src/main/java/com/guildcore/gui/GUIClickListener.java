@@ -516,6 +516,14 @@ public class GUIClickListener implements Listener {
                         } else {
                             player.sendMessage(TextUtil.format("<red>✖ Failed to unclaim chunk!</red>"));
                         }
+                    } else if (existing != null && player.hasPermission("guildcore.admin") && (existing.getTeamId() == null || existing.getTeamId() <= 0)) {
+                        if (guiManager.getClaimManager().unclaim(targetChunk)) {
+                            SoundUtil.playSuccess(player);
+                            player.sendMessage(TextUtil.format("<green>✔ Admin purged legacy claim at (" + targetCx + ", " + targetCz + ")!</green>"));
+                            guiManager.openTeamMapGUI(player);
+                        } else {
+                            player.sendMessage(TextUtil.format("<red>✖ Failed to unclaim legacy chunk!</red>"));
+                        }
                     } else {
                         player.sendMessage(TextUtil.format("<red>✖ You can only unclaim chunks owned by your Guild!</red>"));
                     }
@@ -750,6 +758,15 @@ public class GUIClickListener implements Listener {
                 String next = "BLOCK".equalsIgnoreCase(current) ? "CHUNK" : "BLOCK";
                 settingsManager.set("claims.map.coord_format", next);
                 guiManager.openAdminClaimSettings(player);
+            } else if (slot == 12) {
+                guiManager.openClaimItemSelectorGUI(player);
+            } else if (slot == 13) {
+                ChatInputListener.requestInput(player, "claims.cost.multiplier", p -> guiManager.openAdminClaimSettings(p));
+            } else if (slot == 14) { // Coord format toggle
+                String current = settingsManager.getString("claims.map.coord_format", "CHUNK");
+                String next = "BLOCK".equalsIgnoreCase(current) ? "CHUNK" : "BLOCK";
+                settingsManager.set("claims.map.coord_format", next);
+                guiManager.openAdminClaimSettings(player);
             } else if (slot == 15) { // Global explosions toggle
                 boolean disableExplosions = settingsManager.getBoolean("world.disable_explosions", false);
                 settingsManager.set("world.disable_explosions", String.valueOf(!disableExplosions));
@@ -758,8 +775,51 @@ public class GUIClickListener implements Listener {
                 boolean current = settingsManager.getBoolean("claims.map.hide_foreign_guild_names", false);
                 settingsManager.set("claims.map.hide_foreign_guild_names", String.valueOf(!current));
                 guiManager.openAdminClaimSettings(player);
+            } else if (slot == 17) { // Purge all legacy claims
+                int purged = guiManager.getClaimManager().purgeLegacyClaims();
+                player.sendMessage(TextUtil.format("<green>✔ Successfully purged " + purged + " legacy non-team claims!</green>"));
+                guiManager.openAdminClaimSettings(player);
             } else if (slot == 26) {
                 guiManager.openAdminSettings(player);
+            }
+            return;
+        }
+
+        // Claim Item Requirement Selector GUI
+        if (holder instanceof com.guildcore.gui.holders.ClaimItemSelectorHolder selectorHolder) {
+            int slot = event.getSlot();
+            if (slot == 13) {
+                // Allow placing and swapping items in slot 13
+                return;
+            }
+            event.setCancelled(true);
+            SoundUtil.playClick(player);
+
+            if (slot == 10) {
+                selectorHolder.setQuantity(selectorHolder.getQuantity() - 10);
+                guiManager.openClaimItemSelectorGUI(player);
+            } else if (slot == 11) {
+                selectorHolder.setQuantity(selectorHolder.getQuantity() - 1);
+                guiManager.openClaimItemSelectorGUI(player);
+            } else if (slot == 15) {
+                selectorHolder.setQuantity(selectorHolder.getQuantity() + 1);
+                guiManager.openClaimItemSelectorGUI(player);
+            } else if (slot == 16) {
+                selectorHolder.setQuantity(selectorHolder.getQuantity() + 10);
+                guiManager.openClaimItemSelectorGUI(player);
+            } else if (slot == 22) { // Save & Apply
+                ItemStack itemInSlot = event.getInventory().getItem(13);
+                if (itemInSlot != null && itemInSlot.getType() != Material.AIR) {
+                    int qty = itemInSlot.getAmount() > 1 ? itemInSlot.getAmount() : selectorHolder.getQuantity();
+                    settingsManager.set("claims.map.cost_item_material", itemInSlot.getType().name());
+                    settingsManager.set("claims.map.cost_item_amount", String.valueOf(qty));
+                    player.sendMessage(TextUtil.format("<green>✔ Claim item requirement set to " + qty + "x " + itemInSlot.getType().name() + "!</green>"));
+                } else {
+                    player.sendMessage(TextUtil.format("<red>✖ Please place a valid item in Slot 13!</red>"));
+                }
+                guiManager.openAdminClaimSettings(player);
+            } else if (slot == 26) {
+                guiManager.openAdminClaimSettings(player);
             }
             return;
         }
@@ -778,18 +838,53 @@ public class GUIClickListener implements Listener {
                 boolean current = settingsManager.getBoolean("teams.auto_transfer_leader_on_leave", true);
                 settingsManager.set("teams.auto_transfer_leader_on_leave", String.valueOf(!current));
                 guiManager.openAdminTeamSettings(player);
-            } else if (slot == 12) {
-                ChatInputListener.requestInput(player, "teams.max_claims_level_1", p -> guiManager.openAdminTeamSettings(p));
-            } else if (slot == 13) {
-                ChatInputListener.requestInput(player, "teams.max_claims_level_2", p -> guiManager.openAdminTeamSettings(p));
-            } else if (slot == 14) {
-                ChatInputListener.requestInput(player, "teams.max_claims_level_3", p -> guiManager.openAdminTeamSettings(p));
-            } else if (slot == 15) {
-                ChatInputListener.requestInput(player, "teams.max_claims_level_4", p -> guiManager.openAdminTeamSettings(p));
-            } else if (slot == 16) {
-                ChatInputListener.requestInput(player, "teams.max_claims_level_5", p -> guiManager.openAdminTeamSettings(p));
+            } else if (slot == 12) { // Max Guild Level
+                ChatInputListener.requestInput(player, "teams.max_guild_level", p -> guiManager.openAdminTeamSettings(p));
+            } else if (slot == 14) { // Level Claim Caps GUI
+                guiManager.openAdminGuildLevelsGUI(player, 1);
             } else if (slot == 26) {
                 guiManager.openAdminSettings(player);
+            }
+            return;
+        }
+
+        // Admin Guild Levels Sub-GUI
+        if (holder instanceof com.guildcore.gui.holders.AdminGuildLevelsHolder levelsHolder) {
+            event.setCancelled(true);
+            SoundUtil.playClick(player);
+            int slot = event.getSlot();
+
+            int[] itemSlots = new int[]{
+                10, 11, 12, 13, 14, 15, 16,
+                19, 20, 21, 22, 23, 24, 25,
+                28, 29, 30, 31, 32, 33, 34,
+                37, 38, 39, 40, 41, 42, 43
+            };
+
+            int clickedIdx = -1;
+            for (int i = 0; i < itemSlots.length; i++) {
+                if (itemSlots[i] == slot) {
+                    clickedIdx = i;
+                    break;
+                }
+            }
+
+            if (clickedIdx != -1) {
+                int targetLevel = (levelsHolder.getPage() - 1) * 28 + clickedIdx + 1;
+                ChatInputListener.requestInput(player, "teams.max_claims_level_" + targetLevel, p -> guiManager.openAdminGuildLevelsGUI(p, levelsHolder.getPage()));
+                return;
+            }
+
+            if (slot == 45 && levelsHolder.getPage() > 1) {
+                guiManager.openAdminGuildLevelsGUI(player, levelsHolder.getPage() - 1);
+            } else if (slot == 53) {
+                int maxLevel = settingsManager.getInt("teams.max_guild_level", 5);
+                int totalPages = Math.max(1, (int) Math.ceil((double) maxLevel / 28.0));
+                if (levelsHolder.getPage() < totalPages) {
+                    guiManager.openAdminGuildLevelsGUI(player, levelsHolder.getPage() + 1);
+                }
+            } else if (slot == 49) {
+                guiManager.openAdminTeamSettings(player);
             }
             return;
         }

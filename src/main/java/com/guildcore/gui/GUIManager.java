@@ -255,7 +255,7 @@ public class GUIManager {
                 .lore("<gray>▪ Base XP levels cost per land claim</gray>", "", "<yellow>▶ Click to edit value in chat</yellow>").build());
 
         inv.setItem(12, new GUIItemBuilder(Material.DIAMOND).name("<aqua><b>Required Item: " + itemAmount + "x " + itemMatStr + "</b></aqua>")
-                .lore("<gray>▪ Required material item and quantity</gray>", "", "<gradient:#00FF87:#60EFFF>▶ Left-Click to edit material</gradient>", "<gradient:#FF416C:#FF4B2B>▶ Right-Click to edit quantity</gradient>").build());
+                .lore("<gray>▪ Required material item and quantity</gray>", "", "<yellow>▶ Click to open interactive Item Selector GUI</yellow>").build());
 
         inv.setItem(13, new GUIItemBuilder(Material.REPEATER).name("<gold><b>Price Scaling Multiplier: " + multiplier + "x</b></gold>")
                 .lore("<gray>▪ Scaler multiplier applied per existing claim</gray>", "", "<yellow>▶ Click to edit value in chat</yellow>").build());
@@ -270,7 +270,43 @@ public class GUIManager {
         inv.setItem(16, new GUIItemBuilder(Material.SPYGLASS).name("<yellow><b>Foreign Guild Names: " + (hideForeignNames ? "<gradient:#FF416C:#FF4B2B>[HIDDEN ON MAP]</gradient>" : "<gradient:#00FF87:#60EFFF>[REVEALED ON MAP]</gradient>") + "</b></yellow>")
                 .lore("<gray>▪ Controls whether rival guild names are visible on Territory Map</gray>", "", "<yellow>▶ Click to toggle setting</yellow>").build());
 
+        inv.setItem(17, new GUIItemBuilder(Material.ANVIL).name("<gradient:#FF416C:#FF4B2B><b>🧹 Purge All Legacy Claims</b></gradient>")
+                .lore("<gray>▪ Purges non-team personal claims created prior to update</gray>", "", "<red>▶ Click to execute purge</red>").build());
+
         inv.setItem(26, new GUIItemBuilder(Material.BARRIER).name("<red><b>◀ Return to High Sovereign Panel</b></red>").build());
+        player.openInventory(inv);
+    }
+
+    public void openClaimItemSelectorGUI(Player player) {
+        if (player == null) return;
+        com.guildcore.gui.holders.ClaimItemSelectorHolder holder = new com.guildcore.gui.holders.ClaimItemSelectorHolder();
+        int currentQty = settingsManager.getInt("claims.map.cost_item_amount", 2);
+        String matStr = settingsManager.getString("claims.map.cost_item_material", "DIAMOND");
+        Material mat = Material.matchMaterial(matStr);
+        if (mat == null) mat = Material.DIAMOND;
+
+        holder.setQuantity(currentQty);
+
+        Inventory inv = Bukkit.createInventory(holder, 27, TextUtil.format("<gradient:#FFD700:#FFA500><b>📦 CLAIM ITEM REQUIREMENT SELECTOR</b></gradient>"));
+        fillBorder27(inv, Material.GRAY_STAINED_GLASS_PANE);
+
+        inv.setItem(10, new GUIItemBuilder(Material.RED_WOOL).name("<red><b>-10 Quantity</b></red>").lore("<gray>Click to decrease item requirement by 10</gray>").build());
+        inv.setItem(11, new GUIItemBuilder(Material.RED_CONCRETE).name("<red><b>-1 Quantity</b></red>").lore("<gray>Click to decrease item requirement by 1</gray>").build());
+
+        inv.setItem(13, new GUIItemBuilder(mat).amount(holder.getQuantity()).name("<aqua><b>Target Requirement Item</b></aqua>")
+                .lore("<gray>▪ Material: </gray><yellow>" + mat.name() + "</yellow>",
+                      "<gray>▪ Quantity: </gray><green>" + holder.getQuantity() + "x</green>",
+                      "",
+                      "<yellow>▶ Place/Swap ANY item here to change material!</yellow>").build());
+
+        inv.setItem(15, new GUIItemBuilder(Material.LIME_CONCRETE).name("<green><b>+1 Quantity</b></green>").lore("<gray>Click to increase item requirement by 1</gray>").build());
+        inv.setItem(16, new GUIItemBuilder(Material.LIME_WOOL).name("<green><b>+10 Quantity</b></green>").lore("<gray>Click to increase item requirement by 10</gray>").build());
+
+        inv.setItem(22, new GUIItemBuilder(Material.NETHER_STAR).name("<gradient:#00FF87:#60EFFF><b>✔ SAVE & APPLY REQUIREMENT</b></gradient>")
+                .lore("<gray>Saves item material and quantity to server configs</gray>", "", "<yellow>▶ Click to save</yellow>").build());
+
+        inv.setItem(26, new GUIItemBuilder(Material.BARRIER).name("<red><b>◀ Return to Domain Settings</b></red>").build());
+
         player.openInventory(inv);
     }
 
@@ -279,12 +315,7 @@ public class GUIManager {
         int cost = settingsManager.getInt("teams.creation_cost", 5000);
         int baseMembers = settingsManager.getInt("teams.base_max_members", 3);
         boolean autoTransfer = settingsManager.getBoolean("teams.auto_transfer_leader_on_leave", true);
-
-        int maxLvl1 = settingsManager.getInt("teams.max_claims_level_1", 5);
-        int maxLvl2 = settingsManager.getInt("teams.max_claims_level_2", 12);
-        int maxLvl3 = settingsManager.getInt("teams.max_claims_level_3", 25);
-        int maxLvl4 = settingsManager.getInt("teams.max_claims_level_4", 40);
-        int maxLvl5 = settingsManager.getInt("teams.max_claims_level_5", 60);
+        int maxGuildLevel = settingsManager.getInt("teams.max_guild_level", 5);
 
         fillBorder27(inv, Material.BLUE_STAINED_GLASS_PANE);
 
@@ -297,13 +328,59 @@ public class GUIManager {
         inv.setItem(11, new GUIItemBuilder(Material.NETHER_STAR).name("<gradient:#FFD700:#FFA500><b>Leader Auto-Transfer: " + (autoTransfer ? "<gradient:#00FF87:#60EFFF>[✔ ENGAGED]</gradient>" : "<gradient:#FF416C:#FF4B2B>[✖ DISENGAGED]</gradient>") + "</b></gradient>")
                 .lore("<gray>▪ Automatically transfer leadership to highest rank when leader leaves</gray>", "", "<yellow>▶ Click to toggle setting</yellow>").build());
 
-        inv.setItem(12, new GUIItemBuilder(Material.EMERALD_BLOCK).name("<green><b>Lvl 1 Max Claims: " + maxLvl1 + " Chunks</b></green>").lore("<gray>▶ Click to edit in chat</gray>").build());
-        inv.setItem(13, new GUIItemBuilder(Material.EMERALD_BLOCK).name("<green><b>Lvl 2 Max Claims: " + maxLvl2 + " Chunks</b></green>").lore("<gray>▶ Click to edit in chat</gray>").build());
-        inv.setItem(14, new GUIItemBuilder(Material.EMERALD_BLOCK).name("<green><b>Lvl 3 Max Claims: " + maxLvl3 + " Chunks</b></green>").lore("<gray>▶ Click to edit in chat</gray>").build());
-        inv.setItem(15, new GUIItemBuilder(Material.EMERALD_BLOCK).name("<green><b>Lvl 4 Max Claims: " + maxLvl4 + " Chunks</b></green>").lore("<gray>▶ Click to edit in chat</gray>").build());
-        inv.setItem(16, new GUIItemBuilder(Material.EMERALD_BLOCK).name("<green><b>Lvl 5 Max Claims: " + maxLvl5 + " Chunks</b></green>").lore("<gray>▶ Click to edit in chat</gray>").build());
+        inv.setItem(12, new GUIItemBuilder(Material.EXPERIENCE_BOTTLE).name("<yellow><b>Max Guild Level: " + maxGuildLevel + " Tiers</b></yellow>")
+                .lore("<gray>▪ Maximum upgrade level reachable by guilds</gray>", "", "<yellow>▶ Click to edit max level in chat</yellow>").build());
+
+        inv.setItem(14, new GUIItemBuilder(Material.BEACON).name("<gradient:#00c6ff:#0072ff><b>🏆 Edit Level Claim Caps (1 to " + maxGuildLevel + ")</b></gradient>")
+                .lore("<gray>▪ Configure chunk claim limits for each guild level</gray>", "", "<yellow>▶ Click to open Level Claim Caps GUI</yellow>").build());
 
         inv.setItem(26, new GUIItemBuilder(Material.BARRIER).name("<red><b>◀ Return to High Sovereign Panel</b></red>").build());
+        player.openInventory(inv);
+    }
+
+    public void openAdminGuildLevelsGUI(Player player, int page) {
+        if (player == null) return;
+        int maxLevel = settingsManager.getInt("teams.max_guild_level", 5);
+        int totalPages = Math.max(1, (int) Math.ceil((double) maxLevel / 28.0));
+        if (page < 1) page = 1;
+        if (page > totalPages) page = totalPages;
+
+        Inventory inv = Bukkit.createInventory(new com.guildcore.gui.holders.AdminGuildLevelsHolder(page), 54, TextUtil.format("<gradient:#00c6ff:#0072ff><b>🏆 GUILD LEVEL CLAIM CAPS (Pg " + page + ")</b></gradient>"));
+        fillBorder54(inv, Material.BLUE_STAINED_GLASS_PANE);
+
+        int[] itemSlots = new int[]{
+            10, 11, 12, 13, 14, 15, 16,
+            19, 20, 21, 22, 23, 24, 25,
+            28, 29, 30, 31, 32, 33, 34,
+            37, 38, 39, 40, 41, 42, 43
+        };
+
+        int startIndex = (page - 1) * 28;
+        int endIndex = Math.min(maxLevel, startIndex + 28);
+
+        for (int i = startIndex; i < endIndex; i++) {
+            int levelNum = i + 1;
+            int cap = settingsManager.getInt("teams.max_claims_level_" + levelNum, levelNum * 5);
+            int slot = itemSlots[i - startIndex];
+
+            Material iconMat = (levelNum % 5 == 0) ? Material.BEACON : Material.EMERALD_BLOCK;
+
+            inv.setItem(slot, new GUIItemBuilder(iconMat).name("<gradient:#00FF87:#60EFFF><b>Guild Level " + levelNum + " Claim Cap</b></gradient>")
+                    .lore("<gray>▪ Max Chunk Claims: </gray><yellow>" + cap + " Chunks</yellow>",
+                          "",
+                          "<yellow>▶ Click to edit claim cap in chat</yellow>").build());
+        }
+
+        if (page > 1) {
+            inv.setItem(45, new GUIItemBuilder(Material.ARROW).name("<yellow><b>◀ Previous Page (" + (page - 1) + ")</b></yellow>").build());
+        }
+        inv.setItem(48, new GUIItemBuilder(Material.BOOK).name("<gold><b>📖 Page " + page + " of " + totalPages + "</b></gold>")
+                .lore("<gray>▪ Max Guild Level: " + maxLevel + "</gray>").build());
+        inv.setItem(49, new GUIItemBuilder(Material.BARRIER).name("<red><b>◀ Return to Guild Charter Settings</b></red>").build());
+        if (page < totalPages) {
+            inv.setItem(53, new GUIItemBuilder(Material.ARROW).name("<yellow><b>Next Page (" + (page + 1) + ") ▶</b></yellow>").build());
+        }
+
         player.openInventory(inv);
     }
 

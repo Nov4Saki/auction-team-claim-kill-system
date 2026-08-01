@@ -230,4 +230,30 @@ public class ClaimManager {
             }
         });
     }
+
+    public int purgeLegacyClaims() {
+        int count = 0;
+        java.util.List<String> keysToRemove = new java.util.ArrayList<>();
+        for (Map.Entry<String, ClaimInfo> entry : claimsCache.entrySet()) {
+            ClaimInfo info = entry.getValue();
+            if (info.getTeamId() == null || info.getTeamId() <= 0) {
+                keysToRemove.add(entry.getKey());
+                count++;
+            }
+        }
+        for (String key : keysToRemove) {
+            claimsCache.remove(key);
+        }
+        final int finalCount = count;
+        dbManager.executeAsync(() -> {
+            try (Connection conn = dbManager.getConnection();
+                 PreparedStatement ps = conn.prepareStatement("DELETE FROM claims WHERE team_id IS NULL OR team_id <= 0")) {
+                ps.executeUpdate();
+                DebugManager.log(DebugFlag.CLAIM_PROTECTION, "Purged " + finalCount + " legacy non-team claims.");
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
+        return count;
+    }
 }
