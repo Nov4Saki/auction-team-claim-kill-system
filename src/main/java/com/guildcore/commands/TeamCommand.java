@@ -281,6 +281,31 @@ public class TeamCommand implements TabExecutor {
             return true;
         }
 
+        if (sub.equals("unclaim")) {
+            Team team = teamManager.getPlayerTeam(player.getUniqueId());
+            if (team == null) {
+                player.sendMessage(TextUtil.format("<red>✖ You must belong to a Guild to unclaim land.</red>"));
+                return true;
+            }
+            String role = teamManager.getPlayerRole(player.getUniqueId());
+            if (!guiManager.getPermissionManager().hasPermission(team.getId(), role, "CLAIM")) {
+                player.sendMessage(TextUtil.format("<red>✖ You do not have team permission to unclaim land!</red>"));
+                return true;
+            }
+            Chunk chunk = player.getLocation().getChunk();
+            com.guildcore.claims.ClaimInfo claim = claimManager.getClaimAt(chunk);
+            if (claim == null || !claim.isTeamClaim() || claim.getTeamId() == null || claim.getTeamId() != team.getId()) {
+                player.sendMessage(TextUtil.format("<red>✖ This chunk is not claimed by your Guild!</red>"));
+                return true;
+            }
+            if (claimManager.unclaim(chunk)) {
+                player.sendMessage(TextUtil.format("<green>✔ Unclaimed chunk (" + chunk.getX() + ", " + chunk.getZ() + ") for your Guild.</green>"));
+            } else {
+                player.sendMessage(TextUtil.format("<red>✖ Failed to unclaim chunk.</red>"));
+            }
+            return true;
+        }
+
         if (sub.equals("map")) {
             guiManager.openTeamMapGUI(player);
             return true;

@@ -1,8 +1,10 @@
 package com.guildcore.commands;
 
+import com.guildcore.claims.ClaimInfo;
 import com.guildcore.claims.ClaimManager;
 import com.guildcore.claims.ClaimVisualizer;
 import com.guildcore.gui.GUIManager;
+import com.guildcore.teams.Team;
 import com.guildcore.util.TextUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
@@ -68,10 +70,25 @@ public class ClaimCommand implements TabExecutor {
         String cmd = label.toLowerCase();
 
         if (cmd.contains("unclaim")) {
+            Team team = guiManager.getTeamManager().getPlayerTeam(player.getUniqueId());
+            if (team == null) {
+                player.sendMessage(TextUtil.format("<red>✖ You must belong to a Guild to unclaim land!</red>"));
+                return true;
+            }
+            String role = guiManager.getTeamManager().getPlayerRole(player.getUniqueId());
+            if (!guiManager.getPermissionManager().hasPermission(team.getId(), role, "CLAIM")) {
+                player.sendMessage(TextUtil.format("<red>✖ You do not have team permission to unclaim land!</red>"));
+                return true;
+            }
+            ClaimInfo claim = claimManager.getClaimAt(chunk);
+            if (claim == null || !claim.isTeamClaim() || claim.getTeamId() == null || claim.getTeamId() != team.getId()) {
+                player.sendMessage(TextUtil.format("<red>✖ This chunk is not claimed by your Guild!</red>"));
+                return true;
+            }
             if (claimManager.unclaim(chunk)) {
-                player.sendMessage(TextUtil.format("<green>Unclaimed this chunk.</green>"));
+                player.sendMessage(TextUtil.format("<green>✔ Unclaimed chunk (" + chunk.getX() + ", " + chunk.getZ() + ") for your Guild.</green>"));
             } else {
-                player.sendMessage(TextUtil.format("<red>This chunk is not claimed or you do not own it.</red>"));
+                player.sendMessage(TextUtil.format("<red>✖ Failed to unclaim chunk.</red>"));
             }
             return true;
         }
