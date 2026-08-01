@@ -473,34 +473,22 @@ public class GUIClickListener implements Listener {
             SoundUtil.playClick(player);
             int slot = event.getSlot();
 
-            if (slot == 45) {
+            if (slot == 1) { // Refresh
                 guiManager.openTeamMapGUI(player);
                 return;
             }
 
-            if (slot == 49) {
+            if (slot == 7) { // Close
                 player.closeInventory();
                 return;
             }
 
-            int[] mapSlots = {
-                10, 11, 12, 13, 14, 15, 16,
-                19, 20, 21, 22, 23, 24, 25,
-                28, 29, 30, 31, 32, 33, 34,
-                37, 38, 39, 40, 41, 42, 43
-            };
+            if (slot >= 9 && slot < 54) {
+                int r = slot / 9; // 1 to 5
+                int c = slot % 9; // 0 to 8
+                int dx = c - 4;   // -4 to +4
+                int dz = r - 3;   // -2 to +2
 
-            int clickedIdx = -1;
-            for (int i = 0; i < mapSlots.length; i++) {
-                if (mapSlots[i] == slot) {
-                    clickedIdx = i;
-                    break;
-                }
-            }
-
-            if (clickedIdx != -1) {
-                int dx = (clickedIdx % 7) - 3;
-                int dz = (clickedIdx / 7) - 1;
                 int targetCx = mapHolder.getCenterChunkX() + dx;
                 int targetCz = mapHolder.getCenterChunkZ() + dz;
                 org.bukkit.Chunk targetChunk = player.getWorld().getChunkAt(targetCx, targetCz);
@@ -512,6 +500,27 @@ public class GUIClickListener implements Listener {
                 }
 
                 String role = teamManager.getPlayerRole(player.getUniqueId());
+
+                if (event.isRightClick()) {
+                    com.guildcore.claims.ClaimInfo existing = guiManager.getClaimManager().getClaimAt(player.getWorld(), targetCx, targetCz);
+                    if (existing != null && existing.isTeamClaim() && existing.getTeamId() != null && team.getId() == existing.getTeamId()) {
+                        if (!guiManager.getPermissionManager().hasPermission(team.getId(), role, "CLAIM")) {
+                            player.sendMessage(TextUtil.format("<red>✖ You do not have team permission to unclaim land!</red>"));
+                            return;
+                        }
+                        if (guiManager.getClaimManager().unclaim(targetChunk)) {
+                            SoundUtil.playSuccess(player);
+                            player.sendMessage(TextUtil.format("<yellow>✔ Unclaimed chunk (" + targetCx + ", " + targetCz + ") for your Guild.</yellow>"));
+                            guiManager.openTeamMapGUI(player);
+                        } else {
+                            player.sendMessage(TextUtil.format("<red>✖ Failed to unclaim chunk!</red>"));
+                        }
+                    } else {
+                        player.sendMessage(TextUtil.format("<red>✖ You can only unclaim chunks owned by your Guild!</red>"));
+                    }
+                    return;
+                }
+
                 if (!guiManager.getPermissionManager().hasPermission(team.getId(), role, "CLAIM")) {
                     player.sendMessage(TextUtil.format("<red>✖ You do not have team permission to claim land!</red>"));
                     return;
@@ -884,6 +893,8 @@ public class GUIClickListener implements Listener {
                 guiManager.openTeamUpgrades(player, team);
             } else if (slot == 28) { // Permissions Codex
                 guiManager.openTeamPermissions(player, team, "MEMBER");
+            } else if (slot == 30) { // Territory Claims Map
+                guiManager.openTeamMapGUI(player);
             } else if (slot == 32) { // Teleport Home
                 if (team.getHomeLocation() != null) {
                     player.teleportAsync(team.getHomeLocation()).thenAccept(success -> {

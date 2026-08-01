@@ -787,69 +787,69 @@ public class GUIManager {
 
         Inventory inv = Bukkit.createInventory(new com.guildcore.gui.holders.TeamMapGUIHolder(centerCx, centerCz), 54, TextUtil.format("<gradient:#56ab2f:#a8e063><b>🗺 REALM TERRITORY MAP</b></gradient>"));
 
-        fillBorder54(inv, Material.GREEN_STAINED_GLASS_PANE);
-
-        // Header info bar (Row 0)
+        // Header controls (Row 0)
         inv.setItem(0, new GUIItemBuilder(Material.COMPASS).name("<gradient:#FFD700:#FFA500><b>📍 Current Position</b></gradient>")
                 .lore("<gray>▪ Chunk Coords: </gray><yellow>X=" + centerCx + ", Z=" + centerCz + "</yellow>",
                       "<gray>▪ World: </gray><white>" + world.getName() + "</white>").build());
+
+        inv.setItem(1, new GUIItemBuilder(Material.CLOCK).name("<yellow><b>🔄 Refresh Map</b></yellow>").lore("<gray>Click to refresh claim grid</gray>").build());
 
         int activeClaims = team != null ? claimManager.getTeamClaimsCount(team.getId()) : 0;
         inv.setItem(4, new GUIItemBuilder(Material.BEACON).name("<gradient:#00c6ff:#0072ff><b>🏰 " + (team != null ? team.getName() : "No Team") + " Territory</b></gradient>")
                 .lore("<gray>▪ Active Claims: </gray><green>" + (team != null ? activeClaims + " / " + team.getMaxClaims() : "0") + " Chunks</green>",
                       "<gray>▪ Bank Balance: </gray><gold>$" + (team != null ? String.format("%,d", team.getBankBalance()) : "0") + " Gold</gold>").build());
 
-        inv.setItem(8, new GUIItemBuilder(Material.GOLD_BLOCK).name("<gradient:#FFD700:#FFA500><b>📜 Claim Level Cost</b></gradient>")
-                .lore("<gray>▪ Coins: </gray><gold>$" + String.format("%,d", costCoins) + "</gold>",
+        inv.setItem(7, new GUIItemBuilder(Material.BARRIER).name("<red><b>✖ Close Map</b></red>").build());
+
+        inv.setItem(8, new GUIItemBuilder(Material.GOLD_BLOCK).name("<gradient:#FFD700:#FFA500><b>📜 Team Claim Cost</b></gradient>")
+                .lore("<gray>▪ Team Bank Coins: </gray><gold>$" + String.format("%,d", costCoins) + "</gold>",
                       "<gray>▪ XP Levels: </gray><green>" + costXpLevels + " Levels</green>" + (costXpPoints > 0 ? " <gray>(" + costXpPoints + " pts)</gray>" : ""),
-                      "<gray>▪ Item Cost: </gray><aqua>" + costItemAmount + "x " + costItemMat.name() + "</aqua>",
+                      "<gray>▪ Required Items: </gray><aqua>" + costItemAmount + "x " + costItemMat.name() + "</aqua>",
                       "",
-                      "<yellow>▶ Click any gray pane to claim chunk!</yellow>").build());
+                      "<yellow>▶ Left-Click gray pane to claim</yellow>",
+                      "<red>▶ Right-Click green pane to unclaim</red>").build());
 
-        // Grid (Slots 10-16, 19-25, 28-34, 37-43) - 7 columns x 4 rows
-        int[] mapSlots = {
-            10, 11, 12, 13, 14, 15, 16,
-            19, 20, 21, 22, 23, 24, 25,
-            28, 29, 30, 31, 32, 33, 34,
-            37, 38, 39, 40, 41, 42, 43
-        };
-
-        int idx = 0;
-        for (int dz = -1; dz <= 2; dz++) {
-            for (int dx = -3; dx <= 3; dx++) {
-                if (idx >= mapSlots.length) break;
-                int slot = mapSlots[idx++];
-                int cx = centerCx + dx;
-                int cz = centerCz + dz;
-
-                boolean isPlayerChunk = (dx == 0 && dz == 0);
-                ClaimInfo claim = claimManager.getClaimAt(world, cx, cz);
-
-                if (isPlayerChunk) {
-                    inv.setItem(slot, new GUIItemBuilder(Material.YELLOW_STAINED_GLASS_PANE).name("<gradient:#FFD700:#FFA500><b>📍 YOUR CURRENT CHUNK (" + cx + ", " + cz + ")</b></gradient>")
-                            .lore("<gray>▪ Status: </gray>" + (claim == null ? "<gray>Wilderness</gray>" : (team != null && claim.getTeamId() != null && team.getId() == claim.getTeamId() ? "<green>Your Team Claim</green>" : "<red>Claimed by " + getClaimOwnerName(claim) + "</red>")),
-                                  "",
-                                  (claim == null ? "<yellow>▶ Click to claim this chunk!</yellow>" : "<gray>Already claimed</gray>")).build());
-                } else if (claim == null) {
-                    inv.setItem(slot, new GUIItemBuilder(Material.GRAY_STAINED_GLASS_PANE).name("<gray><b>Unclaimed Chunk (" + cx + ", " + cz + ")</b></gray>")
-                            .lore("<gray>▪ Status: </gray><white>Wilderness</white>",
-                                  "<gray>▪ Cost: </gray><gold>$" + String.format("%,d", costCoins) + "</gold> <gray>|</gray> <green>" + costXpLevels + " Lvl</green> <gray>|</gray> <aqua>" + costItemAmount + "x " + costItemMat.name() + "</aqua>",
-                                  "",
-                                  "<yellow>▶ Click to claim chunk for your team</yellow>").build());
-                } else if (team != null && claim.getTeamId() != null && team.getId() == claim.getTeamId()) {
-                    inv.setItem(slot, new GUIItemBuilder(Material.LIME_STAINED_GLASS_PANE).name("<gradient:#11998e:#38ef7d><b>🛡 Your Guild Territory (" + cx + ", " + cz + ")</b></gradient>")
-                            .lore("<gray>▪ Status: </gray><green>Secured & Protected</green>",
-                                  "<gray>▪ Owner: </gray><white>" + getClaimOwnerName(claim) + "</white>").build());
-                } else {
-                    inv.setItem(slot, new GUIItemBuilder(Material.RED_STAINED_GLASS_PANE).name("<gradient:#800000:#DC143C><b>⚔ Foreign Territory (" + cx + ", " + cz + ")</b></gradient>")
-                            .lore("<gray>▪ Status: </gray><red>Occupied</red>",
-                                  "<gray>▪ Owner: </gray><white>" + getClaimOwnerName(claim) + "</white>").build());
-                }
-            }
+        for (int i : new int[]{2, 3, 5, 6}) {
+            inv.setItem(i, new GUIItemBuilder(Material.BLACK_STAINED_GLASS_PANE).name("<gray> </gray>").build());
         }
 
-        inv.setItem(45, new GUIItemBuilder(Material.CLOCK).name("<yellow><b>🔄 Refresh Map</b></yellow>").lore("<gray>Update claim visual status</gray>").build());
-        inv.setItem(49, new GUIItemBuilder(Material.BARRIER).name("<red><b>✖ Close Territory Map</b></red>").build());
+        // 9x5 Grid (Slots 9 to 53 -> 45 Chunk Slots)
+        for (int slot = 9; slot < 54; slot++) {
+            int r = slot / 9;
+            int c = slot % 9;
+            int dx = c - 4;
+            int dz = r - 3;
+
+            int cx = centerCx + dx;
+            int cz = centerCz + dz;
+
+            boolean isPlayerChunk = (dx == 0 && dz == 0);
+            ClaimInfo claim = claimManager.getClaimAt(world, cx, cz);
+
+            if (isPlayerChunk) {
+                inv.setItem(slot, new GUIItemBuilder(Material.YELLOW_STAINED_GLASS_PANE).name("<gradient:#FFD700:#FFA500><b>📍 YOUR CURRENT CHUNK (" + cx + ", " + cz + ")</b></gradient>")
+                        .lore("<gray>▪ Status: </gray>" + (claim == null ? "<gray>Wilderness</gray>" : (team != null && claim.getTeamId() != null && team.getId() == claim.getTeamId() ? "<green>Your Guild Domain</green>" : "<red>Claimed by " + getClaimOwnerName(claim) + "</red>")),
+                              "",
+                              (claim == null ? "<yellow>▶ Left-Click to claim chunk for your Guild!</yellow>" : (team != null && claim.getTeamId() != null && team.getId() == claim.getTeamId() ? "<red>▶ Right-Click to unclaim</red>" : "<gray>Secured by foreign guild</gray>"))).build());
+            } else if (claim == null) {
+                inv.setItem(slot, new GUIItemBuilder(Material.GRAY_STAINED_GLASS_PANE).name("<gray><b>Unclaimed Chunk (" + cx + ", " + cz + ")</b></gray>")
+                        .lore("<gray>▪ Status: </gray><white>Wilderness</white>",
+                              "<gray>▪ Team Bank: </gray><gold>$" + String.format("%,d", costCoins) + "</gold>",
+                              "<gray>▪ Required Items: </gray><aqua>" + costItemAmount + "x " + costItemMat.name() + "</aqua>",
+                              "",
+                              "<yellow>▶ Left-Click to claim for your Guild</yellow>").build());
+            } else if (team != null && claim.getTeamId() != null && team.getId() == claim.getTeamId()) {
+                inv.setItem(slot, new GUIItemBuilder(Material.LIME_STAINED_GLASS_PANE).name("<gradient:#11998e:#38ef7d><b>🛡 Your Guild Territory (" + cx + ", " + cz + ")</b></gradient>")
+                        .lore("<gray>▪ Status: </gray><green>Secured & Protected</green>",
+                              "<gray>▪ Owner: </gray><white>" + getClaimOwnerName(claim) + "</white>",
+                              "",
+                              "<red>▶ Right-Click to unclaim chunk</red>").build());
+            } else {
+                inv.setItem(slot, new GUIItemBuilder(Material.RED_STAINED_GLASS_PANE).name("<gradient:#800000:#DC143C><b>⚔ Foreign Territory (" + cx + ", " + cz + ")</b></gradient>")
+                        .lore("<gray>▪ Status: </gray><red>Occupied by Enemy</red>",
+                              "<gray>▪ Owner: </gray><white>" + getClaimOwnerName(claim) + "</white>").build());
+            }
+        }
 
         player.openInventory(inv);
     }

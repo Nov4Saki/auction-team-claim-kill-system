@@ -105,21 +105,77 @@ public class ClaimCommand implements TabExecutor {
             return true;
         }
 
-        if (args.length > 0 && args[0].equalsIgnoreCase("map")) {
+        if (args.length == 0 || args[0].equalsIgnoreCase("map") || args[0].equalsIgnoreCase("gui")) {
             guiManager.openTeamMapGUI(player);
             return true;
         }
 
-        if (args.length > 0 && args[0].equalsIgnoreCase("flags")) {
+        if (args[0].equalsIgnoreCase("flags")) {
             guiManager.openClaimFlags(player, chunk);
             return true;
         }
 
-        if (claimManager.createPersonalClaim(player, chunk)) {
+        // Handle direct chunk claim for Team
+        com.guildcore.teams.Team team = guiManager.getTeamManager().getPlayerTeam(player.getUniqueId());
+        if (team == null) {
+            player.sendMessage(TextUtil.format("<red>✖ You must belong to a Guild/Team to claim land!</red>"));
+            return true;
+        }
+
+        String role = guiManager.getTeamManager().getPlayerRole(player.getUniqueId());
+        if (!guiManager.getPermissionManager().hasPermission(team.getId(), role, "CLAIM")) {
+            player.sendMessage(TextUtil.format("<red>✖ You do not have team permission to claim land!</red>"));
+            return true;
+        }
+
+        if (claimManager.isClaimed(chunk)) {
+            player.sendMessage(TextUtil.format("<red>✖ This chunk is already claimed!</red>"));
+            return true;
+        }
+
+        int currentClaims = claimManager.getTeamClaimsCount(team.getId());
+        if (currentClaims >= team.getMaxClaims()) {
+            player.sendMessage(TextUtil.format("<red>✖ Team claim capacity reached (" + currentClaims + "/" + team.getMaxClaims() + ")!</red>"));
+            return true;
+        }
+
+        long costCoins = guiManager.getSettingsManager().getLong("claims.map.cost_coins", 500);
+        int costXpLevels = guiManager.getSettingsManager().getInt("claims.map.cost_xp_levels", 2);
+        String itemMatStr = guiManager.getSettingsManager().getString("claims.map.cost_item_material", "DIAMOND");
+        int costItemAmount = guiManager.getSettingsManager().getInt("claims.map.cost_item_amount", 2);
+        org.bukkit.Material costItemMat = org.bukkit.Material.matchMaterial(itemMatStr);
+        if (costItemMat == null) costItemMat = org.bukkit.Material.DIAMOND;
+
+        if (team.getBankBalance() < costCoins) {
+            player.sendMessage(TextUtil.format("<red>✖ Team Bank lacks funds! Required: $" + String.format("%,d", costCoins) + " Gold (Bank balance: $" + String.format("%,d", team.getBankBalance()) + ").</red>"));
+            return true;
+        }
+
+        if (player.getLevel() < costXpLevels) {
+            player.sendMessage(TextUtil.format("<red>✖ You need at least " + costXpLevels + " XP Levels to claim this chunk!</red>"));
+            return true;
+        }
+
+        if (costItemAmount > 0 && !player.getInventory().containsAtLeast(new org.bukkit.inventory.ItemStack(costItemMat), costItemAmount)) {
+            player.sendMessage(TextUtil.format("<red>✖ You need " + costItemAmount + "x " + costItemMat.name() + " in your inventory to claim this chunk!</red>"));
+            return true;
+        }
+
+        if (costCoins > 0) {
+            team.setBankBalance(team.getBankBalance() - costCoins);
+        }
+        if (costXpLevels > 0) {
+            player.setLevel(player.getLevel() - costXpLevels);
+        }
+        if (costItemAmount > 0) {
+            player.getInventory().removeItem(new org.bukkit.inventory.ItemStack(costItemMat, costItemAmount));
+        }
+
+        if (claimManager.createTeamClaim(team.getId(), chunk)) {
             visualizer.showBorder(player, chunk);
-            player.sendMessage(TextUtil.format("<green>Successfully claimed full chunk (" + chunk.getX() + ", " + chunk.getZ() + ")!</green>"));
+            player.sendMessage(TextUtil.format("<green>✔ Successfully claimed chunk (" + chunk.getX() + ", " + chunk.getZ() + ") for your Guild!</green>"));
         } else {
-            player.sendMessage(TextUtil.format("<red>This chunk is already claimed!</red>"));
+            player.sendMessage(TextUtil.format("<red>✖ Failed to claim chunk!</red>"));
         }
         return true;
     }
