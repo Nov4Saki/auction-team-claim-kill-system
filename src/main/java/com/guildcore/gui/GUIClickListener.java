@@ -746,19 +746,6 @@ public class GUIClickListener implements Listener {
             } else if (slot == 11) {
                 ChatInputListener.requestInput(player, "claims.map.cost_xp_levels", p -> guiManager.openAdminClaimSettings(p));
             } else if (slot == 12) {
-                if (event.isRightClick()) {
-                    ChatInputListener.requestInput(player, "claims.map.cost_item_amount", p -> guiManager.openAdminClaimSettings(p));
-                } else {
-                    ChatInputListener.requestInput(player, "claims.map.cost_item_material", p -> guiManager.openAdminClaimSettings(p));
-                }
-            } else if (slot == 13) {
-                ChatInputListener.requestInput(player, "claims.cost.multiplier", p -> guiManager.openAdminClaimSettings(p));
-            } else if (slot == 14) { // Coord format toggle
-                String current = settingsManager.getString("claims.map.coord_format", "CHUNK");
-                String next = "BLOCK".equalsIgnoreCase(current) ? "CHUNK" : "BLOCK";
-                settingsManager.set("claims.map.coord_format", next);
-                guiManager.openAdminClaimSettings(player);
-            } else if (slot == 12) {
                 guiManager.openClaimItemSelectorGUI(player);
             } else if (slot == 13) {
                 ChatInputListener.requestInput(player, "claims.cost.multiplier", p -> guiManager.openAdminClaimSettings(p));
