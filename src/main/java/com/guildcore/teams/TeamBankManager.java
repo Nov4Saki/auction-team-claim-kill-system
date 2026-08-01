@@ -10,13 +10,18 @@ import java.util.UUID;
 
 public class TeamBankManager {
     private final DatabaseManager dbManager;
+    private final com.guildcore.economy.EconomyManager economyManager;
 
-    public TeamBankManager(DatabaseManager dbManager) {
+    public TeamBankManager(DatabaseManager dbManager, com.guildcore.economy.EconomyManager economyManager) {
         this.dbManager = dbManager;
+        this.economyManager = economyManager;
     }
 
     public boolean deposit(Team team, UUID player, long amount) {
         if (amount <= 0 || team == null) return false;
+        if (economyManager != null && !economyManager.withdraw(player, amount, "team_bank_deposit")) {
+            return false;
+        }
 
         team.setBankBalance(team.getBankBalance() + amount);
         logBankAction(team.getId(), player, amount, "DEPOSIT");
@@ -30,6 +35,9 @@ public class TeamBankManager {
         if (team.getBankBalance() < amount) return false;
 
         team.setBankBalance(team.getBankBalance() - amount);
+        if (economyManager != null) {
+            economyManager.deposit(player, amount, "team_bank_withdraw");
+        }
         logBankAction(team.getId(), player, amount, "WITHDRAW");
         saveBankBalance(team.getId(), team.getBankBalance());
         DebugManager.log(DebugFlag.TEAM_UPGRADES, "Team " + team.getName() + " bank withdraw: -" + amount + " by " + player);

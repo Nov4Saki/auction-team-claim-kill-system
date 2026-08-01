@@ -109,7 +109,7 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
         // 6. Teams
         this.teamManager = new TeamManager(databaseManager);
         this.teamManager.loadTeams();
-        this.teamBankManager = new TeamBankManager(databaseManager);
+        this.teamBankManager = new TeamBankManager(databaseManager, economyManager);
         this.teamVaultManager = new TeamVaultManager(databaseManager);
         this.teamUpgradeManager = new TeamUpgradeManager(databaseManager);
         this.teamPermissionManager = new TeamPermissionManager(databaseManager);

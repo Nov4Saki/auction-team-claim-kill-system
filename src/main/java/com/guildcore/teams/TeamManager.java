@@ -512,4 +512,17 @@ public class TeamManager {
             }
         }
     }
+
+    public void saveTeamMaxMembers(int teamId, int maxMembers) {
+        dbManager.executeAsync(() -> {
+            try (Connection conn = dbManager.getConnection();
+                 PreparedStatement ps = conn.prepareStatement("UPDATE teams SET max_members = ? WHERE id = ?")) {
+                ps.setInt(1, maxMembers);
+                ps.setInt(2, teamId);
+                ps.executeUpdate();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
+    }
 }

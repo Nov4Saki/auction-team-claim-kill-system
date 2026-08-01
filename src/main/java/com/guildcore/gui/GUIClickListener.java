@@ -1199,6 +1199,7 @@ public class GUIClickListener implements Listener {
                 if (team.getBankBalance() >= 5000) {
                     team.setBankBalance(team.getBankBalance() - 5000);
                     team.setMaxMembers(team.getMaxMembers() + 2);
+                    teamManager.saveTeamMaxMembers(team.getId(), team.getMaxMembers());
                     player.sendMessage(TextUtil.format("<green>Upgraded Team Member Cap to " + team.getMaxMembers() + "!</green>"));
                     guiManager.openTeamUpgrades(player, team);
                 } else {
