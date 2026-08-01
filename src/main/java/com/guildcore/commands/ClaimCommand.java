@@ -187,7 +187,7 @@ public class ClaimCommand implements TabExecutor {
             player.getInventory().removeItem(new org.bukkit.inventory.ItemStack(costItemMat, costItemAmount));
         }
 
-        if (claimManager.createTeamClaim(team.getId(), chunk)) {
+        if (claimManager.createTeamClaim(player.getUniqueId(), team.getId(), chunk)) {
             visualizer.showBorder(player, chunk);
             player.sendMessage(TextUtil.format("<green>✔ Successfully claimed chunk (" + chunk.getX() + ", " + chunk.getZ() + ") for your Guild!</green>"));
         } else {

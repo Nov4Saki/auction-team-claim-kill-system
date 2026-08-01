@@ -575,7 +575,7 @@ public class GUIClickListener implements Listener {
                     player.getInventory().removeItem(new ItemStack(costItemMat, costItemAmount));
                 }
 
-                boolean success = guiManager.getClaimManager().createTeamClaim(team.getId(), targetChunk);
+                boolean success = guiManager.getClaimManager().createTeamClaim(player.getUniqueId(), team.getId(), targetChunk);
                 if (success) {
                     SoundUtil.playSuccess(player);
                     player.sendMessage(TextUtil.format("<green>✔ Successfully claimed chunk (" + targetCx + ", " + targetCz + ") for your Guild!</green>"));

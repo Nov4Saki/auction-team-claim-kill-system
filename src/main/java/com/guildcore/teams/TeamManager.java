@@ -122,42 +122,41 @@ public class TeamManager {
         if (teamIdByName.containsKey(name.toLowerCase())) return false;
 
         UUID leaderUuid = leader.getUniqueId();
-        dbManager.executeAsync(() -> {
-            try (Connection conn = dbManager.getConnection();
-                 PreparedStatement ps = conn.prepareStatement(
-                         "INSERT INTO teams (name, leader_uuid, max_members) VALUES (?, ?, ?)",
-                         Statement.RETURN_GENERATED_KEYS)) {
+        try (Connection conn = dbManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                     "INSERT INTO teams (name, leader_uuid, max_members) VALUES (?, ?, ?)",
+                     Statement.RETURN_GENERATED_KEYS)) {
 
-                ps.setString(1, name);
-                ps.setString(2, leaderUuid.toString());
-                ps.setInt(3, defaultMaxMembers);
-                ps.executeUpdate();
+            ps.setString(1, name);
+            ps.setString(2, leaderUuid.toString());
+            ps.setInt(3, defaultMaxMembers);
+            ps.executeUpdate();
 
-                try (ResultSet rs = ps.getGeneratedKeys()) {
-                    if (rs.next()) {
-                        int id = rs.getInt(1);
-                        Team team = new Team(id, name, leaderUuid, 1, 0L, 0L, defaultMaxMembers, 5);
-                        teamsById.put(id, team);
-                        teamIdByName.put(name.toLowerCase(), id);
+            try (ResultSet rs = ps.getGeneratedKeys()) {
+                if (rs.next()) {
+                    int id = rs.getInt(1);
+                    Team team = new Team(id, name, leaderUuid, 1, 0L, 0L, defaultMaxMembers, 5);
+                    teamsById.put(id, team);
+                    teamIdByName.put(name.toLowerCase(), id);
 
-                        playerTeamMap.put(leaderUuid, id);
-                        playerRoleMap.put(leaderUuid, "LEADER");
+                    playerTeamMap.put(leaderUuid, id);
+                    playerRoleMap.put(leaderUuid, "LEADER");
 
-                        try (PreparedStatement memberPs = conn.prepareStatement(
-                                "INSERT INTO team_members (team_id, player_uuid, role) VALUES (?, ?, 'LEADER')")) {
-                            memberPs.setInt(1, id);
-                            memberPs.setString(2, leaderUuid.toString());
-                            memberPs.executeUpdate();
-                        }
-
-                        DebugManager.log(DebugFlag.TEAM_UPGRADES, "Created team " + name + " (ID: " + id + ") with leader " + leader.getName());
+                    try (PreparedStatement memberPs = conn.prepareStatement(
+                            "INSERT INTO team_members (team_id, player_uuid, role) VALUES (?, ?, 'LEADER')")) {
+                        memberPs.setInt(1, id);
+                        memberPs.setString(2, leaderUuid.toString());
+                        memberPs.executeUpdate();
                     }
+
+                    DebugManager.log(DebugFlag.TEAM_UPGRADES, "Created team " + name + " (ID: " + id + ") with leader " + leader.getName());
+                    return true;
                 }
-            } catch (Exception e) {
-                e.printStackTrace();
             }
-        });
-        return true;
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return false;
     }
 
     private final Map<UUID, String> pendingInvitesWithInviter = new ConcurrentHashMap<>();

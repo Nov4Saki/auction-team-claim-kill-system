@@ -273,7 +273,7 @@ public class TeamCommand implements TabExecutor {
                 return true;
             }
             Chunk chunk = player.getLocation().getChunk();
-            if (claimManager.createTeamClaim(team.getId(), chunk)) {
+            if (claimManager.createTeamClaim(player.getUniqueId(), team.getId(), chunk)) {
                 player.sendMessage(TextUtil.format("<green>Claimed full chunk for team " + team.getName() + "!</green>"));
             } else {
                 player.sendMessage(TextUtil.format("<red>Chunk is already claimed.</red>"));

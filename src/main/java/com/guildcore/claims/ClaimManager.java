@@ -111,23 +111,24 @@ public class ClaimManager {
         return true;
     }
 
-    public boolean createTeamClaim(int teamId, Chunk chunk) {
+    public boolean createTeamClaim(UUID ownerUuid, int teamId, Chunk chunk) {
         if (isClaimed(chunk)) return false;
 
         String worldName = chunk.getWorld().getName();
         int cx = chunk.getX();
         int cz = chunk.getZ();
 
-        ClaimInfo claim = new ClaimInfo(worldName, cx, cz, null, teamId, "");
+        ClaimInfo claim = new ClaimInfo(worldName, cx, cz, ownerUuid, teamId, "");
         claimsCache.put(makeKey(worldName, cx, cz), claim);
 
         dbManager.executeAsync(() -> {
             try (Connection conn = dbManager.getConnection();
-                 PreparedStatement ps = conn.prepareStatement("INSERT INTO claims (world, chunk_x, chunk_z, team_id) VALUES (?, ?, ?, ?)")) {
+                 PreparedStatement ps = conn.prepareStatement("INSERT INTO claims (world, chunk_x, chunk_z, owner_uuid, team_id) VALUES (?, ?, ?, ?, ?)")) {
                 ps.setString(1, worldName);
                 ps.setInt(2, cx);
                 ps.setInt(3, cz);
-                ps.setInt(4, teamId);
+                ps.setString(4, ownerUuid != null ? ownerUuid.toString() : null);
+                ps.setInt(5, teamId);
                 ps.executeUpdate();
                 DebugManager.log(DebugFlag.CLAIM_PROTECTION, "Created team claim at " + cx + "," + cz + " for team " + teamId);
             } catch (Exception e) {
@@ -136,6 +137,10 @@ public class ClaimManager {
         });
 
         return true;
+    }
+
+    public boolean createTeamClaim(int teamId, Chunk chunk) {
+        return createTeamClaim(null, teamId, chunk);
     }
 
     public boolean unclaim(Chunk chunk) {
