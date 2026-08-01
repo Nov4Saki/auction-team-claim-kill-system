@@ -119,6 +119,7 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
         this.raidRollbackEngine = new RaidRollbackEngine(scheduler);
         this.raidManager = new RaidManager(teamManager, teamBankManager, claimManager, settingsManager, scheduler, raidRollbackEngine);
         this.teamManager.setClaimManager(claimManager);
+        this.teamManager.setSettingsManager(settingsManager);
         this.tradeManager = new TradeManager();
         this.crateManager = new CrateManager(databaseManager, scheduler);
         this.crateManager.loadCrates();

@@ -12,6 +12,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -19,6 +20,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class TeamManager {
     private final DatabaseManager dbManager;
     private com.guildcore.claims.ClaimManager claimManager;
+    private com.guildcore.config.SettingsManager settingsManager;
     private final Map<Integer, Team> teamsById = new ConcurrentHashMap<>();
     private final Map<String, Integer> teamIdByName = new ConcurrentHashMap<>();
     private final Map<UUID, Integer> playerTeamMap = new ConcurrentHashMap<>();
@@ -233,12 +235,17 @@ public class TeamManager {
         if (targetUuid == null) return false;
         if (!playerTeamMap.containsKey(targetUuid) || playerTeamMap.get(targetUuid) != team.getId()) return false;
 
+        if (targetUuid.equals(team.getLeaderUuid())) {
+            kicker.sendMessage(com.guildcore.util.TextUtil.format("<red>✖ You cannot kick the Guild Owner / Leader!</red>"));
+            return false;
+        }
+
         String kickerRole = getPlayerRole(kicker.getUniqueId());
         String targetRole = getPlayerRole(targetUuid);
 
         if (!kickerRole.equalsIgnoreCase("LEADER")) {
             if (targetRole.equalsIgnoreCase("LEADER") || targetRole.equalsIgnoreCase("OFFICER")) {
-                kicker.sendMessage(com.guildcore.util.TextUtil.format("<red>You cannot kick higher or equal ranked members!</red>"));
+                kicker.sendMessage(com.guildcore.util.TextUtil.format("<red>✖ You cannot kick higher or equal ranked members!</red>"));
                 return false;
             }
         }
@@ -265,6 +272,97 @@ public class TeamManager {
         }
 
         broadcastToTeam(team.getId(), com.guildcore.util.TextUtil.format("<gradient:#FF416C:#FF4B2B><b>🏰 [Guild] Member <yellow>" + finalTargetName + "</yellow> was kicked from the guild by <gold>" + kicker.getName() + "</gold>!</b></gradient>"));
+        return true;
+    }
+
+    public UUID findHighestRankingSuccessor(int teamId, UUID currentLeaderUuid) {
+        List<UUID> members = getTeamMembers(teamId);
+        members.remove(currentLeaderUuid);
+        if (members.isEmpty()) return null;
+
+        UUID bestOfficer = null;
+        UUID bestMember = null;
+        UUID bestRecruit = null;
+
+        for (UUID memberUuid : members) {
+            String role = getPlayerRole(memberUuid);
+            if (role.equalsIgnoreCase("OFFICER") && bestOfficer == null) {
+                bestOfficer = memberUuid;
+            } else if (role.equalsIgnoreCase("MEMBER") && bestMember == null) {
+                bestMember = memberUuid;
+            } else if (bestRecruit == null) {
+                bestRecruit = memberUuid;
+            }
+        }
+
+        if (bestOfficer != null) return bestOfficer;
+        if (bestMember != null) return bestMember;
+        return bestRecruit;
+    }
+
+    public void setSettingsManager(com.guildcore.config.SettingsManager settingsManager) {
+        this.settingsManager = settingsManager;
+    }
+
+    public boolean leaveTeam(Player player) {
+        Team team = getPlayerTeam(player.getUniqueId());
+        if (team == null) return false;
+
+        UUID uuid = player.getUniqueId();
+        boolean autoTransfer = settingsManager == null || settingsManager.getBoolean("teams.auto_transfer_leader_on_leave", true);
+
+        if (team.getLeaderUuid().equals(uuid)) {
+            UUID successorUuid = findHighestRankingSuccessor(team.getId(), uuid);
+            if (successorUuid != null && autoTransfer) {
+                org.bukkit.OfflinePlayer successorOp = Bukkit.getOfflinePlayer(successorUuid);
+                String successorName = successorOp.getName() != null ? successorOp.getName() : "Citizen";
+                
+                team.setLeaderUuid(successorUuid);
+                playerRoleMap.put(successorUuid, "LEADER");
+
+                dbManager.executeAsync(() -> {
+                    try (Connection conn = dbManager.getConnection()) {
+                        try (PreparedStatement ps = conn.prepareStatement("UPDATE teams SET leader_uuid = ? WHERE id = ?")) {
+                            ps.setString(1, successorUuid.toString());
+                            ps.setInt(2, team.getId());
+                            ps.executeUpdate();
+                        }
+                        try (PreparedStatement ps = conn.prepareStatement("UPDATE team_members SET role = 'LEADER' WHERE team_id = ? AND player_uuid = ?")) {
+                            ps.setInt(1, team.getId());
+                            ps.setString(2, successorUuid.toString());
+                            ps.executeUpdate();
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                });
+
+                broadcastToTeam(team.getId(), com.guildcore.util.TextUtil.format("<gradient:#FFD700:#FFA500><b>👑 [Guild] Leader " + player.getName() + " left the guild! Leadership has been passed to " + successorName + "!</b></gradient>"));
+            } else if (successorUuid == null) {
+                disbandTeam(player);
+                return true;
+            } else {
+                player.sendMessage(com.guildcore.util.TextUtil.format("<red>✖ Guild Leaders cannot leave without transferring leadership first or disbanding! (/team disband)</red>"));
+                return false;
+            }
+        }
+
+        playerTeamMap.remove(uuid);
+        playerRoleMap.remove(uuid);
+
+        dbManager.executeAsync(() -> {
+            try (Connection conn = dbManager.getConnection();
+                 PreparedStatement ps = conn.prepareStatement("DELETE FROM team_members WHERE team_id = ? AND player_uuid = ?")) {
+                ps.setInt(1, team.getId());
+                ps.setString(2, uuid.toString());
+                ps.executeUpdate();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
+
+        player.sendMessage(com.guildcore.util.TextUtil.format("<yellow>You left team " + team.getName() + ".</yellow>"));
+        broadcastToTeam(team.getId(), com.guildcore.util.TextUtil.format("<gradient:#FF416C:#FF4B2B><b>🏰 [Guild] Member <yellow>" + player.getName() + "</yellow> has left the guild.</b></gradient>"));
         return true;
     }
 
@@ -341,35 +439,6 @@ public class TeamManager {
         });
 
         broadcastToTeam(team.getId(), com.guildcore.util.TextUtil.format("<gradient:#FF416C:#FF4B2B><b>🏰 [Guild] Member <yellow>" + target.getName() + "</yellow> was demoted to <gold>" + finalRole + "</gold> by <gold>" + actor.getName() + "</gold>.</b></gradient>"));
-        return true;
-    }
-
-    public boolean leaveTeam(Player player) {
-        Team team = getPlayerTeam(player.getUniqueId());
-        if (team == null) return false;
-
-        if (team.getLeaderUuid().equals(player.getUniqueId())) {
-            player.sendMessage(com.guildcore.util.TextUtil.format("<red>Guild Leaders cannot leave! Transfer leadership or use /team disband.</red>"));
-            return false;
-        }
-
-        UUID uuid = player.getUniqueId();
-        playerTeamMap.remove(uuid);
-        playerRoleMap.remove(uuid);
-
-        dbManager.executeAsync(() -> {
-            try (Connection conn = dbManager.getConnection();
-                 PreparedStatement ps = conn.prepareStatement("DELETE FROM team_members WHERE team_id = ? AND player_uuid = ?")) {
-                ps.setInt(1, team.getId());
-                ps.setString(2, uuid.toString());
-                ps.executeUpdate();
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        });
-
-        player.sendMessage(com.guildcore.util.TextUtil.format("<yellow>You left team " + team.getName() + ".</yellow>"));
-        broadcastToTeam(team.getId(), com.guildcore.util.TextUtil.format("<gradient:#FF416C:#FF4B2B><b>🏰 [Guild] Member <yellow>" + player.getName() + "</yellow> has left the guild.</b></gradient>"));
         return true;
     }
 

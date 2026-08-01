@@ -962,7 +962,8 @@ public class GUIClickListener implements Listener {
                     String targetName = targetOp.getName();
                     if (targetName != null) {
                         if (event.isShiftClick() && event.isRightClick()) {
-                            teamManager.kickPlayer(player, targetName);
+                            guiManager.openTeamKickConfirmGUI(player, team, targetOp);
+                            return;
                         } else if (event.isRightClick()) {
                             teamManager.demotePlayer(player, targetName);
                         } else {
@@ -971,6 +972,24 @@ public class GUIClickListener implements Listener {
                         guiManager.openTeamMembersGUI(player, team, membersHolder.getPage());
                     }
                 }
+            }
+            return;
+        }
+
+        // Team Kick Confirmation GUI
+        if (holder instanceof com.guildcore.gui.holders.TeamKickConfirmHolder confirmHolder) {
+            event.setCancelled(true);
+            SoundUtil.playClick(player);
+            int slot = event.getSlot();
+
+            Team team = teamManager.getTeam(confirmHolder.getTeamId());
+            if (team == null) return;
+
+            if (slot == 11) { // Confirm Kick
+                teamManager.kickPlayer(player, confirmHolder.getTargetName());
+                guiManager.openTeamMembersGUI(player, team, 1);
+            } else if (slot == 15) { // Cancel
+                guiManager.openTeamMembersGUI(player, team, 1);
             }
             return;
         }

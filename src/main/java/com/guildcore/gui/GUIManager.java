@@ -936,6 +936,37 @@ public class GUIManager {
 
         player.openInventory(inv);
     }
+
+    public void openTeamKickConfirmGUI(Player player, Team team, OfflinePlayer targetOp) {
+        if (player == null || team == null || targetOp == null) return;
+
+        Inventory inv = Bukkit.createInventory(new com.guildcore.gui.holders.TeamKickConfirmHolder(team.getId(), targetOp.getUniqueId(), targetOp.getName() != null ? targetOp.getName() : "Citizen"), 27, TextUtil.format("<red><b>⚠️ CONFIRM KICK: " + (targetOp.getName() != null ? targetOp.getName() : "Citizen") + "</b></red>"));
+        fillBorder27(inv, Material.RED_STAINED_GLASS_PANE);
+
+        inv.setItem(11, new GUIItemBuilder(Material.LIME_WOOL).name("<gradient:#00FF87:#60EFFF><b>✔ CONFIRM KICK CITIZEN</b></gradient>")
+                .lore("<gray>Permanently kick </gray><yellow>" + (targetOp.getName() != null ? targetOp.getName() : "this player") + "</yellow><gray> from the guild.</gray>",
+                      "",
+                      "<yellow>▶ Click to execute kick</yellow>").build());
+
+        ItemStack head = new ItemStack(Material.PLAYER_HEAD);
+        SkullMeta meta = (SkullMeta) head.getItemMeta();
+        if (meta != null) {
+            meta.setOwningPlayer(targetOp);
+            meta.displayName(TextUtil.format("<gold><b>" + (targetOp.getName() != null ? targetOp.getName() : "Citizen") + "</b></gold>"));
+            List<Component> lore = new ArrayList<>();
+            lore.add(TextUtil.format("<gray>▪ Citizen to be kicked from </gray><white>" + team.getName() + "</white>"));
+            meta.lore(lore);
+            head.setItemMeta(meta);
+        }
+        inv.setItem(13, head);
+
+        inv.setItem(15, new GUIItemBuilder(Material.RED_WOOL).name("<gradient:#FF416C:#FF4B2B><b>✖ CANCEL & ABORT</b></gradient>")
+                .lore("<gray>Return safely to Guild Members Roster</gray>",
+                      "",
+                      "<yellow>▶ Click to cancel</yellow>").build());
+
+        player.openInventory(inv);
+    }
 }
 
 
