@@ -24,6 +24,7 @@ public class ProhibitedItemListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPrepareCraft(PrepareItemCraftEvent event) {
+        if (prohibitedManager == null) return;
         if (event.getRecipe() != null && event.getRecipe().getResult() != null) {
             if (prohibitedManager.isProhibited(event.getRecipe().getResult())) {
                 event.getInventory().setResult(null);
@@ -33,6 +34,7 @@ public class ProhibitedItemListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onCraftItem(CraftItemEvent event) {
+        if (prohibitedManager == null) return;
         if (event.getRecipe() != null && prohibitedManager.isProhibited(event.getRecipe().getResult())) {
             event.setCancelled(true);
             if (event.getWhoClicked() instanceof Player player) {
@@ -43,6 +45,7 @@ public class ProhibitedItemListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPrepareAnvil(PrepareAnvilEvent event) {
+        if (prohibitedManager == null) return;
         if (event.getResult() != null && prohibitedManager.isProhibited(event.getResult())) {
             event.setResult(null);
         }
@@ -50,6 +53,7 @@ public class ProhibitedItemListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onSmithItem(SmithItemEvent event) {
+        if (prohibitedManager == null) return;
         if (event.getCurrentItem() != null && prohibitedManager.isProhibited(event.getCurrentItem())) {
             event.setCancelled(true);
             if (event.getWhoClicked() instanceof Player player) {
@@ -60,6 +64,7 @@ public class ProhibitedItemListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPickup(EntityPickupItemEvent event) {
+        if (prohibitedManager == null) return;
         if (event.getEntity() instanceof Player player) {
             ItemStack item = event.getItem().getItemStack();
             if (prohibitedManager.isProhibited(item)) {
@@ -72,6 +77,7 @@ public class ProhibitedItemListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onDrop(PlayerDropItemEvent event) {
+        if (prohibitedManager == null) return;
         ItemStack item = event.getItemDrop().getItemStack();
         if (prohibitedManager.isProhibited(item)) {
             event.getItemDrop().remove();
@@ -81,12 +87,14 @@ public class ProhibitedItemListener implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onItemHeld(PlayerItemHeldEvent event) {
+        if (prohibitedManager == null) return;
         Player player = event.getPlayer();
         prohibitedManager.purgePlayerFull(player);
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onInteract(PlayerInteractEvent event) {
+        if (prohibitedManager == null) return;
         Player player = event.getPlayer();
         prohibitedManager.purgePlayerFull(player);
     }

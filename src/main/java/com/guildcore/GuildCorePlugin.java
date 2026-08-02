@@ -131,7 +131,15 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
 
         // 8. Auction House & Prohibited Items
         this.auctionManager = new AuctionManager(databaseManager, economyManager, settingsManager);
-        // 8. GUIs & Control Panel
+        this.auctionManager.loadAuctions();
+
+        this.prohibitedItemManager = new ProhibitedItemManager(databaseManager);
+        this.prohibitedItemManager.loadProhibitedItems();
+
+        // 9. Scoreboard & GUIs
+        this.scoreboardManager = new ScoreboardManager(economyManager, statsManager, bountyManager, teamManager, claimManager, combatTagManager, raidManager, settingsManager, scheduler);
+        this.scoreboardManager.startUpdateTask();
+
         this.guiManager = new GUIManager(settingsManager, teamManager, claimManager, auctionManager, statsManager, teamPermissionManager);
         this.guiManager.setProhibitedItemManager(prohibitedItemManager);
         this.guiManager.setShopManager(shopManager);
