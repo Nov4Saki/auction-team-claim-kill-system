@@ -21,8 +21,19 @@ public class ClaimManager {
     // Key format: "world:chunkX:chunkZ:uuid" -> trustLevel ("ACCESS", "CONTAINER", "BUILD", "MANAGER")
     private final Map<String, String> trustCache = new ConcurrentHashMap<>();
 
+    private com.guildcore.teams.TeamManager teamManager;
+    private com.guildcore.teams.TeamPermissionManager permissionManager;
+
     public ClaimManager(DatabaseManager dbManager) {
         this.dbManager = dbManager;
+    }
+
+    public void setTeamManager(com.guildcore.teams.TeamManager teamManager) {
+        this.teamManager = teamManager;
+    }
+
+    public void setPermissionManager(com.guildcore.teams.TeamPermissionManager permissionManager) {
+        this.permissionManager = permissionManager;
     }
 
     public void loadClaims() {
@@ -197,11 +208,25 @@ public class ClaimManager {
     }
 
     public boolean canBuild(Player player, Chunk chunk) {
+        if (player == null || chunk == null) return true;
         if (player.hasPermission("guildcore.admin")) return true;
         ClaimInfo claim = getClaimAt(chunk);
         if (claim == null) return true;
 
-        if (!claim.isTeamClaim() && player.getUniqueId().equals(claim.getOwnerUuid())) return true;
+        if (claim.getTeamId() != null && claim.getTeamId() > 0 && teamManager != null) {
+            com.guildcore.teams.Team playerTeam = teamManager.getPlayerTeam(player.getUniqueId());
+            if (playerTeam != null && playerTeam.getId() == claim.getTeamId()) {
+                String role = teamManager.getPlayerRole(player.getUniqueId());
+                if (permissionManager != null) {
+                    return permissionManager.hasPermission(playerTeam.getId(), role, "BUILD");
+                }
+                return true;
+            }
+        }
+
+        if (claim.getOwnerUuid() != null && claim.getOwnerUuid().equals(player.getUniqueId())) {
+            return true;
+        }
 
         String trust = getTrustLevel(chunk, player.getUniqueId());
         return "BUILD".equalsIgnoreCase(trust) || "MANAGER".equalsIgnoreCase(trust);

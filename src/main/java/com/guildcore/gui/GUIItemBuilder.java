@@ -74,6 +74,14 @@ public class GUIItemBuilder {
         return this;
     }
 
+    public GUIItemBuilder skullOwner(org.bukkit.OfflinePlayer owner) {
+        if (owner != null && item.getItemMeta() instanceof org.bukkit.inventory.meta.SkullMeta skullMeta) {
+            skullMeta.setOwningPlayer(owner);
+            item.setItemMeta(skullMeta);
+        }
+        return this;
+    }
+
     public ItemStack build() {
         return item;
     }

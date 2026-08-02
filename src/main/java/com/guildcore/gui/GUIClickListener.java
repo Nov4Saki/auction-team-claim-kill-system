@@ -1154,8 +1154,8 @@ public class GUIClickListener implements Listener {
             if (slot == 14) { guiManager.openTeamPermissions(player, team, "RECRUIT"); return; }
 
             String selectedRole = permsHolder.getSelectedRole();
-            String[] nodes = {"BANK_DEPOSIT", "BANK_WITHDRAW", "VAULT_ACCESS", "CLAIM_LAND", "INVITE_MEMBERS", "KICK_MEMBERS", "BUILD", "SET_HOME"};
-            int[] slots = {19, 21, 23, 25, 29, 31, 33, 35};
+            String[] nodes = {"BANK_DEPOSIT", "BANK_WITHDRAW", "VAULT_ACCESS", "CLAIM_LAND", "BUILD", "INVITE_MEMBERS", "KICK_MEMBERS", "SET_HOME", "UPGRADE_TEAM"};
+            int[] slots = {19, 20, 21, 22, 23, 28, 29, 30, 31};
 
             for (int i = 0; i < slots.length; i++) {
                 if (slots[i] == slot) {
@@ -1164,6 +1164,65 @@ public class GUIClickListener implements Listener {
                     guiManager.openTeamPermissions(player, team, selectedRole);
                     return;
                 }
+            }
+            return;
+        }
+
+        // Team Bank GUI
+        if (holder instanceof com.guildcore.gui.holders.TeamBankGUIHolder bankHolder) {
+            event.setCancelled(true);
+            SoundUtil.playClick(player);
+            int slot = event.getSlot();
+            Team team = bankHolder.getTeam();
+            if (team == null) return;
+
+            if (slot == 49) {
+                guiManager.openTeamMenu(player, team);
+                return;
+            }
+
+            com.guildcore.teams.TeamBankManager bankMgr = guiManager.getTeamBankManager();
+
+            if (slot == 19) bankMgr.deposit(team, player.getUniqueId(), 100);
+            else if (slot == 20) bankMgr.deposit(team, player.getUniqueId(), 1000);
+            else if (slot == 21) bankMgr.deposit(team, player.getUniqueId(), 10000);
+            else if (slot == 22) bankMgr.deposit(team, player.getUniqueId(), 100000);
+            else if (slot == 23) {
+                ChatInputListener.requestInput(player, "team_bank_deposit_custom", p -> {
+                    long amt = settingsManager.getLong("team_bank_deposit_custom", 0);
+                    if (amt > 0) bankMgr.deposit(team, p.getUniqueId(), amt);
+                    guiManager.openTeamBankGUI(p, team);
+                });
+                return;
+            } else if (slot == 28) bankMgr.withdraw(team, player.getUniqueId(), 100);
+            else if (slot == 29) bankMgr.withdraw(team, player.getUniqueId(), 1000);
+            else if (slot == 30) bankMgr.withdraw(team, player.getUniqueId(), 10000);
+            else if (slot == 31) bankMgr.withdraw(team, player.getUniqueId(), 100000);
+            else if (slot == 32) {
+                ChatInputListener.requestInput(player, "team_bank_withdraw_custom", p -> {
+                    long amt = settingsManager.getLong("team_bank_withdraw_custom", 0);
+                    if (amt > 0) bankMgr.withdraw(team, p.getUniqueId(), amt);
+                    guiManager.openTeamBankGUI(p, team);
+                });
+                return;
+            }
+
+            guiManager.openTeamBankGUI(player, team);
+            return;
+        }
+
+        // Team Leadership Transfer Confirm GUI
+        if (holder instanceof com.guildcore.gui.holders.TeamTransferLeaderConfirmHolder confirmHolder) {
+            event.setCancelled(true);
+            SoundUtil.playClick(player);
+            int slot = event.getSlot();
+
+            if (slot == 11) {
+                teamManager.transferLeadership(player, confirmHolder.getTargetSuccessor().getUniqueId());
+                player.closeInventory();
+            } else if (slot == 15) {
+                player.sendMessage(TextUtil.format("<yellow>Leadership transfer cancelled.</yellow>"));
+                player.closeInventory();
             }
             return;
         }
@@ -1182,6 +1241,12 @@ public class GUIClickListener implements Listener {
                 return;
             }
 
+            String role = teamManager.getPlayerRole(player.getUniqueId());
+            if (!guiManager.getPermissionManager().hasPermission(team.getId(), role, "UPGRADE_TEAM")) {
+                player.sendMessage(TextUtil.format("<red>✖ You do not have team permission to upgrade team features!</red>"));
+                return;
+            }
+
             if (slot == 11) { // Member Cap Upgrade
                 if (team.getBankBalance() >= 5000) {
                     team.setBankBalance(team.getBankBalance() - 5000);
@@ -1190,7 +1255,7 @@ public class GUIClickListener implements Listener {
                     player.sendMessage(TextUtil.format("<green>Upgraded Team Member Cap to " + team.getMaxMembers() + "!</green>"));
                     guiManager.openTeamUpgrades(player, team);
                 } else {
-                    player.sendMessage(TextUtil.format("<red>Insufficient Team Bank balance ($5,000 required).</red>"));
+                    player.sendMessage(TextUtil.format("<red>✖ Insufficient Team Bank balance ($5,000 required). Your Bank: $" + String.format("%,d", team.getBankBalance()) + "</red>"));
                 }
             }
             return;

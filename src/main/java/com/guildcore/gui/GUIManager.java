@@ -43,6 +43,8 @@ public class GUIManager {
     private final TeamPermissionManager permissionManager;
     private ProhibitedItemManager prohibitedManager;
     private ShopManager shopManager;
+    private com.guildcore.economy.EconomyManager economyManager;
+    private com.guildcore.teams.TeamBankManager teamBankManager;
 
     public GUIManager(SettingsManager settingsManager, TeamManager teamManager, ClaimManager claimManager, AuctionManager auctionManager, StatsManager statsManager, TeamPermissionManager permissionManager) {
         this.settingsManager = settingsManager;
@@ -51,6 +53,18 @@ public class GUIManager {
         this.auctionManager = auctionManager;
         this.statsManager = statsManager;
         this.permissionManager = permissionManager;
+    }
+
+    public void setEconomyManager(com.guildcore.economy.EconomyManager economyManager) {
+        this.economyManager = economyManager;
+    }
+
+    public void setTeamBankManager(com.guildcore.teams.TeamBankManager teamBankManager) {
+        this.teamBankManager = teamBankManager;
+    }
+
+    public com.guildcore.teams.TeamBankManager getTeamBankManager() {
+        return teamBankManager;
     }
 
     public void setProhibitedItemManager(ProhibitedItemManager prohibitedManager) {
@@ -280,33 +294,138 @@ public class GUIManager {
     public void openClaimItemSelectorGUI(Player player) {
         if (player == null) return;
         com.guildcore.gui.holders.ClaimItemSelectorHolder holder = new com.guildcore.gui.holders.ClaimItemSelectorHolder();
-        int currentQty = settingsManager.getInt("claims.map.cost_item_amount", 2);
-        String matStr = settingsManager.getString("claims.map.cost_item_material", "DIAMOND");
-        Material mat = Material.matchMaterial(matStr);
-        if (mat == null) mat = Material.DIAMOND;
-
-        holder.setQuantity(currentQty);
-
-        Inventory inv = Bukkit.createInventory(holder, 27, TextUtil.format("<gradient:#FFD700:#FFA500><b>📦 CLAIM ITEM REQUIREMENT SELECTOR</b></gradient>"));
+        Inventory inv = Bukkit.createInventory(holder, 27, TextUtil.format("<gradient:#FFD700:#FFA500><b>📦 MULTI-ITEM CLAIM REQUIREMENT SELECTOR</b></gradient>"));
         fillBorder27(inv, Material.GRAY_STAINED_GLASS_PANE);
 
-        inv.setItem(10, new GUIItemBuilder(Material.RED_WOOL).name("<red><b>-10 Quantity</b></red>").lore("<gray>Click to decrease item requirement by 10</gray>").build());
-        inv.setItem(11, new GUIItemBuilder(Material.RED_CONCRETE).name("<red><b>-1 Quantity</b></red>").lore("<gray>Click to decrease item requirement by 1</gray>").build());
+        String itemsStr = settingsManager.getString("claims.map.cost_items", "");
+        if (!itemsStr.isEmpty()) {
+            String[] parts = itemsStr.split(";");
+            int slotIdx = 10;
+            for (String part : parts) {
+                if (slotIdx > 16) break;
+                String[] sub = part.split(":");
+                if (sub.length == 2) {
+                    Material m = Material.matchMaterial(sub[0]);
+                    int amt = 1;
+                    try { amt = Integer.parseInt(sub[1]); } catch (Exception ignored) {}
+                    if (m != null && amt > 0) {
+                        inv.setItem(slotIdx, new ItemStack(m, Math.min(64, amt)));
+                        slotIdx++;
+                    }
+                }
+            }
+        } else {
+            String matStr = settingsManager.getString("claims.map.cost_item_material", "DIAMOND");
+            int amt = settingsManager.getInt("claims.map.cost_item_amount", 2);
+            Material m = Material.matchMaterial(matStr);
+            if (m == null) m = Material.DIAMOND;
+            inv.setItem(10, new ItemStack(m, Math.min(64, amt)));
+        }
 
-        inv.setItem(13, new GUIItemBuilder(mat).amount(holder.getQuantity()).name("<aqua><b>Target Requirement Item</b></aqua>")
-                .lore("<gray>▪ Material: </gray><yellow>" + mat.name() + "</yellow>",
-                      "<gray>▪ Quantity: </gray><green>" + holder.getQuantity() + "x</green>",
-                      "",
-                      "<yellow>▶ Place/Swap ANY item here to change material!</yellow>").build());
-
-        inv.setItem(15, new GUIItemBuilder(Material.LIME_CONCRETE).name("<green><b>+1 Quantity</b></green>").lore("<gray>Click to increase item requirement by 1</gray>").build());
-        inv.setItem(16, new GUIItemBuilder(Material.LIME_WOOL).name("<green><b>+10 Quantity</b></green>").lore("<gray>Click to increase item requirement by 10</gray>").build());
-
-        inv.setItem(22, new GUIItemBuilder(Material.NETHER_STAR).name("<gradient:#00FF87:#60EFFF><b>✔ SAVE & APPLY REQUIREMENT</b></gradient>")
-                .lore("<gray>Saves item material and quantity to server configs</gray>", "", "<yellow>▶ Click to save</yellow>").build());
+        inv.setItem(22, new GUIItemBuilder(Material.NETHER_STAR).name("<gradient:#00FF87:#60EFFF><b>✔ SAVE & APPLY MULTI-ITEM REQUIREMENT</b></gradient>")
+                .lore("<gray>Place 1 to 7 items in Slots 10-16 with custom amounts</gray>", "", "<yellow>▶ Click to save all items</yellow>").build());
 
         inv.setItem(26, new GUIItemBuilder(Material.BARRIER).name("<red><b>◀ Return to Domain Settings</b></red>").build());
 
+        player.openInventory(inv);
+    }
+
+    public void openTeamBankGUI(Player player, Team team) {
+        if (player == null || team == null) return;
+        Inventory inv = Bukkit.createInventory(new com.guildcore.gui.holders.TeamBankGUIHolder(team), 54, TextUtil.format("<gradient:#FFD700:#FFA500><b>🏦 GUILD TREASURY BANK & VAULT</b></gradient>"));
+        fillBorder54(inv, Material.YELLOW_STAINED_GLASS_PANE);
+
+        long pBal = economyManager != null ? economyManager.getBalance(player.getUniqueId()) : 0;
+        inv.setItem(4, new GUIItemBuilder(Material.GOLD_BLOCK).name("<gradient:#FFD700:#FFA500><b>💰 Guild Treasury Balance</b></gradient>")
+                .lore("<gray>▪ Bank Vault: </gray><gold><b>$" + String.format("%,d", team.getBankBalance()) + " Gold</b></gold>",
+                      "<gray>▪ Your Wallet: </gray><green>$" + String.format("%,d", pBal) + " Gold</green>").build());
+
+        inv.setItem(19, new GUIItemBuilder(Material.LIME_STAINED_GLASS_PANE).name("<green><b>+$100 Deposit</b></green>").lore("<gray>Deposit $100 Gold into team bank</gray>").build());
+        inv.setItem(20, new GUIItemBuilder(Material.LIME_TERRACOTTA).name("<green><b>+$1,000 Deposit</b></green>").lore("<gray>Deposit $1,000 Gold into team bank</gray>").build());
+        inv.setItem(21, new GUIItemBuilder(Material.LIME_WOOL).name("<green><b>+$10,000 Deposit</b></green>").lore("<gray>Deposit $10,000 Gold into team bank</gray>").build());
+        inv.setItem(22, new GUIItemBuilder(Material.EMERALD_BLOCK).name("<green><b>+$100,000 Deposit</b></green>").lore("<gray>Deposit $100,000 Gold into team bank</gray>").build());
+        inv.setItem(23, new GUIItemBuilder(Material.HOPPER).name("<yellow><b>+Custom Deposit</b></yellow>").lore("<gray>Click to enter custom deposit amount in chat</gray>").build());
+
+        inv.setItem(28, new GUIItemBuilder(Material.RED_STAINED_GLASS_PANE).name("<red><b>-$100 Withdraw</b></red>").lore("<gray>Withdraw $100 Gold from team bank</gray>").build());
+        inv.setItem(29, new GUIItemBuilder(Material.RED_TERRACOTTA).name("<red><b>-$1,000 Withdraw</b></red>").lore("<gray>Withdraw $1,000 Gold from team bank</gray>").build());
+        inv.setItem(30, new GUIItemBuilder(Material.RED_WOOL).name("<red><b>-$10,000 Withdraw</b></red>").lore("<gray>Withdraw $10,000 Gold from team bank</gray>").build());
+        inv.setItem(31, new GUIItemBuilder(Material.REDSTONE_BLOCK).name("<red><b>-$100,000 Withdraw</b></red>").lore("<gray>Withdraw $100,000 Gold from team bank</gray>").build());
+        inv.setItem(32, new GUIItemBuilder(Material.DISPENSER).name("<orange><b>-Custom Withdraw</b></orange>").lore("<gray>Click to enter custom withdraw amount in chat</gray>").build());
+
+        inv.setItem(49, new GUIItemBuilder(Material.BARRIER).name("<red><b>◀ Return to Guild Citadel</b></red>").build());
+        player.openInventory(inv);
+    }
+
+    public void openTeamTransferLeaderConfirmGUI(Player leader, OfflinePlayer successor) {
+        if (leader == null || successor == null) return;
+        com.guildcore.gui.holders.TeamTransferLeaderConfirmHolder holder = new com.guildcore.gui.holders.TeamTransferLeaderConfirmHolder(successor);
+        Inventory inv = Bukkit.createInventory(holder, 27, TextUtil.format("<gradient:#FFD700:#FFA500><b>👑 CONFIRM LEADERSHIP TRANSFER</b></gradient>"));
+        fillBorder27(inv, Material.YELLOW_STAINED_GLASS_PANE);
+
+        String successorName = successor.getName() != null ? successor.getName() : "Unknown";
+
+        inv.setItem(13, new GUIItemBuilder(Material.PLAYER_HEAD).skullOwner(successor)
+                .name("<gradient:#FFD700:#FFA500><b>Transfer Guild Leadership to " + successorName + "?</b></gradient>")
+                .lore("<gray>▪ New Guild Leader: </gray><yellow>" + successorName + "</yellow>",
+                      "<gray>▪ Your New Rank: </gray><gold>Officer</gold>",
+                      "",
+                      "<red>WARNING: You will give up all Guild Leader rights!</red>").build());
+
+        inv.setItem(11, new GUIItemBuilder(Material.LIME_WOOL).name("<green><b>✔ YES, TRANSFER LEADERSHIP</b></green>")
+                .lore("<gray>Click to confirm transfer</gray>").build());
+
+        inv.setItem(15, new GUIItemBuilder(Material.RED_WOOL).name("<red><b>✖ CANCEL TRANSFER</b></red>")
+                .lore("<gray>Click to cancel and keep leadership</gray>").build());
+
+        leader.openInventory(inv);
+    }
+
+    public void openTeamPermissions(Player player, Team team, String selectedRole) {
+        if (player == null || team == null) return;
+        String playerRole = teamManager.getPlayerRole(player.getUniqueId());
+        if (!"LEADER".equalsIgnoreCase(playerRole) && !player.hasPermission("guildcore.admin")) {
+            player.sendMessage(TextUtil.format("<red>✖ Only the Guild Leader can modify team permissions!</red>"));
+            player.closeInventory();
+            return;
+        }
+
+        Inventory inv = Bukkit.createInventory(new TeamPermissionsHolder(team.getId(), selectedRole), 54, TextUtil.format("<gradient:#00c6ff:#0072ff><b>🛡 Team Permissions: " + selectedRole + "</b></gradient>"));
+        fillBorder54(inv, Material.BLUE_STAINED_GLASS_PANE);
+
+        boolean isOfficer = "OFFICER".equalsIgnoreCase(selectedRole);
+        boolean isMember = "MEMBER".equalsIgnoreCase(selectedRole);
+        boolean isRecruit = "RECRUIT".equalsIgnoreCase(selectedRole);
+
+        inv.setItem(10, new GUIItemBuilder(Material.NETHERITE_HELMET)
+                .name(isOfficer ? "<gradient:#00FF87:#60EFFF><b>▶ OFFICER ROLE [SELECTED]</b></gradient>" : "<gray>▪ OFFICER ROLE</gray>")
+                .lore("<gray>Click to view/toggle Officer privileges</gray>").build());
+
+        inv.setItem(12, new GUIItemBuilder(Material.IRON_HELMET)
+                .name(isMember ? "<gradient:#00FF87:#60EFFF><b>▶ MEMBER ROLE [SELECTED]</b></gradient>" : "<gray>▪ MEMBER ROLE</gray>")
+                .lore("<gray>Click to view/toggle Member privileges</gray>").build());
+
+        inv.setItem(14, new GUIItemBuilder(Material.LEATHER_HELMET)
+                .name(isRecruit ? "<gradient:#00FF87:#60EFFF><b>▶ RECRUIT ROLE [SELECTED]</b></gradient>" : "<gray>▪ RECRUIT ROLE</gray>")
+                .lore("<gray>Click to view/toggle Recruit privileges</gray>").build());
+
+        String[] nodes = {"BANK_DEPOSIT", "BANK_WITHDRAW", "VAULT_ACCESS", "CLAIM_LAND", "BUILD", "INVITE_MEMBERS", "KICK_MEMBERS", "SET_HOME", "UPGRADE_TEAM"};
+        String[] titles = {"Bank Deposit", "Bank Withdraw", "Vault Storage", "Claim Territory", "Build & Break", "Invite Members", "Kick Members", "Set Guild Home", "Guild Upgrades"};
+        Material[] icons = {Material.GOLD_INGOT, Material.GOLD_NUGGET, Material.CHEST, Material.GRASS_BLOCK, Material.DIAMOND_PICKAXE, Material.WRITABLE_BOOK, Material.ANVIL, Material.RED_BED, Material.NETHER_STAR};
+        int[] slots = {19, 20, 21, 22, 23, 28, 29, 30, 31};
+
+        for (int i = 0; i < nodes.length; i++) {
+            String node = nodes[i];
+            boolean allowed = permissionManager.hasPermission(team.getId(), selectedRole, node);
+            inv.setItem(slots[i], new GUIItemBuilder(icons[i])
+                    .name("<gradient:#D4AF37:#CC7722><b>" + titles[i] + "</b></gradient>")
+                    .lore(
+                            "<gray>▪ Status: " + (allowed ? "<gradient:#00FF87:#60EFFF><b>[✔ ALLOWED]</b></gradient>" : "<gradient:#FF416C:#FF4B2B><b>[✖ DENIED]</b></gradient>") + "</gray>",
+                            "",
+                            "<yellow>▶ Click to toggle permission for " + selectedRole + "</yellow>"
+                    ).build());
+        }
+
+        inv.setItem(49, new GUIItemBuilder(Material.BARRIER).name("<red><b>◀ Return to Guild Citadel</b></red>").build());
         player.openInventory(inv);
     }
 
@@ -729,48 +848,6 @@ public class GUIManager {
         player.openInventory(inv);
     }
 
-    public void openTeamPermissions(Player player, Team team, String selectedRole) {
-        if (selectedRole == null) selectedRole = "MEMBER";
-        Inventory inv = Bukkit.createInventory(new TeamPermissionsHolder(team.getId(), selectedRole), 54, TextUtil.format("<gradient:#D4AF37:#CC7722><b>📜 Rank Codex & Permissions (" + team.getName() + ")</b></gradient>"));
-        fillBorder54(inv, Material.ORANGE_STAINED_GLASS_PANE);
-
-        boolean isOfficer = selectedRole.equalsIgnoreCase("OFFICER");
-        boolean isMember = selectedRole.equalsIgnoreCase("MEMBER");
-        boolean isRecruit = selectedRole.equalsIgnoreCase("RECRUIT");
-
-        inv.setItem(10, new GUIItemBuilder(isOfficer ? Material.GOLDEN_HELMET : Material.LEATHER_HELMET)
-                .name(isOfficer ? "<gradient:#00FF87:#60EFFF><b>▶ OFFICER ROLE [SELECTED]</b></gradient>" : "<gray>▪ OFFICER ROLE</gray>")
-                .lore("<gray>Click to view/toggle Officer privileges</gray>").build());
-
-        inv.setItem(12, new GUIItemBuilder(isMember ? Material.IRON_HELMET : Material.LEATHER_HELMET)
-                .name(isMember ? "<gradient:#00FF87:#60EFFF><b>▶ MEMBER ROLE [SELECTED]</b></gradient>" : "<gray>▪ MEMBER ROLE</gray>")
-                .lore("<gray>Click to view/toggle Member privileges</gray>").build());
-
-        inv.setItem(14, new GUIItemBuilder(isRecruit ? Material.CHAINMAIL_HELMET : Material.LEATHER_HELMET)
-                .name(isRecruit ? "<gradient:#00FF87:#60EFFF><b>▶ RECRUIT ROLE [SELECTED]</b></gradient>" : "<gray>▪ RECRUIT ROLE</gray>")
-                .lore("<gray>Click to view/toggle Recruit privileges</gray>").build());
-
-        String[] nodes = {"BANK_DEPOSIT", "BANK_WITHDRAW", "VAULT_ACCESS", "CLAIM_LAND", "INVITE_MEMBERS", "KICK_MEMBERS", "BUILD", "SET_HOME"};
-        String[] titles = {"Bank Deposit", "Bank Withdraw", "Vault Storage", "Claim Territory", "Invite Members", "Kick Members", "Build & Break", "Set Guild Home"};
-        Material[] icons = {Material.GOLD_INGOT, Material.GOLD_NUGGET, Material.CHEST, Material.GRASS_BLOCK, Material.WRITABLE_BOOK, Material.ANVIL, Material.DIAMOND_PICKAXE, Material.RED_BED};
-        int[] slots = {19, 21, 23, 25, 29, 31, 33, 35};
-
-        for (int i = 0; i < nodes.length; i++) {
-            String node = nodes[i];
-            boolean allowed = permissionManager.hasPermission(team.getId(), selectedRole, node);
-            inv.setItem(slots[i], new GUIItemBuilder(icons[i])
-                    .name("<gradient:#D4AF37:#CC7722><b>" + titles[i] + "</b></gradient>")
-                    .lore(
-                            "<gray>▪ Status: " + (allowed ? "<gradient:#00FF87:#60EFFF><b>[✔ ALLOWED]</b></gradient>" : "<gradient:#FF416C:#FF4B2B><b>[✖ DENIED]</b></gradient>") + "</gray>",
-                            "",
-                            "<yellow>▶ Click to toggle permission for " + selectedRole + "</yellow>"
-                    ).build());
-        }
-
-        inv.setItem(49, new GUIItemBuilder(Material.BARRIER).name("<red><b>◀ Return to Guild Citadel</b></red>").build());
-        player.openInventory(inv);
-    }
-
     public void openClaimFlags(Player player, Chunk chunk) {
         Inventory inv = Bukkit.createInventory(new ClaimFlagsGUIHolder(), 27, TextUtil.format("<gradient:#11998e:#38ef7d><b>🏠 Domain Protection Flags</b></gradient>"));
         fillBorder27(inv, Material.LIME_STAINED_GLASS_PANE);
@@ -986,6 +1063,25 @@ public class GUIManager {
         return "Chunk (" + cx + ", " + cz + ")";
     }
 
+    public String getFormattedMultiItemRequirements() {
+        String itemsStr = settingsManager.getString("claims.map.cost_items", "");
+        if (!itemsStr.isEmpty()) {
+            StringBuilder sb = new StringBuilder();
+            String[] parts = itemsStr.split(";");
+            for (int i = 0; i < parts.length; i++) {
+                String[] sub = parts[i].split(":");
+                if (sub.length == 2) {
+                    sb.append(sub[1]).append("x ").append(sub[0]);
+                    if (i < parts.length - 1) sb.append(", ");
+                }
+            }
+            if (sb.length() > 0) return sb.toString();
+        }
+        String matStr = settingsManager.getString("claims.map.cost_item_material", "DIAMOND");
+        int amt = settingsManager.getInt("claims.map.cost_item_amount", 2);
+        return amt + "x " + matStr;
+    }
+
     public void openTeamMapGUI(Player player) {
         if (player == null) return;
         Chunk center = player.getLocation().getChunk();
@@ -1000,9 +1096,8 @@ public class GUIManager {
         ClaimCostResult costRes = calculateClaimCost(activeClaims);
         long costCoins = costRes.coins;
         int costXpLevels = costRes.xpLevels;
-        Material costItemMat = costRes.itemMat;
-        int costItemAmount = costRes.itemAmount;
         int costXpPoints = settingsManager.getInt("claims.map.cost_xp_points", 0);
+        String reqItemsDisplay = getFormattedMultiItemRequirements();
 
         Inventory inv = Bukkit.createInventory(new com.guildcore.gui.holders.TeamMapGUIHolder(centerCx, centerCz), 54, TextUtil.format("<gradient:#56ab2f:#a8e063><b>🗺 REALM TERRITORY MAP</b></gradient>"));
 
@@ -1022,7 +1117,7 @@ public class GUIManager {
         inv.setItem(8, new GUIItemBuilder(Material.GOLD_BLOCK).name("<gradient:#FFD700:#FFA500><b>📜 Team Claim Cost (Lvl " + (activeClaims + 1) + ")</b></gradient>")
                 .lore("<gray>▪ Team Bank Coins: </gray><gold>$" + String.format("%,d", costCoins) + "</gold>",
                       "<gray>▪ XP Levels: </gray><green>" + costXpLevels + " Levels</green>" + (costXpPoints > 0 ? " <gray>(" + costXpPoints + " pts)</gray>" : ""),
-                      "<gray>▪ Required Items: </gray><aqua>" + costItemAmount + "x " + costItemMat.name() + "</aqua>",
+                      "<gray>▪ Required Items: </gray><aqua>" + reqItemsDisplay + "</aqua>",
                       "",
                       "<yellow>▶ Left-Click gray pane to claim</yellow>",
                       "<red>▶ Right-Click green pane to unclaim</red>").build());
@@ -1054,7 +1149,7 @@ public class GUIManager {
                 inv.setItem(slot, new GUIItemBuilder(Material.GRAY_STAINED_GLASS_PANE).name("<gray><b>Unclaimed " + formatChunkCoord(cx, cz) + "</b></gray>")
                         .lore("<gray>▪ Status: </gray><white>Wilderness</white>",
                               "<gray>▪ Team Bank: </gray><gold>$" + String.format("%,d", costCoins) + "</gold>",
-                              "<gray>▪ Required Items: </gray><aqua>" + costItemAmount + "x " + costItemMat.name() + "</aqua>",
+                              "<gray>▪ Required Items: </gray><aqua>" + reqItemsDisplay + "</aqua>",
                               "",
                               "<yellow>▶ Left-Click to claim for your Guild</yellow>").build());
             } else if (isOwnGuild) {

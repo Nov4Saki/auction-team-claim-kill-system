@@ -17,30 +17,46 @@ public class TeamBankManager {
         this.economyManager = economyManager;
     }
 
-    public boolean deposit(Team team, UUID player, long amount) {
+    public boolean deposit(Team team, UUID playerUuid, long amount) {
         if (amount <= 0 || team == null) return false;
-        if (economyManager != null && !economyManager.withdraw(player, amount, "team_bank_deposit")) {
+        org.bukkit.entity.Player p = org.bukkit.Bukkit.getPlayer(playerUuid);
+        if (economyManager != null && !economyManager.withdraw(playerUuid, amount, "team_bank_deposit")) {
+            if (p != null) {
+                p.sendMessage(com.guildcore.util.TextUtil.format("<red>✖ Insufficient funds! Required: $" + String.format("%,d", amount) + " Gold (Your balance: $" + String.format("%,d", economyManager.getBalance(playerUuid)) + ").</red>"));
+            }
             return false;
         }
 
         team.setBankBalance(team.getBankBalance() + amount);
-        logBankAction(team.getId(), player, amount, "DEPOSIT");
+        logBankAction(team.getId(), playerUuid, amount, "DEPOSIT");
         saveBankBalance(team.getId(), team.getBankBalance());
-        DebugManager.log(DebugFlag.TEAM_UPGRADES, "Team " + team.getName() + " bank deposit: +" + amount + " by " + player);
+        if (p != null) {
+            p.sendMessage(com.guildcore.util.TextUtil.format("<green>✔ Successfully deposited $" + String.format("%,d", amount) + " Gold into the Guild Bank!</green>"));
+        }
+        DebugManager.log(DebugFlag.TEAM_UPGRADES, "Team " + team.getName() + " bank deposit: +" + amount + " by " + playerUuid);
         return true;
     }
 
-    public boolean withdraw(Team team, UUID player, long amount) {
+    public boolean withdraw(Team team, UUID playerUuid, long amount) {
         if (amount <= 0 || team == null) return false;
-        if (team.getBankBalance() < amount) return false;
+        org.bukkit.entity.Player p = org.bukkit.Bukkit.getPlayer(playerUuid);
+        if (team.getBankBalance() < amount) {
+            if (p != null) {
+                p.sendMessage(com.guildcore.util.TextUtil.format("<red>✖ Insufficient Team Bank balance! Required: $" + String.format("%,d", amount) + " Gold (Bank balance: $" + String.format("%,d", team.getBankBalance()) + ").</red>"));
+            }
+            return false;
+        }
 
         team.setBankBalance(team.getBankBalance() - amount);
         if (economyManager != null) {
-            economyManager.deposit(player, amount, "team_bank_withdraw");
+            economyManager.deposit(playerUuid, amount, "team_bank_withdraw");
         }
-        logBankAction(team.getId(), player, amount, "WITHDRAW");
+        logBankAction(team.getId(), playerUuid, amount, "WITHDRAW");
         saveBankBalance(team.getId(), team.getBankBalance());
-        DebugManager.log(DebugFlag.TEAM_UPGRADES, "Team " + team.getName() + " bank withdraw: -" + amount + " by " + player);
+        if (p != null) {
+            p.sendMessage(com.guildcore.util.TextUtil.format("<green>✔ Successfully withdrew $" + String.format("%,d", amount) + " Gold from the Guild Bank!</green>"));
+        }
+        DebugManager.log(DebugFlag.TEAM_UPGRADES, "Team " + team.getName() + " bank withdraw: -" + amount + " by " + playerUuid);
         return true;
     }
 

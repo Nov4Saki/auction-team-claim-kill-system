@@ -80,9 +80,22 @@ public class CombatTagManager implements Listener {
         return (int) Math.max(0, rem);
     }
 
+    private com.guildcore.teams.TeamManager teamManager;
+
+    public void setTeamManager(com.guildcore.teams.TeamManager teamManager) {
+        this.teamManager = teamManager;
+    }
+
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onPlayerDamage(EntityDamageByEntityEvent event) {
         if (event.getEntity() instanceof Player victim && event.getDamager() instanceof Player attacker) {
+            if (teamManager != null) {
+                com.guildcore.teams.Team vTeam = teamManager.getPlayerTeam(victim.getUniqueId());
+                com.guildcore.teams.Team aTeam = teamManager.getPlayerTeam(attacker.getUniqueId());
+                if (vTeam != null && aTeam != null && vTeam.getId() == aTeam.getId()) {
+                    return;
+                }
+            }
             tag(victim);
             tag(attacker);
         }

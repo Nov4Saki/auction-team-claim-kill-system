@@ -37,7 +37,7 @@ public class TeamCommand implements TabExecutor {
     private static final List<String> SUBCOMMANDS = Arrays.asList(
             "create", "invite", "add", "join", "leave", "kick", "promote", "demote",
             "info", "list", "bank", "vault", "deposit", "withdraw", "claim", "unclaim", "map", "members", "roster",
-            "home", "sethome", "setnexus", "permissions", "upgrade", "raid", "disband", "rename"
+            "home", "sethome", "setnexus", "permissions", "upgrade", "raid", "disband", "rename", "transferleader", "leader"
     );
 
     public TeamCommand(TeamManager teamManager, TeamBankManager bankManager, TeamVaultManager vaultManager, ClaimManager claimManager, RaidManager raidManager, SettingsManager settingsManager, GUIManager guiManager) {
@@ -235,6 +235,30 @@ public class TeamCommand implements TabExecutor {
             return true;
         }
 
+        if (sub.equals("transferleader") || sub.equals("leader")) {
+            Team team = teamManager.getPlayerTeam(player.getUniqueId());
+            if (team == null || !team.getLeaderUuid().equals(player.getUniqueId())) {
+                player.sendMessage(TextUtil.format("<red>✖ Only the Guild Leader can transfer leadership!</red>"));
+                return true;
+            }
+            if (args.length < 2) {
+                player.sendMessage(TextUtil.format("<red>Usage: /team transferleader <player></red>"));
+                return true;
+            }
+            Player target = Bukkit.getPlayer(args[1]);
+            if (target == null) {
+                player.sendMessage(TextUtil.format("<red>Player not found or offline!</red>"));
+                return true;
+            }
+            Team targetTeam = teamManager.getPlayerTeam(target.getUniqueId());
+            if (targetTeam == null || targetTeam.getId() != team.getId()) {
+                player.sendMessage(TextUtil.format("<red>Player is not a member of your Guild!</red>"));
+                return true;
+            }
+            guiManager.openTeamTransferLeaderConfirmGUI(player, target);
+            return true;
+        }
+
         if (sub.equals("bank")) {
             Team team = teamManager.getPlayerTeam(player.getUniqueId());
             if (team == null) {
@@ -244,25 +268,18 @@ public class TeamCommand implements TabExecutor {
             if (args.length >= 3 && args[1].equalsIgnoreCase("deposit")) {
                 try {
                     long amount = Long.parseLong(args[2]);
-                    if (bankManager.deposit(team, player.getUniqueId(), amount)) {
-                        player.sendMessage(TextUtil.format("<green>Deposited $" + amount + " into team bank!</green>"));
-                    }
+                    bankManager.deposit(team, player.getUniqueId(), amount);
                 } catch (NumberFormatException ignored) {}
                 return true;
             }
             if (args.length >= 3 && args[1].equalsIgnoreCase("withdraw")) {
                 try {
                     long amount = Long.parseLong(args[2]);
-                    if (bankManager.withdraw(team, player.getUniqueId(), amount)) {
-                        player.sendMessage(TextUtil.format("<green>Withdrew $" + amount + " from team bank!</green>"));
-                    } else {
-                        player.sendMessage(TextUtil.format("<red>Insufficient team bank balance!</red>"));
-                    }
+                    bankManager.withdraw(team, player.getUniqueId(), amount);
                 } catch (NumberFormatException ignored) {}
                 return true;
             }
-            player.sendMessage(TextUtil.format("<gold>🏦 Team Bank Balance: <green>$" + team.getBankBalance() + "</green></gold>"));
-            player.sendMessage(TextUtil.format("<gray>Usage: /team bank deposit <amount> | /team bank withdraw <amount></gray>"));
+            guiManager.openTeamBankGUI(player, team);
             return true;
         }
 

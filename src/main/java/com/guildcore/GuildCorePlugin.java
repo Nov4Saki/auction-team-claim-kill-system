@@ -120,6 +120,9 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
         this.raidManager = new RaidManager(teamManager, teamBankManager, claimManager, settingsManager, scheduler, raidRollbackEngine);
         this.teamManager.setClaimManager(claimManager);
         this.teamManager.setSettingsManager(settingsManager);
+        this.claimManager.setTeamManager(teamManager);
+        this.claimManager.setPermissionManager(teamPermissionManager);
+        this.combatTagManager.setTeamManager(teamManager);
         this.tradeManager = new TradeManager();
         this.crateManager = new CrateManager(databaseManager, scheduler);
         this.crateManager.loadCrates();
@@ -128,18 +131,12 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
 
         // 8. Auction House & Prohibited Items
         this.auctionManager = new AuctionManager(databaseManager, economyManager, settingsManager);
-        this.auctionManager.loadAuctions();
-
-        this.prohibitedItemManager = new ProhibitedItemManager(databaseManager);
-        this.prohibitedItemManager.loadProhibitedItems();
-
-        // 9. Scoreboard & GUI
-        this.scoreboardManager = new ScoreboardManager(economyManager, statsManager, bountyManager, teamManager, claimManager, combatTagManager, raidManager, settingsManager, scheduler);
-        this.scoreboardManager.startUpdateTask();
-
+        // 8. GUIs & Control Panel
         this.guiManager = new GUIManager(settingsManager, teamManager, claimManager, auctionManager, statsManager, teamPermissionManager);
         this.guiManager.setProhibitedItemManager(prohibitedItemManager);
         this.guiManager.setShopManager(shopManager);
+        this.guiManager.setEconomyManager(economyManager);
+        this.guiManager.setTeamBankManager(teamBankManager);
 
         // Register Event Listeners
         PluginManager pm = getServer().getPluginManager();
@@ -147,7 +144,9 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
         pm.registerEvents(new EconomyListener(economyManager, settingsManager), this);
         pm.registerEvents(combatTagManager, this);
         pm.registerEvents(itemControlManager, this);
-        pm.registerEvents(new ClaimProtectionListener(claimManager, settingsManager), this);
+        ClaimProtectionListener claimProtectionListener = new ClaimProtectionListener(claimManager, settingsManager);
+        claimProtectionListener.setTeamManager(teamManager);
+        pm.registerEvents(claimProtectionListener, this);
         pm.registerEvents(new RaidNexusListener(raidManager, claimManager), this);
         GUIClickListener guiClickListener = new GUIClickListener(guiManager, auctionManager, teamManager, teamUpgradeManager, teamVaultManager, economyManager, settingsManager, scoreboardManager, crateManager, shopManager, scheduler);
         guiClickListener.setProhibitedItemManager(prohibitedItemManager);

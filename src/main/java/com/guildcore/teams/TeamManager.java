@@ -374,7 +374,28 @@ public class TeamManager {
         UUID targetUuid = target.getUniqueId();
         if (!playerTeamMap.containsKey(targetUuid) || playerTeamMap.get(targetUuid) != team.getId()) return false;
 
+        if (actor.getUniqueId().equals(targetUuid)) {
+            actor.sendMessage(com.guildcore.util.TextUtil.format("<red>✖ You cannot promote yourself!</red>"));
+            return false;
+        }
+
+        String actorRole = getPlayerRole(actor.getUniqueId());
+        if ("RECRUIT".equalsIgnoreCase(actorRole) || "MEMBER".equalsIgnoreCase(actorRole)) {
+            actor.sendMessage(com.guildcore.util.TextUtil.format("<red>✖ Only Officers and Guild Leaders can promote members!</red>"));
+            return false;
+        }
+
         String currentRole = getPlayerRole(targetUuid);
+        if ("LEADER".equalsIgnoreCase(currentRole)) {
+            actor.sendMessage(com.guildcore.util.TextUtil.format("<red>✖ Guild Leaders cannot be promoted!</red>"));
+            return false;
+        }
+
+        if ("OFFICER".equalsIgnoreCase(actorRole) && !"RECRUIT".equalsIgnoreCase(currentRole)) {
+            actor.sendMessage(com.guildcore.util.TextUtil.format("<red>✖ Officers can only promote Recruits to Members!</red>"));
+            return false;
+        }
+
         String newRole = currentRole;
         if (currentRole.equalsIgnoreCase("RECRUIT")) newRole = "MEMBER";
         else if (currentRole.equalsIgnoreCase("MEMBER")) newRole = "OFFICER";
@@ -412,7 +433,23 @@ public class TeamManager {
         UUID targetUuid = target.getUniqueId();
         if (!playerTeamMap.containsKey(targetUuid) || playerTeamMap.get(targetUuid) != team.getId()) return false;
 
+        if (actor.getUniqueId().equals(targetUuid)) {
+            actor.sendMessage(com.guildcore.util.TextUtil.format("<red>✖ You cannot demote yourself!</red>"));
+            return false;
+        }
+
+        String actorRole = getPlayerRole(actor.getUniqueId());
+        if (!"LEADER".equalsIgnoreCase(actorRole)) {
+            actor.sendMessage(com.guildcore.util.TextUtil.format("<red>✖ Only the Guild Leader can demote members!</red>"));
+            return false;
+        }
+
         String currentRole = getPlayerRole(targetUuid);
+        if ("LEADER".equalsIgnoreCase(currentRole)) {
+            actor.sendMessage(com.guildcore.util.TextUtil.format("<red>✖ Guild Leaders cannot be demoted!</red>"));
+            return false;
+        }
+
         String newRole = currentRole;
         if (currentRole.equalsIgnoreCase("OFFICER")) newRole = "MEMBER";
         else if (currentRole.equalsIgnoreCase("MEMBER")) newRole = "RECRUIT";
@@ -438,6 +475,50 @@ public class TeamManager {
         });
 
         broadcastToTeam(team.getId(), com.guildcore.util.TextUtil.format("<gradient:#FF416C:#FF4B2B><b>🏰 [Guild] Member <yellow>" + target.getName() + "</yellow> was demoted to <gold>" + finalRole + "</gold> by <gold>" + actor.getName() + "</gold>.</b></gradient>"));
+        return true;
+    }
+
+    public boolean transferLeadership(Player leader, UUID successorUuid) {
+        Team team = getPlayerTeam(leader.getUniqueId());
+        if (team == null || !team.getLeaderUuid().equals(leader.getUniqueId())) {
+            leader.sendMessage(com.guildcore.util.TextUtil.format("<red>✖ Only the Guild Leader can transfer leadership!</red>"));
+            return false;
+        }
+        if (leader.getUniqueId().equals(successorUuid)) {
+            leader.sendMessage(com.guildcore.util.TextUtil.format("<red>✖ You are already the Guild Leader!</red>"));
+            return false;
+        }
+
+        UUID oldLeaderUuid = leader.getUniqueId();
+        team.setLeaderUuid(successorUuid);
+        playerRoleMap.put(oldLeaderUuid, "OFFICER");
+        playerRoleMap.put(successorUuid, "LEADER");
+
+        dbManager.executeAsync(() -> {
+            try (Connection conn = dbManager.getConnection()) {
+                try (PreparedStatement ps = conn.prepareStatement("UPDATE teams SET leader_uuid = ? WHERE id = ?")) {
+                    ps.setString(1, successorUuid.toString());
+                    ps.setInt(2, team.getId());
+                    ps.executeUpdate();
+                }
+                try (PreparedStatement ps = conn.prepareStatement("UPDATE team_members SET role = 'OFFICER' WHERE team_id = ? AND player_uuid = ?")) {
+                    ps.setInt(1, team.getId());
+                    ps.setString(2, oldLeaderUuid.toString());
+                    ps.executeUpdate();
+                }
+                try (PreparedStatement ps = conn.prepareStatement("UPDATE team_members SET role = 'LEADER' WHERE team_id = ? AND player_uuid = ?")) {
+                    ps.setInt(1, team.getId());
+                    ps.setString(2, successorUuid.toString());
+                    ps.executeUpdate();
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
+
+        org.bukkit.OfflinePlayer successorPlayer = Bukkit.getOfflinePlayer(successorUuid);
+        String successorName = successorPlayer.getName() != null ? successorPlayer.getName() : "a Guild Member";
+        broadcastToTeam(team.getId(), com.guildcore.util.TextUtil.format("<gradient:#FFD700:#FFA500><b>👑 [Guild] Leader " + leader.getName() + " has transferred Guild Ownership to <yellow>" + successorName + "</yellow>!</b></gradient>"));
         return true;
     }
 
