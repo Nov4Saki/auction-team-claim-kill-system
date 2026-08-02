@@ -18,12 +18,14 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabExecutor;
 import org.bukkit.entity.Player;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 
 public class TeamCommand implements TabExecutor {
     private final TeamManager teamManager;
@@ -245,17 +247,37 @@ public class TeamCommand implements TabExecutor {
                 player.sendMessage(TextUtil.format("<red>Usage: /team transferleader <player></red>"));
                 return true;
             }
-            Player target = Bukkit.getPlayer(args[1]);
-            if (target == null) {
-                player.sendMessage(TextUtil.format("<red>Player not found or offline!</red>"));
+
+            boolean allowOffline = settingsManager.getBoolean("teams.transfer_leader_allow_offline", true);
+            String targetName = args[1];
+            OfflinePlayer targetOp = null;
+
+            Player onlineTarget = Bukkit.getPlayer(targetName);
+            if (onlineTarget != null) {
+                targetOp = onlineTarget;
+            } else if (allowOffline) {
+                UUID u = teamManager.findTeamMemberUuid(team.getId(), targetName);
+                if (u != null) {
+                    targetOp = Bukkit.getOfflinePlayer(u);
+                }
+            }
+
+            if (targetOp == null) {
+                if (!allowOffline) {
+                    player.sendMessage(TextUtil.format("<red>✖ Offline leadership transfer is disabled in Admin Settings! Target player must be online.</red>"));
+                } else {
+                    player.sendMessage(TextUtil.format("<red>✖ Player '" + targetName + "' was not found in your Guild!</red>"));
+                }
                 return true;
             }
-            Team targetTeam = teamManager.getPlayerTeam(target.getUniqueId());
+
+            Team targetTeam = teamManager.getPlayerTeam(targetOp.getUniqueId());
             if (targetTeam == null || targetTeam.getId() != team.getId()) {
-                player.sendMessage(TextUtil.format("<red>Player is not a member of your Guild!</red>"));
+                player.sendMessage(TextUtil.format("<red>✖ Player '" + targetName + "' is not a member of your Guild!</red>"));
                 return true;
             }
-            guiManager.openTeamTransferLeaderConfirmGUI(player, target);
+
+            guiManager.openTeamTransferLeaderConfirmGUI(player, targetOp);
             return true;
         }
 

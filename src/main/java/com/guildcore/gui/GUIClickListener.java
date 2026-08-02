@@ -773,36 +773,44 @@ public class GUIClickListener implements Listener {
         }
 
         // Claim Item Requirement Selector GUI
-        if (holder instanceof com.guildcore.gui.holders.ClaimItemSelectorHolder selectorHolder) {
+        if (holder instanceof com.guildcore.gui.holders.ClaimItemSelectorHolder) {
+            int rawSlot = event.getRawSlot();
             int slot = event.getSlot();
-            if (slot == 13) {
-                // Allow placing and swapping items in slot 13
-                return;
+
+            // Allow dragging/placing items in target slots (10-16) or moving items from player's inventory
+            if (rawSlot >= 27 || (slot >= 10 && slot <= 16)) {
+                return; // DO NOT cancel event! Allow item placement/drag
             }
+
             event.setCancelled(true);
             SoundUtil.playClick(player);
 
-            if (slot == 10) {
-                selectorHolder.setQuantity(selectorHolder.getQuantity() - 10);
-                guiManager.openClaimItemSelectorGUI(player);
-            } else if (slot == 11) {
-                selectorHolder.setQuantity(selectorHolder.getQuantity() - 1);
-                guiManager.openClaimItemSelectorGUI(player);
-            } else if (slot == 15) {
-                selectorHolder.setQuantity(selectorHolder.getQuantity() + 1);
-                guiManager.openClaimItemSelectorGUI(player);
-            } else if (slot == 16) {
-                selectorHolder.setQuantity(selectorHolder.getQuantity() + 10);
-                guiManager.openClaimItemSelectorGUI(player);
-            } else if (slot == 22) { // Save & Apply
-                ItemStack itemInSlot = event.getInventory().getItem(13);
-                if (itemInSlot != null && itemInSlot.getType() != Material.AIR) {
-                    int qty = itemInSlot.getAmount() > 1 ? itemInSlot.getAmount() : selectorHolder.getQuantity();
-                    settingsManager.set("claims.map.cost_item_material", itemInSlot.getType().name());
-                    settingsManager.set("claims.map.cost_item_amount", String.valueOf(qty));
-                    player.sendMessage(TextUtil.format("<green>✔ Claim item requirement set to " + qty + "x " + itemInSlot.getType().name() + "!</green>"));
+            if (slot == 22) { // Save & Apply Multi-Item Requirement
+                StringBuilder sb = new StringBuilder();
+                String firstMat = null;
+                int firstAmt = 0;
+
+                for (int s = 10; s <= 16; s++) {
+                    ItemStack item = event.getInventory().getItem(s);
+                    if (item != null && item.getType() != Material.AIR) {
+                        if (sb.length() > 0) sb.append(";");
+                        sb.append(item.getType().name()).append(":").append(item.getAmount());
+                        if (firstMat == null) {
+                            firstMat = item.getType().name();
+                            firstAmt = item.getAmount();
+                        }
+                    }
+                }
+
+                if (sb.length() > 0) {
+                    settingsManager.set("claims.map.cost_items", sb.toString());
+                    if (firstMat != null) {
+                        settingsManager.set("claims.map.cost_item_material", firstMat);
+                        settingsManager.set("claims.map.cost_item_amount", String.valueOf(firstAmt));
+                    }
+                    player.sendMessage(TextUtil.format("<green>✔ Saved multi-item claim requirement!</green>"));
                 } else {
-                    player.sendMessage(TextUtil.format("<red>✖ Please place a valid item in Slot 13!</red>"));
+                    player.sendMessage(TextUtil.format("<red>✖ Please place at least one item stack in slots 10-16!</red>"));
                 }
                 guiManager.openAdminClaimSettings(player);
             } else if (slot == 26) {
@@ -827,6 +835,10 @@ public class GUIClickListener implements Listener {
                 guiManager.openAdminTeamSettings(player);
             } else if (slot == 12) { // Max Guild Level
                 ChatInputListener.requestInput(player, "teams.max_guild_level", p -> guiManager.openAdminTeamSettings(p));
+            } else if (slot == 13) { // Leader transfer offline mode toggle
+                boolean current = settingsManager.getBoolean("teams.transfer_leader_allow_offline", true);
+                settingsManager.set("teams.transfer_leader_allow_offline", String.valueOf(!current));
+                guiManager.openAdminTeamSettings(player);
             } else if (slot == 14) { // Level Claim Caps GUI
                 guiManager.openAdminGuildLevelsGUI(player, 1);
             } else if (slot == 26) {

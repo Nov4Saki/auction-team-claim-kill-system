@@ -7,6 +7,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
+import org.bukkit.OfflinePlayer;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -365,14 +366,38 @@ public class TeamManager {
         return true;
     }
 
+    public UUID findTeamMemberUuid(int teamId, String targetName) {
+        if (targetName == null) return null;
+        Player online = Bukkit.getPlayer(targetName);
+        if (online != null) {
+            UUID u = online.getUniqueId();
+            if (playerTeamMap.containsKey(u) && playerTeamMap.get(u) == teamId) {
+                return u;
+            }
+        }
+        for (Map.Entry<UUID, Integer> entry : playerTeamMap.entrySet()) {
+            if (entry.getValue() == teamId) {
+                OfflinePlayer op = Bukkit.getOfflinePlayer(entry.getKey());
+                if (op.getName() != null && op.getName().equalsIgnoreCase(targetName)) {
+                    return entry.getKey();
+                }
+            }
+        }
+        return null;
+    }
+
     public boolean promotePlayer(Player actor, String targetName) {
         Team team = getPlayerTeam(actor.getUniqueId());
-        if (team == null) return false;
+        if (team == null) {
+            actor.sendMessage(com.guildcore.util.TextUtil.format("<red>✖ You do not belong to a Guild!</red>"));
+            return false;
+        }
 
-        Player target = Bukkit.getPlayer(targetName);
-        if (target == null) return false;
-        UUID targetUuid = target.getUniqueId();
-        if (!playerTeamMap.containsKey(targetUuid) || playerTeamMap.get(targetUuid) != team.getId()) return false;
+        UUID targetUuid = findTeamMemberUuid(team.getId(), targetName);
+        if (targetUuid == null) {
+            actor.sendMessage(com.guildcore.util.TextUtil.format("<red>✖ Player '" + targetName + "' was not found in your Guild!</red>"));
+            return false;
+        }
 
         if (actor.getUniqueId().equals(targetUuid)) {
             actor.sendMessage(com.guildcore.util.TextUtil.format("<red>✖ You cannot promote yourself!</red>"));
@@ -400,8 +425,8 @@ public class TeamManager {
         if (currentRole.equalsIgnoreCase("RECRUIT")) newRole = "MEMBER";
         else if (currentRole.equalsIgnoreCase("MEMBER")) newRole = "OFFICER";
 
-        if (newRole.equals(currentRole)) {
-            actor.sendMessage(com.guildcore.util.TextUtil.format("<red>Player is already at maximum rank!</red>"));
+        if (newRole.equalsIgnoreCase(currentRole)) {
+            actor.sendMessage(com.guildcore.util.TextUtil.format("<red>✖ Player is already at maximum rank!</red>"));
             return false;
         }
 
@@ -420,18 +445,24 @@ public class TeamManager {
             }
         });
 
-        broadcastToTeam(team.getId(), com.guildcore.util.TextUtil.format("<gradient:#00FF87:#60EFFF><b>🏰 [Guild] Member <yellow>" + target.getName() + "</yellow> was promoted to <gold>" + finalRole + "</gold> by <gold>" + actor.getName() + "</gold>!</b></gradient>"));
+        OfflinePlayer targetOp = Bukkit.getOfflinePlayer(targetUuid);
+        String displayName = targetOp.getName() != null ? targetOp.getName() : targetName;
+        broadcastToTeam(team.getId(), com.guildcore.util.TextUtil.format("<gradient:#00FF87:#60EFFF><b>🏰 [Guild] Member <yellow>" + displayName + "</yellow> was promoted to <gold>" + finalRole + "</gold> by <gold>" + actor.getName() + "</gold>!</b></gradient>"));
         return true;
     }
 
     public boolean demotePlayer(Player actor, String targetName) {
         Team team = getPlayerTeam(actor.getUniqueId());
-        if (team == null) return false;
+        if (team == null) {
+            actor.sendMessage(com.guildcore.util.TextUtil.format("<red>✖ You do not belong to a Guild!</red>"));
+            return false;
+        }
 
-        Player target = Bukkit.getPlayer(targetName);
-        if (target == null) return false;
-        UUID targetUuid = target.getUniqueId();
-        if (!playerTeamMap.containsKey(targetUuid) || playerTeamMap.get(targetUuid) != team.getId()) return false;
+        UUID targetUuid = findTeamMemberUuid(team.getId(), targetName);
+        if (targetUuid == null) {
+            actor.sendMessage(com.guildcore.util.TextUtil.format("<red>✖ Player '" + targetName + "' was not found in your Guild!</red>"));
+            return false;
+        }
 
         if (actor.getUniqueId().equals(targetUuid)) {
             actor.sendMessage(com.guildcore.util.TextUtil.format("<red>✖ You cannot demote yourself!</red>"));
@@ -454,8 +485,8 @@ public class TeamManager {
         if (currentRole.equalsIgnoreCase("OFFICER")) newRole = "MEMBER";
         else if (currentRole.equalsIgnoreCase("MEMBER")) newRole = "RECRUIT";
 
-        if (newRole.equals(currentRole)) {
-            actor.sendMessage(com.guildcore.util.TextUtil.format("<red>Player is already at lowest rank!</red>"));
+        if (newRole.equalsIgnoreCase(currentRole)) {
+            actor.sendMessage(com.guildcore.util.TextUtil.format("<red>✖ Player is already at lowest rank!</red>"));
             return false;
         }
 
@@ -474,7 +505,9 @@ public class TeamManager {
             }
         });
 
-        broadcastToTeam(team.getId(), com.guildcore.util.TextUtil.format("<gradient:#FF416C:#FF4B2B><b>🏰 [Guild] Member <yellow>" + target.getName() + "</yellow> was demoted to <gold>" + finalRole + "</gold> by <gold>" + actor.getName() + "</gold>.</b></gradient>"));
+        OfflinePlayer targetOp = Bukkit.getOfflinePlayer(targetUuid);
+        String displayName = targetOp.getName() != null ? targetOp.getName() : targetName;
+        broadcastToTeam(team.getId(), com.guildcore.util.TextUtil.format("<gradient:#FF416C:#FF4B2B><b>🏰 [Guild] Member <yellow>" + displayName + "</yellow> was demoted to <gold>" + finalRole + "</gold> by <gold>" + actor.getName() + "</gold>.</b></gradient>"));
         return true;
     }
 

@@ -450,6 +450,10 @@ public class GUIManager {
         inv.setItem(12, new GUIItemBuilder(Material.EXPERIENCE_BOTTLE).name("<yellow><b>Max Guild Level: " + maxGuildLevel + " Tiers</b></yellow>")
                 .lore("<gray>▪ Maximum upgrade level reachable by guilds</gray>", "", "<yellow>▶ Click to edit max level in chat</yellow>").build());
 
+        boolean allowOfflineTransfer = settingsManager.getBoolean("teams.transfer_leader_allow_offline", true);
+        inv.setItem(13, new GUIItemBuilder(Material.WITHER_SKELETON_SKULL).name("<gradient:#FFD700:#FFA500><b>Leader Transfer Offline Mode: " + (allowOfflineTransfer ? "<gradient:#00FF87:#60EFFF>[✔ ENGAGED]</gradient>" : "<gradient:#FF416C:#FF4B2B>[✖ DISENGAGED]</gradient>") + "</b></gradient>")
+                .lore("<gray>▪ Allow transferring leadership to offline guild members</gray>", "", "<yellow>▶ Click to toggle setting</yellow>").build());
+
         inv.setItem(14, new GUIItemBuilder(Material.BEACON).name("<gradient:#00c6ff:#0072ff><b>🏆 Edit Level Claim Caps (1 to " + maxGuildLevel + ")</b></gradient>")
                 .lore("<gray>▪ Configure chunk claim limits for each guild level</gray>", "", "<yellow>▶ Click to open Level Claim Caps GUI</yellow>").build());
 
