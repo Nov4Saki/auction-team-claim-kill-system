@@ -339,20 +339,12 @@ public class GUIClickListener implements Listener {
                     }
 
                     if (slot < unlockedOnThisPage) {
-                        // Clicked unlocked item slot
-                        ItemStack item = topInv.getItem(slot);
-                        if (item != null && item.getType() != Material.AIR && item.getType() != Material.YELLOW_STAINED_GLASS_PANE && item.getType() != Material.GRAY_STAINED_GLASS_PANE && item.getType() != Material.BLACK_STAINED_GLASS_PANE) {
+                        // Clicked unlocked item slot -> atomic synchronized withdrawal
+                        boolean success = vaultManager.withdrawItem(player, team, page, slot, guiManager);
+                        if (success) {
                             SoundUtil.playClick(player);
-                            ItemStack itemToGive = item.clone();
-                            java.util.HashMap<Integer, ItemStack> leftover = player.getInventory().addItem(itemToGive);
-                            if (leftover.isEmpty()) {
-                                topInv.setItem(slot, null);
-                            } else {
-                                topInv.setItem(slot, leftover.get(0));
-                            }
-                            saveVaultTopInventory(team.getId(), page, topInv);
-                            vaultManager.logVaultAction(team.getId(), player.getUniqueId(), itemToGive.getType().name(), itemToGive.getAmount() - (leftover.isEmpty() ? 0 : leftover.get(0).getAmount()), "WITHDRAW");
-                            guiManager.refreshTeamVault(team.getId(), page);
+                        } else {
+                            SoundUtil.playError(player);
                         }
                     } else {
                         SoundUtil.playError(player);
@@ -372,44 +364,10 @@ public class GUIClickListener implements Listener {
                 ItemStack itemToDeposit = event.getCurrentItem();
                 if (itemToDeposit == null || itemToDeposit.getType() == Material.AIR) return;
 
-                SoundUtil.playClick(player);
-                ItemStack stackToDeposit = itemToDeposit.clone();
-                int originalAmount = stackToDeposit.getAmount();
-
-                // Merge into existing matching stacks in unlocked slots (0 to unlockedOnThisPage - 1)
-                for (int i = 0; i < unlockedOnThisPage; i++) {
-                    ItemStack slotItem = topInv.getItem(i);
-                    if (slotItem != null && slotItem.getType() != Material.AIR && slotItem.isSimilar(stackToDeposit)) {
-                        int maxStack = slotItem.getMaxStackSize();
-                        int space = maxStack - slotItem.getAmount();
-                        if (space > 0) {
-                            int toAdd = Math.min(space, stackToDeposit.getAmount());
-                            slotItem.setAmount(slotItem.getAmount() + toAdd);
-                            stackToDeposit.setAmount(stackToDeposit.getAmount() - toAdd);
-                            topInv.setItem(i, slotItem);
-                            if (stackToDeposit.getAmount() <= 0) break;
-                        }
-                    }
-                }
-
-                // Place remaining stack into first empty unlocked slot (0 to unlockedOnThisPage - 1)
-                if (stackToDeposit.getAmount() > 0) {
-                    for (int i = 0; i < unlockedOnThisPage; i++) {
-                        ItemStack slotItem = topInv.getItem(i);
-                        if (slotItem == null || slotItem.getType() == Material.AIR) {
-                            topInv.setItem(i, stackToDeposit.clone());
-                            stackToDeposit.setAmount(0);
-                            break;
-                        }
-                    }
-                }
-
-                int depositedAmount = originalAmount - stackToDeposit.getAmount();
-                if (depositedAmount > 0) {
-                    itemToDeposit.setAmount(stackToDeposit.getAmount());
-                    saveVaultTopInventory(team.getId(), page, topInv);
-                    vaultManager.logVaultAction(team.getId(), player.getUniqueId(), itemToDeposit.getType().name(), depositedAmount, "DEPOSIT");
-                    guiManager.refreshTeamVault(team.getId(), page);
+                // Atomic synchronized deposit
+                boolean success = vaultManager.depositItem(player, team, page, itemToDeposit, unlockedOnThisPage, guiManager);
+                if (success) {
+                    SoundUtil.playClick(player);
                 } else {
                     SoundUtil.playError(player);
                     player.sendMessage(TextUtil.format("<red>✖ No free unlocked slots on Page #" + page + "! Unlock slot #" + (globalStartIndex + unlockedOnThisPage + 1) + " or use Next Page ▶.</red>"));
