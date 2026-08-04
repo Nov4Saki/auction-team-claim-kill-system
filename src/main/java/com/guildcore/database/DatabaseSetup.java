@@ -10,6 +10,12 @@ public class DatabaseSetup {
             stmt.execute("PRAGMA journal_mode=WAL;");
             stmt.execute("PRAGMA foreign_keys=ON;");
 
+            // Schema Version Tracking
+            stmt.execute("CREATE TABLE IF NOT EXISTS schema_version (" +
+                    "version INT PRIMARY KEY, " +
+                    "applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);");
+            stmt.execute("INSERT OR IGNORE INTO schema_version (version) VALUES (1);");
+
             // Players
             stmt.execute("CREATE TABLE IF NOT EXISTS players (" +
                     "uuid VARCHAR(36) PRIMARY KEY, " +

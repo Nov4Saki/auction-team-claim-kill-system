@@ -57,14 +57,24 @@ public class DatabaseManager {
 
     public void executeAsync(Runnable task) {
         asyncDbExecutor.submit(() -> {
-            try {
-                long start = System.currentTimeMillis();
-                task.run();
-                long duration = System.currentTimeMillis() - start;
-                DebugManager.log(DebugFlag.DATABASE_WRITES, "Async DB write task executed in " + duration + "ms");
-            } catch (Exception e) {
-                plugin.getLogger().severe("Error executing async DB task: " + e.getMessage());
-                e.printStackTrace();
+            int retries = 0;
+            while (true) {
+                try {
+                    long start = System.currentTimeMillis();
+                    task.run();
+                    long duration = System.currentTimeMillis() - start;
+                    DebugManager.log(DebugFlag.DATABASE_WRITES, "Async DB write task executed in " + duration + "ms");
+                    break;
+                } catch (Exception e) {
+                    retries++;
+                    if (retries <= 3) {
+                        try { Thread.sleep(50L * retries); } catch (InterruptedException ignored) {}
+                    } else {
+                        plugin.getLogger().severe("Error executing async DB task after 3 retries: " + e.getMessage());
+                        e.printStackTrace();
+                        break;
+                    }
+                }
             }
         });
     }

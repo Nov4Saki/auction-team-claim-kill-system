@@ -161,19 +161,29 @@ public class TeamManager {
     }
 
     private final Map<UUID, String> pendingInvitesWithInviter = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> pendingInviteTimestamps = new ConcurrentHashMap<>();
 
     public boolean invitePlayer(Player inviter, Player target) {
         Team team = getPlayerTeam(inviter.getUniqueId());
         if (team == null) return false;
         pendingInvites.put(target.getUniqueId(), team.getId());
         pendingInvitesWithInviter.put(target.getUniqueId(), inviter.getName());
+        pendingInviteTimestamps.put(target.getUniqueId(), System.currentTimeMillis() + 60_000L);
         return true;
     }
 
     public boolean joinTeam(Player player) {
+        Long expiry = pendingInviteTimestamps.remove(player.getUniqueId());
         Integer teamId = pendingInvites.remove(player.getUniqueId());
         String inviterName = pendingInvitesWithInviter.remove(player.getUniqueId());
-        if (teamId == null) return false;
+
+        if (teamId == null || expiry == null) return false;
+
+        if (System.currentTimeMillis() > expiry) {
+            player.sendMessage(com.guildcore.util.TextUtil.format("<red>✖ Your team invite has expired!</red>"));
+            return false;
+        }
+
         Team team = getTeam(teamId);
         if (team == null) return false;
 

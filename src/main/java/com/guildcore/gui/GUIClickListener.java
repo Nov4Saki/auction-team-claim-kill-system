@@ -88,6 +88,9 @@ public class GUIClickListener implements Listener {
                 contents[53] = null;
             }
             vaultManager.saveVaultPage(vaultHolder.getTeamId(), vaultHolder.getPage(), contents);
+            if (event.getPlayer() instanceof Player player) {
+                vaultManager.logVaultAction(vaultHolder.getTeamId(), player.getUniqueId(), "VAULT_PAGE_" + vaultHolder.getPage(), contents.length, "SAVE");
+            }
             DebugManager.log(DebugFlag.VAULT_SERIALIZATION, "Saved team vault on close for team " + vaultHolder.getTeamId() + " page " + vaultHolder.getPage());
         }
     }

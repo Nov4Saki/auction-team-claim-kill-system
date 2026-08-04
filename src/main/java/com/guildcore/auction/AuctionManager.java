@@ -34,7 +34,6 @@ public class AuctionManager {
     public void loadAuctions() {
         dbManager.executeAsync(() -> {
             try (Connection conn = dbManager.getConnection()) {
-                ensureAuctionSchema(conn);
                 try (PreparedStatement ps = conn.prepareStatement(
                         "SELECT id, seller_uuid, seller_name, category, price, is_bid, current_bid, bidder_uuid, item_data, created_at, purchasable_at, expires_at, is_sold, is_expired FROM auction_items WHERE is_claimed = 0");
                      ResultSet rs = ps.executeQuery()) {
@@ -317,33 +316,5 @@ public class AuctionManager {
             }
         }
         return active;
-    }
-
-    private void ensureAuctionSchema(Connection conn) {
-        try (Statement stmt = conn.createStatement()) {
-            boolean hasPurchasableAt = false;
-            boolean hasSellerName = false;
-            try (ResultSet rs = stmt.executeQuery("PRAGMA table_info(auction_items);")) {
-                while (rs.next()) {
-                    String col = rs.getString("name");
-                    if ("purchasable_at".equalsIgnoreCase(col)) hasPurchasableAt = true;
-                    if ("seller_name".equalsIgnoreCase(col)) hasSellerName = true;
-                }
-            }
-            if (!hasSellerName) {
-                try {
-                    stmt.execute("ALTER TABLE auction_items ADD COLUMN seller_name VARCHAR(36) DEFAULT 'Unknown';");
-                    System.out.println("[GuildCore DB] Self-healed: Added missing seller_name column.");
-                } catch (Exception ignored) {}
-            }
-            if (!hasPurchasableAt) {
-                try {
-                    stmt.execute("ALTER TABLE auction_items ADD COLUMN purchasable_at TIMESTAMP;");
-                    System.out.println("[GuildCore DB] Self-healed: Added missing purchasable_at column.");
-                } catch (Exception ignored) {}
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
     }
 }

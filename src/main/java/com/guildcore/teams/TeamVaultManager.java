@@ -10,6 +10,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class TeamVaultManager {
@@ -92,5 +93,24 @@ public class TeamVaultManager {
                 } catch (NumberFormatException ignored) {}
             }
         }
+    }
+
+    public void logVaultAction(int teamId, UUID playerUuid, String itemType, int quantity, String action) {
+        if (playerUuid == null || itemType == null) return;
+        dbManager.executeAsync(() -> {
+            try (Connection conn = dbManager.getConnection();
+                 PreparedStatement ps = conn.prepareStatement(
+                         "INSERT INTO team_vault_log (team_id, player_uuid, item_type, quantity, action) VALUES (?, ?, ?, ?, ?)")) {
+                ps.setInt(1, teamId);
+                ps.setString(2, playerUuid.toString());
+                ps.setString(3, itemType);
+                ps.setInt(4, quantity);
+                ps.setString(5, action != null ? action : "UPDATE");
+                ps.executeUpdate();
+                DebugManager.log(DebugFlag.VAULT_SERIALIZATION, "Logged vault action " + action + " for team " + teamId + " by " + playerUuid);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
     }
 }

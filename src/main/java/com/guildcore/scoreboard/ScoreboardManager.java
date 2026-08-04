@@ -182,4 +182,14 @@ public class ScoreboardManager {
             return true;
         }, 0L, ticks);
     }
+
+    public void updateTeamMembers(int teamId) {
+        if (scoreboardsDisabled || teamManager == null) return;
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            Team team = teamManager.getPlayerTeam(player.getUniqueId());
+            if (team != null && team.getId() == teamId) {
+                updateBoard(player);
+            }
+        }
+    }
 }
