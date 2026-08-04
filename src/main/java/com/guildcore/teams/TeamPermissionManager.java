@@ -10,11 +10,16 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class TeamPermissionManager {
     private final DatabaseManager dbManager;
+    private com.guildcore.config.SettingsManager settingsManager;
     // Key format: "teamId:role:permissionNode" -> boolean allowed
     private final Map<String, Boolean> permissionsCache = new ConcurrentHashMap<>();
 
     public TeamPermissionManager(DatabaseManager dbManager) {
         this.dbManager = dbManager;
+    }
+
+    public void setSettingsManager(com.guildcore.config.SettingsManager settingsManager) {
+        this.settingsManager = settingsManager;
     }
 
     public void loadPermissions() {
@@ -44,7 +49,15 @@ public class TeamPermissionManager {
         Boolean val = permissionsCache.get(key);
         if (val != null) return val;
 
-        // Default permission matrix
+        // Dynamic Configurable Defaults via SettingsManager
+        if (settingsManager != null) {
+            String configKey = "teams.perms." + role.toLowerCase() + "." + node.toLowerCase();
+            if (settingsManager.getString(configKey, null) != null) {
+                return settingsManager.getBoolean(configKey, false);
+            }
+        }
+
+        // Fallback default permission matrix
         if ("OFFICER".equalsIgnoreCase(role)) return true;
         if ("MEMBER".equalsIgnoreCase(role)) {
             return node.equalsIgnoreCase("BANK_DEPOSIT") || node.equalsIgnoreCase("VAULT_ACCESS") || node.equalsIgnoreCase("BUILD");

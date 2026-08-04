@@ -19,32 +19,43 @@ public class EconomyManager {
         this.dbManager = dbManager;
     }
 
-    public void loadPlayer(UUID uuid, String username) {
-        dbManager.executeAsync(() -> {
-            try (Connection conn = dbManager.getConnection()) {
-                long startingBal = 100;
-                try (PreparedStatement ps = conn.prepareStatement("SELECT coins FROM players WHERE uuid = ?")) {
-                    ps.setString(1, uuid.toString());
-                    try (ResultSet rs = ps.executeQuery()) {
-                        if (rs.next()) {
-                            balanceCache.put(uuid, new AtomicLong(rs.getLong("coins")));
-                        } else {
-                            // New player
-                            try (PreparedStatement insert = conn.prepareStatement(
-                                    "INSERT INTO players (uuid, username, coins) VALUES (?, ?, ?)")) {
-                                insert.setString(1, uuid.toString());
-                                insert.setString(2, username);
-                                insert.setLong(3, startingBal);
-                                insert.executeUpdate();
-                            }
-                            balanceCache.put(uuid, new AtomicLong(startingBal));
+    public void loadPlayerSync(UUID uuid, String username) {
+        try (Connection conn = dbManager.getConnection()) {
+            long startingBal = 100;
+            try (PreparedStatement ps = conn.prepareStatement("SELECT coins FROM players WHERE uuid = ?")) {
+                ps.setString(1, uuid.toString());
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        balanceCache.put(uuid, new AtomicLong(rs.getLong("coins")));
+                    } else {
+                        // New player
+                        try (PreparedStatement insert = conn.prepareStatement(
+                                "INSERT INTO players (uuid, username, coins) VALUES (?, ?, ?)")) {
+                            insert.setString(1, uuid.toString());
+                            insert.setString(2, username);
+                            insert.setLong(3, startingBal);
+                            insert.executeUpdate();
                         }
+                        balanceCache.put(uuid, new AtomicLong(startingBal));
                     }
                 }
-            } catch (Exception e) {
-                e.printStackTrace();
             }
-        });
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void loadPlayer(UUID uuid, String username) {
+        dbManager.executeAsync(() -> loadPlayerSync(uuid, username));
+    }
+
+    public void setBalance(UUID uuid, long newBalance, String reason) {
+        if (newBalance < 0) newBalance = 0;
+        AtomicLong bal = balanceCache.computeIfAbsent(uuid, k -> new AtomicLong(0));
+        bal.set(newBalance);
+        logTransaction(uuid, newBalance, reason, null);
+        savePlayerCoins(uuid, newBalance);
+        DebugManager.log(DebugFlag.ECONOMY_TRANSACTIONS, "Set balance of " + uuid + " to " + newBalance + " (" + reason + ")");
     }
 
     public long getBalance(UUID uuid) {

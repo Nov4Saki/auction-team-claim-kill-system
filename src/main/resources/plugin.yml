@@ -22,24 +22,21 @@ commands:
     usage: /claim [auto|map|flags]
   unclaim:
     description: Unclaim the current chunk
-  trust:
-    description: Grant trust level to a player in your claim
-    usage: /trust <access|container|build|manager> <player>
-  untrust:
-    description: Remove trust from a player in your claim
-    usage: /untrust <player>
-  team:
-    description: Team management system
-    aliases: [t, guild, g, teams]
+  guild:
+    description: Guild management system
+    aliases: [team, g, t, teams]
   tc:
-    description: Send team chat message
+    description: Send guild chat message
     aliases: [teamchat, gc, guildchat]
   ah:
     description: Open the Auction House
     aliases: [auction, auctions]
   stats:
     description: View player kill statistics and leaderboards
-    aliases: [stat, leaderboard]
+    aliases: [stat]
+  leaderboard:
+    description: View player and guild leaderboards GUI
+    aliases: [lb]
   bounty:
     description: Set or view bounties
     aliases: [bounties]
@@ -68,15 +65,6 @@ commands:
   setspawn:
     description: Set server spawn location
     permission: guildcore.admin
-  sethome:
-    description: Set a personal home location
-    usage: /sethome [name]
-  home:
-    description: Teleport to a personal home location
-    usage: /home [name]
-  delhome:
-    description: Delete a personal home location
-    usage: /delhome [name]
   warp:
     description: Teleport to a server warp
     usage: /warp <name>
@@ -89,8 +77,8 @@ commands:
     permission: guildcore.admin
     usage: /delwarp <name>
   trade:
-    description: Request or accept a player-to-player trade
-    usage: /trade <player|accept>
+    description: Request, accept, or deny a player-to-player trade
+    usage: /trade <player|accept|deny>
   crate:
     description: Modular choice crates system
     aliases: [crates]
@@ -103,4 +91,10 @@ commands:
 permissions:
   guildcore.admin:
     description: Full administrative access to GuildCore
+    default: op
+  guildcore.leaderboard:
+    description: Access to view leaderboards GUI
+    default: true
+  guildcore.home.bypasscooldown:
+    description: Bypass cooldown for guild home teleports
     default: op

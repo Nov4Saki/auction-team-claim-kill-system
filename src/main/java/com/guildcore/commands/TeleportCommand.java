@@ -36,10 +36,23 @@ public class TeleportCommand implements TabExecutor {
     private final SettingsManager settingsManager;
     private final SchedulerWrapper scheduler;
     private final GUIManager guiManager;
-    private final Map<UUID, UUID> tpaRequests = new ConcurrentHashMap<>();
+    private final Map<UUID, TpaRequest> tpaRequests = new ConcurrentHashMap<>();
     private final Map<UUID, Long> rtpCooldowns = new ConcurrentHashMap<>();
-    private final Map<String, Location> homeCache = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> spawnCooldowns = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> warpCooldowns = new ConcurrentHashMap<>();
     private final Random random = new Random();
+
+    public static class TpaRequest {
+        public final UUID requesterUuid;
+        public final String requesterName;
+        public final long timestamp;
+
+        public TpaRequest(UUID requesterUuid, String requesterName) {
+            this.requesterUuid = requesterUuid;
+            this.requesterName = requesterName;
+            this.timestamp = System.currentTimeMillis();
+        }
+    }
 
     public TeleportCommand(DatabaseManager dbManager, SettingsManager settingsManager, SchedulerWrapper scheduler, GUIManager guiManager) {
         this.dbManager = dbManager;
@@ -96,13 +109,20 @@ public class TeleportCommand implements TabExecutor {
                 return true;
             }
 
-            tpaRequests.put(target.getUniqueId(), player.getUniqueId());
-            player.sendMessage(TextUtil.format("<green>Sent teleport request to " + target.getName() + ".</green>"));
+            int expireSec = settingsManager.getInt("requests.tpa-expire-seconds", 60);
+            TpaRequest existing = tpaRequests.get(target.getUniqueId());
+            if (existing != null && (System.currentTimeMillis() - existing.timestamp) < (expireSec * 1000L)) {
+                player.sendMessage(TextUtil.format("<red>Player already has a pending TPA request.</red>"));
+                return true;
+            }
+
+            tpaRequests.put(target.getUniqueId(), new TpaRequest(player.getUniqueId(), player.getName()));
+            player.sendMessage(TextUtil.format("<green>Sent teleport request to " + target.getName() + " (expires in " + expireSec + "s).</green>"));
 
             Component tpaMsg = Component.text("⚡ ")
                     .color(NamedTextColor.GOLD)
                     .append(Component.text(player.getName()).color(NamedTextColor.YELLOW))
-                    .append(Component.text(" requested to teleport to you. ").color(NamedTextColor.GOLD))
+                    .append(Component.text(" requested to teleport to you (Expires in " + expireSec + "s). ").color(NamedTextColor.GOLD))
                     .append(Component.text("[ACCEPT]")
                             .color(NamedTextColor.GREEN)
                             .decorate(TextDecoration.BOLD)
@@ -116,23 +136,41 @@ public class TeleportCommand implements TabExecutor {
                             .hoverEvent(HoverEvent.showText(Component.text("Click to deny teleport request from " + player.getName()).color(NamedTextColor.RED))));
 
             target.sendMessage(tpaMsg);
+
+            // Expiration Task
+            scheduler.runLater(target, () -> {
+                TpaRequest req = tpaRequests.get(target.getUniqueId());
+                if (req != null && req.requesterUuid.equals(player.getUniqueId())) {
+                    tpaRequests.remove(target.getUniqueId());
+                    if (player.isOnline()) {
+                        player.sendMessage(TextUtil.format("<yellow>Your TPA request to " + target.getName() + " has expired.</yellow>"));
+                    }
+                }
+            }, expireSec * 20L);
             return true;
         }
 
         // 2. /tpaccept
         if (cmd.equals("tpaccept")) {
-            UUID requesterUuid = tpaRequests.remove(player.getUniqueId());
-            if (requesterUuid == null) {
-                player.sendMessage(TextUtil.format("<red>You have no pending TPA requests.</red>"));
+            TpaRequest req = tpaRequests.remove(player.getUniqueId());
+            int expireSec = settingsManager.getInt("requests.tpa-expire-seconds", 60);
+            if (req == null || (System.currentTimeMillis() - req.timestamp) > (expireSec * 1000L)) {
+                player.sendMessage(TextUtil.format("<red>You have no pending or unexpired TPA requests.</red>"));
                 return true;
             }
-            Player requester = Bukkit.getPlayer(requesterUuid);
+
+            Player requester = Bukkit.getPlayer(req.requesterUuid);
             if (requester != null && requester.isOnline()) {
-                requester.teleportAsync(player.getLocation()).thenAccept(success -> {
-                    if (success) {
-                        requester.sendMessage(TextUtil.format("<green>Teleported to " + player.getName() + "!</green>"));
-                        player.sendMessage(TextUtil.format("<green>Accepted teleport request from " + requester.getName() + "!</green>"));
-                    }
+                player.sendMessage(TextUtil.format("<green>Accepted teleport request from " + requester.getName() + "!</green>"));
+                int tpaWarmup = settingsManager.getInt("tpa.warmup-seconds", 3);
+                startWarmup(requester, player.getName(), tpaWarmup, () -> {
+                    requester.teleportAsync(player.getLocation()).thenAccept(success -> {
+                        if (success) {
+                            requester.sendMessage(TextUtil.format("<green>Teleported to " + player.getName() + "!</green>"));
+                        } else {
+                            requester.sendMessage(TextUtil.format("<red>Teleport failed.</red>"));
+                        }
+                    });
                 });
             } else {
                 player.sendMessage(TextUtil.format("<red>Requester is no longer online.</red>"));
@@ -142,9 +180,9 @@ public class TeleportCommand implements TabExecutor {
 
         // 3. /tpdeny
         if (cmd.equals("tpdeny")) {
-            UUID requesterUuid = tpaRequests.remove(player.getUniqueId());
-            if (requesterUuid != null) {
-                Player requester = Bukkit.getPlayer(requesterUuid);
+            TpaRequest req = tpaRequests.remove(player.getUniqueId());
+            if (req != null) {
+                Player requester = Bukkit.getPlayer(req.requesterUuid);
                 if (requester != null && requester.isOnline()) {
                     requester.sendMessage(TextUtil.format("<red>" + player.getName() + " denied your TPA request.</red>"));
                 }
@@ -155,7 +193,7 @@ public class TeleportCommand implements TabExecutor {
             return true;
         }
 
-        // 4. /rtp [world_name] (World Selector GUI if no args, Y>=63 & 2+ Air Blocks)
+        // 4. /rtp [world_name]
         if (cmd.equals("rtp")) {
             if (args.length < 1) {
                 guiManager.openRtpWorldMenu(player);
@@ -168,7 +206,7 @@ public class TeleportCommand implements TabExecutor {
                 return true;
             }
 
-            boolean isBypass = player.hasPermission("guildcore.admin.bypass") || player.isOp();
+            boolean isBypass = player.hasPermission("guildcore.admin.bypasscooldown") || player.hasPermission("guildcore.admin.bypass") || player.isOp();
             int cooldownSec = settingsManager.getInt("rtp.cooldown_sec", 60);
             if (!isBypass && cooldownSec > 0) {
                 long lastUse = rtpCooldowns.getOrDefault(player.getUniqueId(), 0L);
@@ -182,32 +220,36 @@ public class TeleportCommand implements TabExecutor {
 
             int warmupSec = settingsManager.getInt("rtp.warmup_sec", 3);
             World finalWorld = targetWorld;
-            if (!isBypass && warmupSec > 0) {
-                Location startLoc = player.getLocation().clone();
-                player.sendMessage(TextUtil.format("<yellow>⌛ Preparing random teleport in <gold>" + warmupSec + "s</gold>... Stay completely still!</yellow>"));
-
-                scheduler.runLater(player, () -> {
-                    if (!player.isOnline()) return;
-                    Location currentLoc = player.getLocation();
-                    if (!startLoc.getWorld().equals(currentLoc.getWorld()) || startLoc.distanceSquared(currentLoc) > 1.5) {
-                        player.sendMessage(TextUtil.format("<red>✖ Teleport cancelled! You moved during the warmup period.</red>"));
-                        return;
-                    }
-                    executeRTP(player, finalWorld);
-                }, warmupSec * 20L);
-            } else {
-                executeRTP(player, finalWorld);
-            }
+            startWarmup(player, "Wilderness RTP", warmupSec, () -> executeRTP(player, finalWorld));
             return true;
         }
 
         // 5. /spawn
         if (cmd.equals("spawn")) {
-            Location spawn = player.getWorld().getSpawnLocation();
-            player.teleportAsync(spawn).thenAccept(success -> {
-                if (success) {
-                    player.sendMessage(TextUtil.format("<green>Teleported to spawn!</green>"));
+            boolean isBypass = player.hasPermission("guildcore.admin.bypasscooldown") || player.hasPermission("guildcore.admin.bypass") || player.isOp();
+            int cooldownSec = settingsManager.getInt("spawn.cooldown-seconds", 60);
+            if (!isBypass && cooldownSec > 0) {
+                long lastUse = spawnCooldowns.getOrDefault(player.getUniqueId(), 0L);
+                long elapsedSec = (System.currentTimeMillis() - lastUse) / 1000L;
+                if (elapsedSec < cooldownSec) {
+                    long remaining = cooldownSec - elapsedSec;
+                    player.sendMessage(TextUtil.format("<red>Spawn teleport is on cooldown! Please wait " + remaining + " more seconds.</red>"));
+                    return true;
                 }
+            }
+
+            Location spawn = player.getWorld().getSpawnLocation();
+            int warmupSec = settingsManager.getInt("spawn.warmup-seconds", 3);
+
+            startWarmup(player, "Spawn", warmupSec, () -> {
+                spawnCooldowns.put(player.getUniqueId(), System.currentTimeMillis());
+                player.teleportAsync(spawn).thenAccept(success -> {
+                    if (success) {
+                        player.sendMessage(TextUtil.format("<green>Teleported to spawn!</green>"));
+                    } else {
+                        player.sendMessage(TextUtil.format("<red>Teleport failed.</red>"));
+                    }
+                });
             });
             return true;
         }
@@ -222,99 +264,25 @@ public class TeleportCommand implements TabExecutor {
             return true;
         }
 
-        // 6. /sethome & /home & /delhome
-        if (cmd.equals("sethome")) {
-            String name = args.length >= 1 ? args[0].toLowerCase() : "home";
-            Location loc = player.getLocation();
-            String cacheKey = player.getUniqueId().toString() + ":" + name;
-            homeCache.put(cacheKey, loc);
-            dbManager.executeAsync(() -> {
-                try (Connection conn = dbManager.getConnection();
-                     PreparedStatement ps = conn.prepareStatement("INSERT OR REPLACE INTO homes (player_uuid, name, world, x, y, z, yaw, pitch) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")) {
-                    ps.setString(1, player.getUniqueId().toString());
-                    ps.setString(2, name);
-                    ps.setString(3, loc.getWorld().getName());
-                    ps.setDouble(4, loc.getX());
-                    ps.setDouble(5, loc.getY());
-                    ps.setDouble(6, loc.getZ());
-                    ps.setFloat(7, loc.getYaw());
-                    ps.setFloat(8, loc.getPitch());
-                    ps.executeUpdate();
-                    player.sendMessage(TextUtil.format("<green>Home '" + name + "' set!</green>"));
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            });
-            return true;
-        }
-
-        if (cmd.equals("home")) {
-            String name = args.length >= 1 ? args[0].toLowerCase() : "home";
-            String cacheKey = player.getUniqueId().toString() + ":" + name;
-
-            Location cachedLoc = homeCache.get(cacheKey);
-            if (cachedLoc != null) {
-                player.teleportAsync(cachedLoc).thenAccept(success -> {
-                    if (success) {
-                        player.sendMessage(TextUtil.format("<green>Teleported home (" + name + ")!</green>"));
-                    }
-                });
-                return true;
-            }
-
-            dbManager.executeAsync(() -> {
-                try (Connection conn = dbManager.getConnection();
-                     PreparedStatement ps = conn.prepareStatement("SELECT world, x, y, z, yaw, pitch FROM homes WHERE player_uuid = ? AND name = ?")) {
-                    ps.setString(1, player.getUniqueId().toString());
-                    ps.setString(2, name);
-                    try (ResultSet rs = ps.executeQuery()) {
-                        if (rs.next()) {
-                            World w = Bukkit.getWorld(rs.getString("world"));
-                            if (w != null) {
-                                Location loc = new Location(w, rs.getDouble("x"), rs.getDouble("y"), rs.getDouble("z"), rs.getFloat("yaw"), rs.getFloat("pitch"));
-                                homeCache.put(cacheKey, loc);
-                                player.teleportAsync(loc).thenAccept(success -> {
-                                    if (success) {
-                                        player.sendMessage(TextUtil.format("<green>Teleported home (" + name + ")!</green>"));
-                                    }
-                                });
-                            }
-                        } else {
-                            player.sendMessage(TextUtil.format("<red>Home '" + name + "' not found!</red>"));
-                        }
-                    }
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            });
-            return true;
-        }
-
-        if (cmd.equals("delhome")) {
-            String name = args.length >= 1 ? args[0].toLowerCase() : "home";
-            String cacheKey = player.getUniqueId().toString() + ":" + name;
-            homeCache.remove(cacheKey);
-            dbManager.executeAsync(() -> {
-                try (Connection conn = dbManager.getConnection();
-                     PreparedStatement ps = conn.prepareStatement("DELETE FROM homes WHERE player_uuid = ? AND name = ?")) {
-                    ps.setString(1, player.getUniqueId().toString());
-                    ps.setString(2, name);
-                    ps.executeUpdate();
-                    player.sendMessage(TextUtil.format("<green>Deleted home '" + name + "'.</green>"));
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            });
-            return true;
-        }
-
-        // 7. /warp & /setwarp & /delwarp
+        // 6. /warp & /setwarp & /delwarp
         if (cmd.equals("warp")) {
             if (args.length < 1) {
                 player.sendMessage(TextUtil.format("<gold>Usage: /warp <name></gold>"));
                 return true;
             }
             String name = args[0].toLowerCase();
+            boolean isBypass = player.hasPermission("guildcore.admin.bypasscooldown") || player.hasPermission("guildcore.admin.bypass") || player.isOp();
+            int cooldownSec = settingsManager.getInt("warp.cooldown-seconds", 60);
+            if (!isBypass && cooldownSec > 0) {
+                long lastUse = warpCooldowns.getOrDefault(player.getUniqueId(), 0L);
+                long elapsedSec = (System.currentTimeMillis() - lastUse) / 1000L;
+                if (elapsedSec < cooldownSec) {
+                    long remaining = cooldownSec - elapsedSec;
+                    player.sendMessage(TextUtil.format("<red>Warp teleport is on cooldown! Please wait " + remaining + " more seconds.</red>"));
+                    return true;
+                }
+            }
+
             dbManager.executeAsync(() -> {
                 try (Connection conn = dbManager.getConnection();
                      PreparedStatement ps = conn.prepareStatement("SELECT world, x, y, z, yaw, pitch FROM warps WHERE name = ?")) {
@@ -324,11 +292,19 @@ public class TeleportCommand implements TabExecutor {
                             World w = Bukkit.getWorld(rs.getString("world"));
                             if (w != null) {
                                 Location loc = new Location(w, rs.getDouble("x"), rs.getDouble("y"), rs.getDouble("z"), rs.getFloat("yaw"), rs.getFloat("pitch"));
-                                player.teleportAsync(loc).thenAccept(success -> {
-                                    if (success) {
-                                        player.sendMessage(TextUtil.format("<green>Teleported to warp '" + name + "'!</green>"));
-                                    }
+                                int warmupSec = settingsManager.getInt("warp.warmup-seconds", 3);
+                                startWarmup(player, "Warp " + name, warmupSec, () -> {
+                                    warpCooldowns.put(player.getUniqueId(), System.currentTimeMillis());
+                                    player.teleportAsync(loc).thenAccept(success -> {
+                                        if (success) {
+                                            player.sendMessage(TextUtil.format("<green>Teleported to warp '" + name + "'!</green>"));
+                                        } else {
+                                            player.sendMessage(TextUtil.format("<red>Teleport failed.</red>"));
+                                        }
+                                    });
                                 });
+                            } else {
+                                player.sendMessage(TextUtil.format("<red>Warp world is unloaded.</red>"));
                             }
                         } else {
                             player.sendMessage(TextUtil.format("<red>Warp '" + name + "' not found!</red>"));
@@ -371,7 +347,55 @@ public class TeleportCommand implements TabExecutor {
             return true;
         }
 
+        if (cmd.equals("delwarp")) {
+            if (!player.hasPermission("guildcore.admin")) {
+                player.sendMessage(TextUtil.format("<red>No permission.</red>"));
+                return true;
+            }
+            if (args.length < 1) {
+                player.sendMessage(TextUtil.format("<red>Usage: /delwarp <name></red>"));
+                return true;
+            }
+            String name = args[0].toLowerCase();
+            dbManager.executeAsync(() -> {
+                try (Connection conn = dbManager.getConnection();
+                     PreparedStatement ps = conn.prepareStatement("DELETE FROM warps WHERE name = ?")) {
+                    ps.setString(1, name);
+                    int rows = ps.executeUpdate();
+                    if (rows > 0) {
+                        player.sendMessage(TextUtil.format("<green>Deleted warp '" + name + "'.</green>"));
+                    } else {
+                        player.sendMessage(TextUtil.format("<red>Warp '" + name + "' not found!</red>"));
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            });
+            return true;
+        }
+
         return true;
+    }
+
+    private void startWarmup(Player player, String teleportName, int warmupSec, Runnable onComplete) {
+        boolean isBypass = player.hasPermission("guildcore.admin.bypasscooldown") || player.hasPermission("guildcore.admin.bypass") || player.isOp();
+        if (isBypass || warmupSec <= 0) {
+            onComplete.run();
+            return;
+        }
+
+        Location startLoc = player.getLocation().clone();
+        player.sendMessage(TextUtil.format("<yellow>⌛ Teleporting to " + teleportName + " in <gold>" + warmupSec + "s</gold>... Stay completely still!</yellow>"));
+
+        scheduler.runLater(player, () -> {
+            if (!player.isOnline()) return;
+            Location loc = player.getLocation();
+            if (!startLoc.getWorld().equals(loc.getWorld()) || startLoc.distanceSquared(loc) > 0.01) {
+                player.sendMessage(TextUtil.format("<red>✖ Teleport cancelled! You moved during warmup.</red>"));
+                return;
+            }
+            onComplete.run();
+        }, warmupSec * 20L);
     }
 
     private void executeRTP(Player player, World targetWorld) {

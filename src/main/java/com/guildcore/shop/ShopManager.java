@@ -213,7 +213,15 @@ public class ShopManager {
                     ).build());
         }
 
+        if (categories.isEmpty()) {
+            player.sendMessage(TextUtil.format("<yellow>The shop is currently empty (no categories configured).</yellow>"));
+        }
+
         scheduler.runSync(player, () -> player.openInventory(inv));
+    }
+
+    public Map<Integer, ShopCategory> getCategories() {
+        return categories;
     }
 
     public void openShopCategoryMenu(Player player, int categoryId) {
@@ -384,10 +392,6 @@ public class ShopManager {
                 e.printStackTrace();
             }
         });
-    }
-
-    public Map<Integer, ShopCategory> getCategories() {
-        return categories;
     }
 
     public List<ShopItem> getCategoryItems(int categoryId) {

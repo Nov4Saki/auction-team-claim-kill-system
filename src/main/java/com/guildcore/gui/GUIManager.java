@@ -10,6 +10,7 @@ import com.guildcore.debug.DebugManager;
 import com.guildcore.gui.holders.*;
 import com.guildcore.items.ProhibitedItemManager;
 import com.guildcore.scoreboard.ScoreboardManager;
+import com.guildcore.scheduler.SchedulerWrapper;
 import com.guildcore.shop.ShopManager;
 import com.guildcore.stats.StatsManager;
 import com.guildcore.teams.Team;
@@ -153,10 +154,35 @@ public class GUIManager {
         inv.setItem(24, new GUIItemBuilder(Material.TRIPWIRE_HOOK).name("<gradient:#9D50BB:#6E48AA><b>🎁 Modular Choice Crates Hub</b></gradient>")
                 .lore("<gray>▪ Manage key crates, reward tables, and choice menu configurations</gray>", "", "<yellow>▶ Click to inspect Crates Hub</yellow>").build());
 
+        inv.setItem(25, new GUIItemBuilder(Material.CLOCK).name("<gradient:#FFD700:#FFA500><b>⌛ Request & Trade Timers Archive</b></gradient>")
+                .lore("<gray>▪ Manage expiration timers for TPA, Guild Invites, and Trade Requests</gray>", "", "<yellow>▶ Click to inspect Timers Archive</yellow>").build());
+
         inv.setItem(49, new GUIItemBuilder(Material.BARRIER).name("<red><b>✖ Close Sovereign Control Panel</b></red>").build());
 
         player.openInventory(inv);
         DebugManager.log(DebugFlag.GUI_CLICKS, "Opened admin settings GUI for " + player.getName());
+    }
+
+    public void openAdminRequestSettings(Player player) {
+        Inventory inv = Bukkit.createInventory(new com.guildcore.gui.holders.AdminRequestHolder(), 27, TextUtil.format("<gradient:#FFD700:#FFA500><b>⌛ Request & Trade Timers</b></gradient>"));
+        int tpaExpire = settingsManager.getInt("requests.tpa-expire-seconds", 60);
+        int teamInviteExpire = settingsManager.getInt("requests.team-invite-expire-seconds", 120);
+        int tradeExpire = settingsManager.getInt("requests.trade-expire-seconds", 60);
+
+        fillBorder27(inv, Material.YELLOW_STAINED_GLASS_PANE);
+
+        inv.setItem(10, new GUIItemBuilder(Material.FEATHER).name("<yellow><b>TPA Request Timer: " + tpaExpire + "s</b></yellow>")
+                .lore("<gray>▪ Seconds before a TPA request expires</gray>", "", "<yellow>▶ Click to edit value in chat</yellow>").build());
+
+        inv.setItem(12, new GUIItemBuilder(Material.SHIELD).name("<yellow><b>Guild Invite Timer: " + teamInviteExpire + "s</b></yellow>")
+                .lore("<gray>▪ Seconds before a Guild invite expires</gray>", "", "<yellow>▶ Click to edit value in chat</yellow>").build());
+
+        inv.setItem(14, new GUIItemBuilder(Material.CHEST).name("<yellow><b>Trade Request Timer: " + tradeExpire + "s</b></yellow>")
+                .lore("<gray>▪ Seconds before a Trade request expires</gray>", "", "<yellow>▶ Click to edit value in chat</yellow>").build());
+
+        inv.setItem(26, new GUIItemBuilder(Material.BARRIER).name("<red><b>◀ Return to High Sovereign Panel</b></red>").build());
+
+        player.openInventory(inv);
     }
 
     public void openAdminEconomySettings(Player player) {
@@ -844,128 +870,25 @@ public class GUIManager {
         if (page < 1) page = 1;
 
         int vaultSlots = Math.max(9, team.getVaultSlots());
-        int totalUnlockedPages = Math.max(1, (vaultSlots + 44) / 45);
         int globalStartIndex = (page - 1) * 45;
         int unlockedOnThisPage = Math.max(0, Math.min(45, vaultSlots - globalStartIndex));
 
-        boolean isPageAccessible = page <= totalUnlockedPages + 1;
-
-        Inventory vaultInv = Bukkit.createInventory(
-                new VaultGUIHolder(team.getId(), page),
-                54,
-                TextUtil.format("<gradient:#FFD700:#FFA500><b>📦 Team Vault (" + team.getName() + " - Page " + page + ")</b></gradient>")
-        );
-
-        if (!isPageAccessible) {
-            for (int i = 0; i < 54; i++) {
-                vaultInv.setItem(i, new GUIItemBuilder(Material.GRAY_STAINED_GLASS_PANE)
-                        .name("<gray>🔒 Locked Vault Page #" + page + "</gray>")
-                        .lore("<dark_gray>Unlock Page #" + (page - 1) + " slots first.</dark_gray>")
-                        .build());
-            }
-
-            if (page > 1) {
-                vaultInv.setItem(45, new GUIItemBuilder(Material.ARROW).name("<yellow><b>◀ Previous Page (Page " + (page - 1) + ")</b></yellow>").build());
-            }
-            vaultInv.setItem(49, new GUIItemBuilder(Material.BARRIER).name("<red>◀ Return to Team Menu</red>").build());
-        } else {
-            ItemStack[] items = vaultManager.getVaultPage(team.getId(), page);
-            if (items == null) items = new ItemStack[0];
-
-            for (int i = 0; i < 45; i++) {
-                if (i < unlockedOnThisPage) {
-                    if (i < items.length && items[i] != null && items[i].getType() != Material.AIR) {
-                        vaultInv.setItem(i, items[i].clone());
-                    }
-                } else if (i == unlockedOnThisPage) {
-                    int targetGlobalSlot = globalStartIndex + i + 1;
-                    long cost = getVaultSlotCost(targetGlobalSlot);
-                    boolean canAfford = team.getBankBalance() >= cost;
-
-                    ItemStack yellowPane = new GUIItemBuilder(Material.YELLOW_STAINED_GLASS_PANE)
-                            .name("<yellow><b>🔓 Unlock Vault Slot #" + targetGlobalSlot + "</b></yellow>")
-                            .lore(
-                                    "<gray>▪ Target Slot: <white>#" + targetGlobalSlot + " (Page " + page + ", Slot " + (i + 1) + ")</white></gray>",
-                                    "<gray>▪ Unlock Cost: <gold>$" + String.format("%,d", cost) + " Team Bank</gold></gray>",
-                                    "<gray>▪ Team Bank: <white>$" + String.format("%,d", team.getBankBalance()) + "</white></gray>",
-                                    "",
-                                    canAfford ? "<gradient:#00FF87:#60EFFF><b>✔ CLICK TO UNLOCK SLOT #" + targetGlobalSlot + "</b></gradient>" : "<gradient:#FF416C:#FF4B2B><b>✖ INSUFFICIENT TEAM BANK</b></gradient>"
-                            ).build();
-                    vaultInv.setItem(i, yellowPane);
-                } else {
-                    ItemStack grayPane = new GUIItemBuilder(Material.GRAY_STAINED_GLASS_PANE)
-                            .name("<gray>🔒 Locked Vault Slot</gray>")
-                            .lore("<dark_gray>Unlock slot #" + (globalStartIndex + unlockedOnThisPage + 1) + " first.</dark_gray>")
-                            .build();
-                    vaultInv.setItem(i, grayPane);
-                }
-            }
-
-            for (int i = 45; i < 54; i++) {
-                vaultInv.setItem(i, new GUIItemBuilder(Material.BLACK_STAINED_GLASS_PANE).name(" ").build());
-            }
-
-            if (page > 1) {
-                vaultInv.setItem(45, new GUIItemBuilder(Material.ARROW).name("<yellow><b>◀ Previous Page (Page " + (page - 1) + ")</b></yellow>").build());
-            } else {
-                vaultInv.setItem(45, new GUIItemBuilder(Material.GRAY_STAINED_GLASS_PANE).name("<gray><b>◀ First Page</b></gray>").build());
-            }
-
-            vaultInv.setItem(49, new GUIItemBuilder(Material.BOOK)
-                    .name("<gold><b>📦 Vault Page " + page + " (Unlocked: " + unlockedOnThisPage + "/45)</b></gold>")
-                    .lore(
-                            "<gray>▪ Team: <white>" + team.getName() + "</white></gray>",
-                            "<gray>▪ Total Vault Slots Unlocked: <green>" + vaultSlots + "</green></gray>",
-                            "<gray>▪ Team Bank: <gold>$" + String.format("%,d", team.getBankBalance()) + "</gold></gray>",
-                            "",
-                            "<yellow>▶ Click to return to Main Menu</yellow>"
-                    ).build());
-
-            if (page < totalUnlockedPages) {
-                vaultInv.setItem(53, new GUIItemBuilder(Material.ARROW).name("<yellow><b>Next Page (Page " + (page + 1) + ") ▶</b></yellow>").build());
-            } else if (page == totalUnlockedPages) {
-                if (unlockedOnThisPage == 45) {
-                    int targetGlobalSlot = vaultSlots + 1;
-                    long cost = getVaultSlotCost(targetGlobalSlot);
-                    boolean canAfford = team.getBankBalance() >= cost;
-
-                    ItemStack nextUnlock = new GUIItemBuilder(Material.YELLOW_STAINED_GLASS_PANE)
-                            .name("<yellow><b>🔓 Unlock Page #" + (page + 1) + " (Click to Open)</b></yellow>")
-                            .lore(
-                                    "<gray>▪ Target Slot: <white>#" + targetGlobalSlot + "</white></gray>",
-                                    "<gray>▪ Unlock Cost: <gold>$" + String.format("%,d", cost) + " Team Bank</gold></gray>",
-                                    "<gray>▪ Team Bank: <white>$" + String.format("%,d", team.getBankBalance()) + "</white></gray>",
-                                    "",
-                                    canAfford ? "<gradient:#00FF87:#60EFFF><b>✔ CLICK TO UNLOCK & OPEN PAGE #" + (page + 1) + "</b></gradient>" : "<gradient:#FF416C:#FF4B2B><b>✖ INSUFFICIENT TEAM BANK</b></gradient>"
-                            ).build();
-                    vaultInv.setItem(53, nextUnlock);
-                } else {
-                    vaultInv.setItem(53, new GUIItemBuilder(Material.GRAY_STAINED_GLASS_PANE)
-                            .name("<gray>🔒 Page #" + (page + 1) + " Locked</gray>")
-                            .lore("<dark_gray>Unlock all 45 slots of Page #" + page + " first.</dark_gray>")
-                            .build());
-                }
-            }
-        }
+        Inventory sharedInv = vaultManager.getOrCreateSharedInventory(team, page, unlockedOnThisPage);
 
         if (scheduler != null) {
-            scheduler.runSync(player, () -> player.openInventory(vaultInv));
+            scheduler.runSync(player, () -> player.openInventory(sharedInv));
         } else {
-            player.openInventory(vaultInv);
+            player.openInventory(sharedInv);
         }
     }
 
     public void refreshTeamVault(int teamId, int page) {
         Team team = teamManager.getTeam(teamId);
-        if (team == null) return;
-        for (Player p : Bukkit.getOnlinePlayers()) {
-            if (p != null && p.isOnline() && p.getOpenInventory() != null && p.getOpenInventory().getTopInventory() != null) {
-                Inventory top = p.getOpenInventory().getTopInventory();
-                if (top.getHolder() instanceof VaultGUIHolder vh && vh.getTeamId() == teamId && vh.getPage() == page) {
-                    openTeamVault(p, team, page);
-                }
-            }
-        }
+        if (team == null || vaultManager == null) return;
+        int vaultSlots = Math.max(9, team.getVaultSlots());
+        int globalStartIndex = (page - 1) * 45;
+        int unlockedOnThisPage = Math.max(0, Math.min(45, vaultSlots - globalStartIndex));
+        vaultManager.refreshSharedInventoryPanes(team, page, unlockedOnThisPage);
     }
 
     public void openTeamUpgrades(Player player, Team team) {
@@ -1417,6 +1340,197 @@ public class GUIManager {
                       "<yellow>▶ Click to cancel</yellow>").build());
 
         player.openInventory(inv);
+    }
+
+    public void openTeamDisbandConfirmGUI(Player player, Team team) {
+        if (player == null || team == null) return;
+        Inventory inv = Bukkit.createInventory(new com.guildcore.gui.holders.TeamDisbandConfirmHolder(team.getId()), 27, TextUtil.format("<gradient:#FF416C:#FF4B2B><b>⚠️ Disband Guild " + team.getName() + "?</b></gradient>"));
+        fillBorder27(inv, Material.RED_STAINED_GLASS_PANE);
+
+        inv.setItem(11, new GUIItemBuilder(Material.RED_CONCRETE)
+                .name("<gradient:#FF416C:#FF4B2B><b>💥 CONFIRM DISBAND GUILD</b></gradient>")
+                .lore(
+                        "<gray>Permanently disband your Guild.</gray>",
+                        "<red>• Wipes Team Bank & Vault items!</red>",
+                        "<red>• Unclaims all Guild territory!</red>",
+                        "<red>• Removes all members!</red>",
+                        "",
+                        "<yellow>▶ Click to CONFIRM DISBAND</yellow>"
+                ).build());
+
+        inv.setItem(15, new GUIItemBuilder(Material.LIME_CONCRETE)
+                .name("<gradient:#00FF87:#60EFFF><b>✔ CANCEL & RETURN</b></gradient>")
+                .lore("<gray>Keep your Guild safe.</gray>", "", "<yellow>▶ Click to cancel</yellow>")
+                .build());
+
+        player.openInventory(inv);
+    }
+
+    public boolean attemptClaim(Player player, Team team, Chunk chunk) {
+        if (player == null || team == null || chunk == null) return false;
+
+        String role = teamManager.getPlayerRole(player.getUniqueId());
+        if (!permissionManager.hasPermission(team.getId(), role, "CLAIM")) {
+            player.sendMessage(TextUtil.format("<red>✖ You do not have team permission to claim land!</red>"));
+            return false;
+        }
+
+        ClaimInfo existing = claimManager.getClaimAt(chunk);
+        if (existing != null) {
+            if (isGuildClaim(player, team, existing)) {
+                player.sendMessage(TextUtil.format("<yellow>This chunk is already claimed by your team!</yellow>"));
+            } else {
+                player.sendMessage(TextUtil.format("<red>✖ This chunk belongs to another team (" + getForeignGuildDisplay(existing) + ")!</red>"));
+            }
+            return false;
+        }
+
+        int currentClaims = claimManager.getTeamClaimsCount(team.getId());
+        int maxClaims = teamManager.getMaxClaimsForTeam(team, settingsManager);
+        if (currentClaims >= maxClaims) {
+            player.sendMessage(TextUtil.format("<red>✖ Team claim capacity reached (" + currentClaims + "/" + maxClaims + ")!</red>"));
+            return false;
+        }
+
+        ClaimCostResult costRes = calculateClaimCost(currentClaims);
+        long costCoins = costRes.coins;
+        int costXpLevels = costRes.xpLevels;
+        Material costItemMat = costRes.itemMat;
+        int costItemAmount = costRes.itemAmount;
+
+        if (team.getBankBalance() < costCoins) {
+            player.sendMessage(TextUtil.format("<red>✖ Team Bank lacks funds! Required: $" + String.format("%,d", costCoins) + " Gold (Bank balance: $" + String.format("%,d", team.getBankBalance()) + ").</red>"));
+            return false;
+        }
+
+        if (player.getLevel() < costXpLevels) {
+            player.sendMessage(TextUtil.format("<red>✖ You need at least " + costXpLevels + " XP Levels to claim this chunk!</red>"));
+            return false;
+        }
+
+        if (costItemAmount > 0 && !player.getInventory().containsAtLeast(new ItemStack(costItemMat), costItemAmount)) {
+            player.sendMessage(TextUtil.format("<red>✖ You need " + costItemAmount + "x " + costItemMat.name() + " in your inventory to claim this chunk!</red>"));
+            return false;
+        }
+
+        boolean success = claimManager.createTeamClaim(player.getUniqueId(), team.getId(), chunk);
+        if (success) {
+            if (costCoins > 0) {
+                team.setBankBalance(team.getBankBalance() - costCoins);
+                if (teamBankManager != null) {
+                    teamBankManager.saveBankBalance(team.getId(), team.getBankBalance());
+                }
+            }
+            if (costXpLevels > 0) {
+                player.setLevel(player.getLevel() - costXpLevels);
+            }
+            if (costItemAmount > 0) {
+                player.getInventory().removeItem(new ItemStack(costItemMat, costItemAmount));
+            }
+            player.sendMessage(TextUtil.format("<green>✔ Successfully claimed chunk (" + chunk.getX() + ", " + chunk.getZ() + ") for your Guild!</green>"));
+        } else {
+            player.sendMessage(TextUtil.format("<red>✖ Failed to claim chunk!</red>"));
+        }
+        return success;
+    }
+
+    public void openExpiredStash(Player player) {
+        Inventory inv = Bukkit.createInventory(new AuctionStashHolder(1), 54, TextUtil.format("<gradient:#9D50BB:#6E48AA><b>📦 Auction Stash & Expired Items</b></gradient>"));
+        for (int i = 0; i < 54; i++) {
+            if (i >= 45 && i != 49) {
+                inv.setItem(i, new GUIItemBuilder(Material.BLACK_STAINED_GLASS_PANE).name("<gray> </gray>").build());
+            }
+        }
+        inv.setItem(49, new GUIItemBuilder(Material.BARRIER).name("<red><b>◀ Return to Grand Bazaar</b></red>").build());
+
+        com.guildcore.database.DatabaseManager db = auctionManager.getDatabaseManager();
+        if (db != null) {
+            db.executeAsync(() -> {
+                try (java.sql.Connection conn = db.getConnection();
+                     java.sql.PreparedStatement ps = conn.prepareStatement("SELECT id, item_data FROM auction_stash WHERE player_uuid = ?")) {
+                    ps.setString(1, player.getUniqueId().toString());
+                    try (java.sql.ResultSet rs = ps.executeQuery()) {
+                        int slot = 0;
+                        while (rs.next() && slot < 45) {
+                            ItemStack item = com.guildcore.util.ItemSerializer.deserializeItem(rs.getString("item_data"));
+                            if (item != null && item.getType() != Material.AIR) {
+                                inv.setItem(slot++, item);
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            });
+        }
+
+        player.openInventory(inv);
+    }
+
+    public void openLeaderboardGUI(Player player, String tab) {
+        String activeTab = tab != null && tab.equalsIgnoreCase("GUILD") ? "GUILD" : "PLAYER";
+        Inventory inv = Bukkit.createInventory(new com.guildcore.gui.holders.LeaderboardGUIHolder(activeTab, "KILLS"), 54, TextUtil.format("<gradient:#FFD700:#FFA500><b>🏆 GUILDCORE LEADERBOARDS</b></gradient>"));
+
+        for (int i = 0; i < 54; i++) {
+            if (i < 9 || i >= 45 || i % 9 == 0 || i % 9 == 8) {
+                inv.setItem(i, new GUIItemBuilder(Material.BLACK_STAINED_GLASS_PANE).name("<gray> </gray>").build());
+            }
+        }
+
+        inv.setItem(2, new GUIItemBuilder(Material.PLAYER_HEAD)
+                .name(activeTab.equals("PLAYER") ? "<gradient:#00FF87:#60EFFF><b>▶ PLAYER LEADERBOARD [SELECTED]</b></gradient>" : "<gray>▪ PLAYER LEADERBOARD</gray>")
+                .lore("<gray>Top warriors by kills, deaths, K/D & balance</gray>", "", "<yellow>Click to switch tab</yellow>").build());
+
+        inv.setItem(6, new GUIItemBuilder(Material.BEACON)
+                .name(activeTab.equals("GUILD") ? "<gradient:#00FF87:#60EFFF><b>▶ GUILD LEADERBOARD [SELECTED]</b></gradient>" : "<gray>▪ GUILD LEADERBOARD</gray>")
+                .lore("<gray>Top guilds by level, bank, claims & total kills</gray>", "", "<yellow>Click to switch tab</yellow>").build());
+
+        inv.setItem(49, new GUIItemBuilder(Material.CLOCK).name("<gold><b>🔄 Refresh Data</b></gold>").lore("<gray>Click to reload leaderboard stats</gray>").build());
+
+        if (activeTab.equals("PLAYER")) {
+            statsManager.getTopKillersAsync(10, list -> {
+                int slot = 10;
+                int rank = 1;
+                for (String entry : list) {
+                    if (slot % 9 == 8) slot += 2;
+                    if (slot >= 44) break;
+                    inv.setItem(slot++, new GUIItemBuilder(Material.PLAYER_HEAD)
+                            .name("<gold><b>#" + rank + " Rank</b></gold>")
+                            .lore("<yellow>" + entry + "</yellow>").build());
+                    rank++;
+                }
+                if (scheduler != null) {
+                    scheduler.runSync(player, () -> player.openInventory(inv));
+                } else {
+                    player.openInventory(inv);
+                }
+            });
+        } else {
+            List<Team> teams = new ArrayList<>(teamManager.getAllTeams());
+            teams.sort((t1, t2) -> Integer.compare(t2.getLevel(), t1.getLevel()));
+            int slot = 10;
+            int rank = 1;
+            for (Team team : teams) {
+                if (slot % 9 == 8) slot += 2;
+                if (slot >= 44 || rank > 10) break;
+                int memberCount = teamManager.getTeamMembersCount(team.getId());
+                int claimCount = claimManager.getTeamClaimsCount(team.getId());
+                inv.setItem(slot++, new GUIItemBuilder(Material.BEACON)
+                        .name("<gold><b>#" + rank + " Guild: " + team.getName() + "</b></gold>")
+                        .lore(
+                                "<gray>▪ Level: </gray><white><b>" + team.getLevel() + "</b></white>",
+                                "<gray>▪ Members: </gray><white><b>" + memberCount + " / " + team.getMaxMembers() + "</b></white>",
+                                "<gray>▪ Bank Balance: </gray><gradient:#00FF87:#60EFFF><b>$" + String.format("%,d", team.getBankBalance()) + " Gold</b></gradient>",
+                                "<gray>▪ Claimed Territory: </gray><yellow>" + claimCount + " Chunks</yellow>"
+                        ).build());
+                rank++;
+            }
+            player.openInventory(inv);
+        }
+    }
+
+    public SchedulerWrapper getScheduler() {
+        return scheduler;
     }
 }
 

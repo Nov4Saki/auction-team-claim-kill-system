@@ -59,6 +59,7 @@ public class GUIClickListener implements Listener {
     private final ShopManager shopManager;
     private final SchedulerWrapper scheduler;
     private ProhibitedItemManager prohibitedManager;
+    private com.guildcore.trade.TradeManager tradeManager;
 
     public GUIClickListener(GUIManager guiManager, AuctionManager auctionManager, TeamManager teamManager, TeamUpgradeManager upgradeManager, TeamVaultManager vaultManager, EconomyManager economyManager, SettingsManager settingsManager, ScoreboardManager scoreboardManager, CrateManager crateManager, ShopManager shopManager, SchedulerWrapper scheduler) {
         this.guiManager = guiManager;
@@ -78,16 +79,56 @@ public class GUIClickListener implements Listener {
         this.prohibitedManager = prohibitedManager;
     }
 
+    public void setTradeManager(com.guildcore.trade.TradeManager tradeManager) {
+        this.tradeManager = tradeManager;
+    }
+
     @EventHandler
     public void onInventoryClose(InventoryCloseEvent event) {
         if (event.getInventory() == null) return;
         InventoryHolder holder = event.getInventory().getHolder();
         if (holder instanceof VaultGUIHolder vaultHolder) {
-            saveVaultTopInventory(vaultHolder.getTeamId(), vaultHolder.getPage(), event.getInventory());
             if (event.getPlayer() instanceof Player player) {
-                vaultManager.logVaultAction(vaultHolder.getTeamId(), player.getUniqueId(), "VAULT_CLOSE_PAGE_" + vaultHolder.getPage(), 1, "SAVE");
+                vaultManager.handleVaultClose(vaultHolder.getTeamId(), vaultHolder.getPage(), player);
             }
-            DebugManager.log(DebugFlag.VAULT_SERIALIZATION, "Saved team vault page " + vaultHolder.getPage() + " on close for team " + vaultHolder.getTeamId());
+            DebugManager.log(DebugFlag.VAULT_SERIALIZATION, "Handled vault close for team " + vaultHolder.getTeamId() + " page " + vaultHolder.getPage());
+        }
+
+        if (holder instanceof TradeGUIHolder tradeHolder && tradeManager != null) {
+            if (tradeHolder.isClosed()) return;
+            tradeHolder.setClosed(true);
+
+            UUID p1Uuid = tradeHolder.getPlayer1Uuid();
+            UUID p2Uuid = tradeHolder.getPlayer2Uuid();
+
+            tradeManager.getActiveTradeSessions().remove(p1Uuid);
+            tradeManager.getActiveTradeSessions().remove(p2Uuid);
+
+            Player p1 = Bukkit.getPlayer(p1Uuid);
+            Player p2 = Bukkit.getPlayer(p2Uuid);
+
+            Inventory inv = event.getInventory();
+
+            if (!tradeHolder.isCompleted()) {
+                if (p1 != null && p1.isOnline()) {
+                    List<ItemStack> p1Items = getOfferItems(inv, new int[]{0, 1, 2, 3, 4, 5, 6, 7, 8});
+                    for (ItemStack item : p1Items) p1.getInventory().addItem(item);
+                    clearOfferSlots(inv, new int[]{0, 1, 2, 3, 4, 5, 6, 7, 8});
+                }
+
+                if (p2 != null && p2.isOnline()) {
+                    List<ItemStack> p2Items = getOfferItems(inv, new int[]{18, 19, 20, 21, 22, 23, 24, 25, 26});
+                    for (ItemStack item : p2Items) p2.getInventory().addItem(item);
+                    clearOfferSlots(inv, new int[]{18, 19, 20, 21, 22, 23, 24, 25, 26});
+                }
+
+                Player closer = (Player) event.getPlayer();
+                Player other = closer.equals(p1) ? p2 : p1;
+                if (other != null && other.isOnline()) {
+                    other.sendMessage(TextUtil.format("<red>Trade was cancelled because " + closer.getName() + " closed the trade menu.</red>"));
+                    scheduler.runLater(other, other::closeInventory, 1L);
+                }
+            }
         }
     }
 
@@ -98,6 +139,121 @@ public class GUIClickListener implements Listener {
         if (holder == null) return;
 
         if (!(event.getWhoClicked() instanceof Player player)) return;
+
+        // Leaderboard GUI
+        if (holder instanceof LeaderboardGUIHolder lbHolder) {
+            event.setCancelled(true);
+            int slot = event.getSlot();
+            if (slot == 2) {
+                guiManager.openLeaderboardGUI(player, "PLAYER");
+                SoundUtil.playClick(player);
+            } else if (slot == 6) {
+                guiManager.openLeaderboardGUI(player, "GUILD");
+                SoundUtil.playClick(player);
+            } else if (slot == 49) {
+                guiManager.openLeaderboardGUI(player, lbHolder.getTab());
+                SoundUtil.playClick(player);
+            }
+            return;
+        }
+
+        // Trade GUI
+        if (holder instanceof TradeGUIHolder tradeHolder && tradeManager != null) {
+            event.setCancelled(true);
+            if (tradeHolder.isClosed()) return;
+
+            int rawSlot = event.getRawSlot();
+            boolean isP1 = player.getUniqueId().equals(tradeHolder.getPlayer1Uuid());
+            boolean isP2 = player.getUniqueId().equals(tradeHolder.getPlayer2Uuid());
+            if (!isP1 && !isP2) return;
+
+            Player p1 = Bukkit.getPlayer(tradeHolder.getPlayer1Uuid());
+            Player p2 = Bukkit.getPlayer(tradeHolder.getPlayer2Uuid());
+            if (p1 == null || p2 == null || !p1.isOnline() || !p2.isOnline()) {
+                player.closeInventory();
+                return;
+            }
+
+            Inventory inv = event.getInventory();
+
+            // Clicked inside Player's own bottom inventory (moving item to offer)
+            if (event.getClickedInventory() != null && event.getClickedInventory().equals(player.getInventory())) {
+                ItemStack item = event.getCurrentItem();
+                if (item == null || item.getType() == Material.AIR) return;
+
+                int[] targetSlots = isP1 ? new int[]{0, 1, 2, 3, 4, 5, 6, 7, 8} : new int[]{18, 19, 20, 21, 22, 23, 24, 25, 26};
+                int emptySlot = -1;
+                for (int s : targetSlots) {
+                    ItemStack inSlot = inv.getItem(s);
+                    if (inSlot == null || inSlot.getType() == Material.AIR) {
+                        emptySlot = s;
+                        break;
+                    }
+                }
+
+                if (emptySlot == -1) {
+                    player.sendMessage(TextUtil.format("<red>Your trade offer is full (max 9 items).</red>"));
+                    return;
+                }
+
+                resetReadyStates(tradeHolder, inv, p1, p2);
+
+                inv.setItem(emptySlot, item.clone());
+                event.getClickedInventory().setItem(event.getSlot(), null);
+                SoundUtil.playClick(player);
+                return;
+            }
+
+            // Clicked inside Top Trade Inventory (27 Slots)
+            if (rawSlot >= 0 && rawSlot < 27) {
+                int p1ReadySlot = 10;
+                int p2ReadySlot = 16;
+                int cancelSlot = 13;
+
+                // Cancel Button
+                if (rawSlot == cancelSlot) {
+                    SoundUtil.playClick(player);
+                    p1.sendMessage(TextUtil.format("<red>Trade was cancelled.</red>"));
+                    p2.sendMessage(TextUtil.format("<red>Trade was cancelled.</red>"));
+                    p1.closeInventory();
+                    p2.closeInventory();
+                    return;
+                }
+
+                // Ready Button Toggle
+                if ((isP1 && rawSlot == p1ReadySlot) || (isP2 && rawSlot == p2ReadySlot)) {
+                    if (isP1) tradeHolder.setP1Ready(!tradeHolder.isP1Ready());
+                    if (isP2) tradeHolder.setP2Ready(!tradeHolder.isP2Ready());
+
+                    SoundUtil.playClick(player);
+                    tradeManager.updateTradeGUIControls(inv, tradeHolder, p1, p2);
+
+                    if (tradeHolder.isP1Ready() && tradeHolder.isP2Ready()) {
+                        startTradeCountdown(tradeHolder, inv, p1, p2);
+                    } else {
+                        tradeHolder.setCountdownSeconds(-1);
+                    }
+                    return;
+                }
+
+                // Clicked own offer slot -> return item to player inventory
+                int[] p1OfferSlots = new int[]{0, 1, 2, 3, 4, 5, 6, 7, 8};
+                int[] p2OfferSlots = new int[]{18, 19, 20, 21, 22, 23, 24, 25, 26};
+                boolean isOwnOffer = (isP1 && containsSlot(p1OfferSlots, rawSlot)) || (isP2 && containsSlot(p2OfferSlots, rawSlot));
+
+                if (isOwnOffer) {
+                    ItemStack offerItem = inv.getItem(rawSlot);
+                    if (offerItem != null && offerItem.getType() != Material.AIR) {
+                        resetReadyStates(tradeHolder, inv, p1, p2);
+
+                        inv.setItem(rawSlot, null);
+                        player.getInventory().addItem(offerItem);
+                        SoundUtil.playClick(player);
+                    }
+                }
+            }
+            return;
+        }
 
         // Crate Choice Confirmation GUI
         if (holder instanceof CrateConfirmGUIHolder confirmHolder) {
@@ -275,7 +431,7 @@ public class GUIClickListener implements Listener {
                 // 1. Navigation Bar (Slots 45..53)
                 if (slot == 45) { // Previous Page
                     if (page > 1) {
-                        saveVaultTopInventory(team.getId(), page, topInv);
+                        vaultManager.handleVaultClose(team.getId(), page, player);
                         SoundUtil.playClick(player);
                         guiManager.openTeamVault(player, team, page - 1);
                     } else {
@@ -285,7 +441,7 @@ public class GUIClickListener implements Listener {
                 }
 
                 if (slot == 49) { // Return to Main Menu / Info
-                    saveVaultTopInventory(team.getId(), page, topInv);
+                    vaultManager.handleVaultClose(team.getId(), page, player);
                     SoundUtil.playClick(player);
                     guiManager.openTeamMenu(player, team);
                     return;
@@ -293,17 +449,16 @@ public class GUIClickListener implements Listener {
 
                 if (slot == 53) { // Next Page / Unlock Next Page
                     if (page < totalUnlockedPages) {
-                        saveVaultTopInventory(team.getId(), page, topInv);
+                        vaultManager.handleVaultClose(team.getId(), page, player);
                         SoundUtil.playClick(player);
                         guiManager.openTeamVault(player, team, page + 1);
                     } else if (page == totalUnlockedPages && unlockedOnThisPage == 45) {
-                        // Clicked to unlock & open Next Page (Slot vaultSlots + 1)
                         int targetGlobalSlot = vaultSlots + 1;
                         SoundUtil.playClick(player);
                         long cost = guiManager.getVaultSlotCost(targetGlobalSlot);
 
                         if (teamManager.purchaseVaultSlot(team, targetGlobalSlot, cost)) {
-                            saveVaultTopInventory(team.getId(), page, topInv);
+                            vaultManager.handleVaultClose(team.getId(), page, player);
                             SoundUtil.playSuccess(player);
                             player.sendMessage(TextUtil.format("<green>✔ Unlocked Team Vault Slot #" + targetGlobalSlot + " (Opening Page #" + (page + 1) + ")!</green>"));
                             guiManager.openTeamVault(player, team, page + 1);
@@ -340,7 +495,7 @@ public class GUIClickListener implements Listener {
 
                     if (slot < unlockedOnThisPage) {
                         // Clicked unlocked item slot -> atomic synchronized withdrawal
-                        boolean success = vaultManager.withdrawItem(player, team, page, slot, guiManager);
+                        boolean success = vaultManager.withdrawItem(player, team, page, slot);
                         if (success) {
                             SoundUtil.playClick(player);
                         } else {
@@ -365,7 +520,7 @@ public class GUIClickListener implements Listener {
                 if (itemToDeposit == null || itemToDeposit.getType() == Material.AIR) return;
 
                 // Atomic synchronized deposit
-                boolean success = vaultManager.depositItem(player, team, page, itemToDeposit, unlockedOnThisPage, guiManager);
+                boolean success = vaultManager.depositItem(player, team, page, itemToDeposit, unlockedOnThisPage);
                 if (success) {
                     SoundUtil.playClick(player);
                 } else {
@@ -645,65 +800,9 @@ public class GUIClickListener implements Listener {
                     return;
                 }
 
-                if (!guiManager.getPermissionManager().hasPermission(team.getId(), role, "CLAIM")) {
-                    player.sendMessage(TextUtil.format("<red>✖ You do not have team permission to claim land!</red>"));
-                    return;
-                }
-
-                com.guildcore.claims.ClaimInfo existing = guiManager.getClaimManager().getClaimAt(player.getWorld(), targetCx, targetCz);
-                if (existing != null) {
-                    if (guiManager.isGuildClaim(player, team, existing)) {
-                        player.sendMessage(TextUtil.format("<yellow>This chunk is already claimed by your team!</yellow>"));
-                    } else {
-                        player.sendMessage(TextUtil.format("<red>✖ This chunk belongs to another team (" + guiManager.getForeignGuildDisplay(existing) + ")!</red>"));
-                    }
-                    return;
-                }
-
-                int currentClaims = guiManager.getClaimManager().getTeamClaimsCount(team.getId());
-                int maxClaims = teamManager.getMaxClaimsForTeam(team, settingsManager);
-                if (currentClaims >= maxClaims) {
-                    player.sendMessage(TextUtil.format("<red>✖ Team claim capacity reached (" + currentClaims + "/" + maxClaims + ")!</red>"));
-                    return;
-                }
-
-                GUIManager.ClaimCostResult costRes = guiManager.calculateClaimCost(currentClaims);
-                long costCoins = costRes.coins;
-                int costXpLevels = costRes.xpLevels;
-                Material costItemMat = costRes.itemMat;
-                int costItemAmount = costRes.itemAmount;
-
-                if (team.getBankBalance() < costCoins) {
-                    player.sendMessage(TextUtil.format("<red>✖ Team Bank lacks funds! Required: $" + String.format("%,d", costCoins) + " Gold (Bank balance: $" + String.format("%,d", team.getBankBalance()) + ").</red>"));
-                    return;
-                }
-
-                if (player.getLevel() < costXpLevels) {
-                    player.sendMessage(TextUtil.format("<red>✖ You need at least " + costXpLevels + " XP Levels to claim this chunk!</red>"));
-                    return;
-                }
-
-                if (costItemAmount > 0 && !player.getInventory().containsAtLeast(new ItemStack(costItemMat), costItemAmount)) {
-                    player.sendMessage(TextUtil.format("<red>✖ You need " + costItemAmount + "x " + costItemMat.name() + " in your inventory to claim this chunk!</red>"));
-                    return;
-                }
-
-                boolean success = guiManager.getClaimManager().createTeamClaim(player.getUniqueId(), team.getId(), targetChunk);
-                if (success) {
-                    if (costCoins > 0) {
-                        team.setBankBalance(team.getBankBalance() - costCoins);
-                    }
-                    if (costXpLevels > 0) {
-                        player.setLevel(player.getLevel() - costXpLevels);
-                    }
-                    if (costItemAmount > 0) {
-                        player.getInventory().removeItem(new ItemStack(costItemMat, costItemAmount));
-                    }
+                if (guiManager.attemptClaim(player, team, targetChunk)) {
                     SoundUtil.playSuccess(player);
-                    player.sendMessage(TextUtil.format("<green>✔ Successfully claimed chunk (" + targetCx + ", " + targetCz + ") for your Guild!</green>"));
                     guiManager.openTeamMapGUI(player);
-                } else {
-                    player.sendMessage(TextUtil.format("<red>✖ Failed to claim chunk!</red>"));
                 }
             }
             return;
@@ -722,7 +821,6 @@ public class GUIClickListener implements Listener {
                     if (prohibitedManager != null) {
                         prohibitedManager.addProhibitedItem(inHand.getType(), "Prohibited by Royal Decree", player.getName());
                         player.sendMessage(TextUtil.format("<red>✔ Added " + inHand.getType().name() + " to Prohibited Items List!</red>"));
-                        prohibitedManager.purgePlayerFull(player);
                     }
                 } else {
                     player.sendMessage(TextUtil.format("<red>Hold an item in main hand to ban!</red>"));
@@ -794,7 +892,26 @@ public class GUIClickListener implements Listener {
             if (slot == 22) { guiManager.openAdminShopHub(player); return; }
             if (slot == 23) { guiManager.openAdminDebugPanel(player); return; }
             if (slot == 24) { crateManager.openCrateAdminHub(player); return; }
+            if (slot == 25) { guiManager.openAdminRequestSettings(player); return; }
             if (slot == 49) { player.closeInventory(); return; }
+            return;
+        }
+
+        // Admin Request & Timers Sub-GUI
+        if (holder instanceof com.guildcore.gui.holders.AdminRequestHolder) {
+            event.setCancelled(true);
+            SoundUtil.playClick(player);
+            int slot = event.getSlot();
+
+            if (slot == 10) {
+                ChatInputListener.requestInput(player, "requests.tpa-expire-seconds", p -> guiManager.openAdminRequestSettings(p));
+            } else if (slot == 12) {
+                ChatInputListener.requestInput(player, "requests.team-invite-expire-seconds", p -> guiManager.openAdminRequestSettings(p));
+            } else if (slot == 14) {
+                ChatInputListener.requestInput(player, "requests.trade-expire-seconds", p -> guiManager.openAdminRequestSettings(p));
+            } else if (slot == 26) {
+                guiManager.openAdminSettings(player);
+            }
             return;
         }
 
@@ -1354,6 +1471,21 @@ public class GUIClickListener implements Listener {
             return;
         }
 
+        // Team Disband Confirm GUI
+        if (holder instanceof com.guildcore.gui.holders.TeamDisbandConfirmHolder disbandHolder) {
+            event.setCancelled(true);
+            SoundUtil.playClick(player);
+            int slot = event.getSlot();
+            if (slot == 11) {
+                teamManager.disbandTeam(player);
+                player.closeInventory();
+            } else if (slot == 15) {
+                player.sendMessage(TextUtil.format("<yellow>Guild disband cancelled.</yellow>"));
+                player.closeInventory();
+            }
+            return;
+        }
+
         // 13. Team Upgrades GUI
         if (holder instanceof TeamUpgradesHolder upgradesHolder) {
             event.setCancelled(true);
@@ -1400,14 +1532,111 @@ public class GUIClickListener implements Listener {
         }
     }
 
-    private void saveVaultTopInventory(int teamId, int page, org.bukkit.inventory.Inventory topInv) {
-        ItemStack[] contents = new ItemStack[45];
-        for (int i = 0; i < Math.min(45, topInv.getSize()); i++) {
-            ItemStack item = topInv.getItem(i);
-            if (item != null && item.getType() != Material.AIR && item.getType() != Material.YELLOW_STAINED_GLASS_PANE && item.getType() != Material.GRAY_STAINED_GLASS_PANE && item.getType() != Material.BLACK_STAINED_GLASS_PANE && item.getType() != Material.ARROW && item.getType() != Material.BOOK && item.getType() != Material.BARRIER) {
-                contents[i] = item.clone();
+
+
+    private boolean containsSlot(int[] slots, int target) {
+        for (int s : slots) {
+            if (s == target) return true;
+        }
+        return false;
+    }
+
+    private List<ItemStack> getOfferItems(Inventory inv, int[] slots) {
+        List<ItemStack> list = new ArrayList<>();
+        for (int s : slots) {
+            ItemStack item = inv.getItem(s);
+            if (item != null && item.getType() != Material.AIR) {
+                list.add(item.clone());
             }
         }
-        vaultManager.saveVaultPage(teamId, page, contents);
+        return list;
+    }
+
+    private void clearOfferSlots(Inventory inv, int[] slots) {
+        for (int s : slots) {
+            inv.setItem(s, null);
+        }
+    }
+
+    private int countFreeInventorySlots(Player player) {
+        int count = 0;
+        ItemStack[] storage = player.getInventory().getStorageContents();
+        for (ItemStack item : storage) {
+            if (item == null || item.getType() == Material.AIR) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private void resetReadyStates(TradeGUIHolder holder, Inventory inv, Player p1, Player p2) {
+        holder.setP1Ready(false);
+        holder.setP2Ready(false);
+        holder.setCountdownSeconds(-1);
+        if (tradeManager != null) {
+            tradeManager.updateTradeGUIControls(inv, holder, p1, p2);
+        }
+    }
+
+    private void cancelTradeCountdown(TradeGUIHolder holder, Inventory inv, Player p1, Player p2) {
+        resetReadyStates(holder, inv, p1, p2);
+    }
+
+    private void startTradeCountdown(TradeGUIHolder holder, Inventory inv, Player p1, Player p2) {
+        holder.setCountdownSeconds(3);
+
+        Runnable task = new Runnable() {
+            int secondsLeft = 3;
+
+            @Override
+            public void run() {
+                if (!p1.isOnline() || !p2.isOnline()) return;
+
+                if (!holder.isP1Ready() || !holder.isP2Ready()) {
+                    cancelTradeCountdown(holder, inv, p1, p2);
+                    return;
+                }
+
+                if (secondsLeft > 0) {
+                    p1.sendActionBar(TextUtil.format("<gold>⌛ Trade completing in <green>" + secondsLeft + "s</green>...</gold>"));
+                    p2.sendActionBar(TextUtil.format("<gold>⌛ Trade completing in <green>" + secondsLeft + "s</green>...</gold>"));
+                    secondsLeft--;
+                    scheduler.runLater(p1, this, 20L);
+                } else {
+                    List<ItemStack> p1Items = getOfferItems(inv, new int[]{0, 1, 2, 3, 4, 5, 6, 7, 8});
+                    List<ItemStack> p2Items = getOfferItems(inv, new int[]{18, 19, 20, 21, 22, 23, 24, 25, 26});
+
+                    int p1FreeSlots = countFreeInventorySlots(p1);
+                    int p2FreeSlots = countFreeInventorySlots(p2);
+
+                    if (p1FreeSlots < p2Items.size() || p2FreeSlots < p1Items.size()) {
+                        p1.sendMessage(TextUtil.format("<red>✖ Trade failed: Not enough inventory space!</red>"));
+                        p2.sendMessage(TextUtil.format("<red>✖ Trade failed: Not enough inventory space!</red>"));
+                        cancelTradeCountdown(holder, inv, p1, p2);
+                        return;
+                    }
+
+                    holder.setCompleted(true);
+                    holder.setClosed(true);
+
+                    clearOfferSlots(inv, new int[]{0, 1, 2, 3, 4, 5, 6, 7, 8});
+                    clearOfferSlots(inv, new int[]{18, 19, 20, 21, 22, 23, 24, 25, 26});
+
+                    for (ItemStack item : p2Items) p1.getInventory().addItem(item);
+                    for (ItemStack item : p1Items) p2.getInventory().addItem(item);
+
+                    p1.sendMessage(TextUtil.format("<green>✔ Trade completed successfully!</green>"));
+                    p2.sendMessage(TextUtil.format("<green>✔ Trade completed successfully!</green>"));
+
+                    tradeManager.getActiveTradeSessions().remove(p1.getUniqueId());
+                    tradeManager.getActiveTradeSessions().remove(p2.getUniqueId());
+
+                    p1.closeInventory();
+                    p2.closeInventory();
+                }
+            }
+        };
+
+        task.run();
     }
 }

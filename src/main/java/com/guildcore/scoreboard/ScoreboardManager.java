@@ -7,7 +7,7 @@ import com.guildcore.config.SettingsManager;
 import com.guildcore.debug.DebugFlag;
 import com.guildcore.debug.DebugManager;
 import com.guildcore.economy.EconomyManager;
-import com.guildcore.raids.RaidManager;
+import com.guildcore.config.SettingsManager;
 import com.guildcore.scheduler.SchedulerWrapper;
 import com.guildcore.stats.BountyManager;
 import com.guildcore.stats.StatsManager;
@@ -35,20 +35,18 @@ public class ScoreboardManager {
     private final TeamManager teamManager;
     private final ClaimManager claimManager;
     private final CombatTagManager combatTagManager;
-    private final RaidManager raidManager;
     private final SettingsManager settingsManager;
     private final SchedulerWrapper scheduler;
 
     private boolean scoreboardsDisabled = false;
 
-    public ScoreboardManager(EconomyManager economyManager, StatsManager statsManager, BountyManager bountyManager, TeamManager teamManager, ClaimManager claimManager, CombatTagManager combatTagManager, RaidManager raidManager, SettingsManager settingsManager, SchedulerWrapper scheduler) {
+    public ScoreboardManager(EconomyManager economyManager, StatsManager statsManager, BountyManager bountyManager, TeamManager teamManager, ClaimManager claimManager, CombatTagManager combatTagManager, SettingsManager settingsManager, SchedulerWrapper scheduler) {
         this.economyManager = economyManager;
         this.statsManager = statsManager;
         this.bountyManager = bountyManager;
         this.teamManager = teamManager;
         this.claimManager = claimManager;
         this.combatTagManager = combatTagManager;
-        this.raidManager = raidManager;
         this.settingsManager = settingsManager;
         this.scheduler = scheduler;
     }

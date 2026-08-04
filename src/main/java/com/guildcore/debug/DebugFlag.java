@@ -18,5 +18,10 @@ public enum DebugFlag {
     BOUNTY_COLLECTION,     // 15. Log bounty payouts, stack collections, and expiry refunds
     MOB_SPAWN_GATING,      // 16. Log why a mob kill was denied a reward
     ANTI_LOGOUT,           // 17. Log combat logout attempts, cancellations, and punishments
-    GUI_CLICKS             // 18. Log all inventory click events for troubleshooting
+    GUI_CLICKS,            // 18. Log all inventory click events for troubleshooting
+    GUILD_CORE,            // 19. Log core placement, damage, destruction, and tier upgrades
+    OFFLINE_SHIELD,        // 20. Log shield charge accumulation, activation, drain, and depletion
+    RAID_TAG,              // 21. Log raid tag triggers, exit timers, and combat log penalties
+    RAID_ITEMS,            // 22. Log lock pick attempts, TNT placement, creeper spawns, sledge hits
+    LOCK_PICK              // 23. Log detailed lock pick success/fail rolls and durability changes
 }

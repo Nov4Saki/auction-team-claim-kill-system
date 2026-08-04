@@ -95,13 +95,15 @@ public class AuctionManager {
             }
 
             if (swept) {
-                addToStash(item.getSellerUuid(), item.getItem());
                 dbManager.executeAsync(() -> {
                     try (Connection conn = dbManager.getConnection();
-                         PreparedStatement ps = conn.prepareStatement("UPDATE auction_items SET is_expired = 1 WHERE id = ?")) {
+                         PreparedStatement ps = conn.prepareStatement("UPDATE auction_items SET is_expired = 1 WHERE id = ? AND is_expired = 0")) {
                         ps.setInt(1, item.getId());
-                        ps.executeUpdate();
-                        DebugManager.log(DebugFlag.AUCTION_PURCHASES, "Swept expired auction item #" + item.getId() + " to stash for " + item.getSellerName());
+                        int rows = ps.executeUpdate();
+                        if (rows > 0) {
+                            addToStash(item.getSellerUuid(), item.getItem());
+                            DebugManager.log(DebugFlag.AUCTION_PURCHASES, "Swept expired auction item #" + item.getId() + " to stash for " + item.getSellerName());
+                        }
                     } catch (Exception e) {
                         e.printStackTrace();
                     }
@@ -325,5 +327,9 @@ public class AuctionManager {
             }
         }
         return active;
+    }
+
+    public DatabaseManager getDatabaseManager() {
+        return dbManager;
     }
 }

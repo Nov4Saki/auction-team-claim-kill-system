@@ -58,4 +58,26 @@ public class StatsManager {
             }
         });
     }
+
+    public void getTopKillersAsync(int limit, java.util.function.Consumer<java.util.List<String>> callback) {
+        dbManager.executeAsync(() -> {
+            java.util.List<String> results = new java.util.ArrayList<>();
+            try (Connection conn = dbManager.getConnection();
+                 PreparedStatement ps = conn.prepareStatement("SELECT username, kills, deaths FROM players ORDER BY kills DESC LIMIT ?")) {
+                ps.setInt(1, limit);
+                try (ResultSet rs = ps.executeQuery()) {
+                    int rank = 1;
+                    while (rs.next()) {
+                        String name = rs.getString("username");
+                        int kills = rs.getInt("kills");
+                        int deaths = rs.getInt("deaths");
+                        results.add(rank++ + ". " + name + " - " + kills + " Kills (" + deaths + " Deaths)");
+                    }
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            callback.accept(results);
+        });
+    }
 }

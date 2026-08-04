@@ -49,10 +49,22 @@ public class CrateCommand implements TabExecutor {
 
         if (args.length == 0) {
             // Open Crates Overview GUI
-            Inventory inv = Bukkit.createInventory(null, 27, TextUtil.format("<gold>🎁 Server Choice Crates</gold>"));
-            int slot = 10;
-            for (Crate crate : crateManager.getAllCrates()) {
-                inv.setItem(slot++, new GUIItemBuilder(Material.CHEST).name("<gold>" + crate.getDisplayName() + "</gold>")
+            var crates = crateManager.getAllCrates();
+            int size = crates.size() > 7 ? 54 : 27;
+            Inventory inv = Bukkit.createInventory(null, size, TextUtil.format("<gold>🎁 Server Choice Crates</gold>"));
+            
+            int[] validSlots = {
+                10, 11, 12, 13, 14, 15, 16,
+                19, 20, 21, 22, 23, 24, 25,
+                28, 29, 30, 31, 32, 33, 34,
+                37, 38, 39, 40, 41, 42, 43
+            };
+
+            int idx = 0;
+            for (Crate crate : crates) {
+                if (idx >= validSlots.length) break;
+                int slot = validSlots[idx++];
+                inv.setItem(slot, new GUIItemBuilder(Material.CHEST).name("<gold>" + crate.getDisplayName() + "</gold>")
                         .lore(List.of("<gray>Required Key: " + crate.getKeyItem().getType() + "</gray>", "<yellow>Type /crate open " + crate.getName() + " to inspect & open!</yellow>")).build());
             }
             player.openInventory(inv);
@@ -60,6 +72,19 @@ public class CrateCommand implements TabExecutor {
         }
 
         String sub = args[0].toLowerCase();
+
+        if (sub.equals("list")) {
+            var crates = crateManager.getAllCrates();
+            if (crates.isEmpty()) {
+                player.sendMessage(TextUtil.format("<yellow>No crates registered on the server.</yellow>"));
+                return true;
+            }
+            player.sendMessage(TextUtil.format("<gold>=== Server Choice Crates ===</gold>"));
+            for (Crate c : crates) {
+                player.sendMessage(TextUtil.format("<yellow>• <gold>" + c.getDisplayName() + "</gold> (<gray>Key: " + c.getKeyItem().getType() + "</gray>)</yellow>"));
+            }
+            return true;
+        }
 
         if (sub.equals("admin") || sub.equals("menu")) {
             if (!player.hasPermission("guildcore.admin")) {
@@ -142,7 +167,15 @@ public class CrateCommand implements TabExecutor {
                 player.sendMessage(TextUtil.format("<red>Player not found.</red>"));
                 return true;
             }
-            int amount = args.length >= 4 ? Integer.parseInt(args[3]) : 1;
+            int amount = 1;
+            if (args.length >= 4) {
+                try {
+                    amount = Integer.parseInt(args[3]);
+                } catch (NumberFormatException e) {
+                    player.sendMessage(TextUtil.format("<red>Invalid amount.</red>"));
+                    return true;
+                }
+            }
             crateManager.giveKey(target, args[2], amount);
             player.sendMessage(TextUtil.format("<green>Gave " + amount + "x key for crate '" + args[2] + "' to " + target.getName() + "!</green>"));
             return true;

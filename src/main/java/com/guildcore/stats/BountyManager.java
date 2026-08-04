@@ -47,6 +47,10 @@ public class BountyManager {
         return bountyCache.getOrDefault(target, 0L);
     }
 
+    public Map<UUID, Long> getActiveBounties() {
+        return new ConcurrentHashMap<>(bountyCache);
+    }
+
     public boolean placeBounty(UUID placer, UUID target, long amount) {
         if (amount <= 0 || placer.equals(target)) return false;
         if (!economyManager.withdraw(placer, amount, "bounty_place")) return false;

@@ -18,11 +18,10 @@ public class ClaimManager {
     private final DatabaseManager dbManager;
     // Key format: "world:chunkX:chunkZ" -> ClaimInfo
     private final Map<String, ClaimInfo> claimsCache = new ConcurrentHashMap<>();
-    // Key format: "world:chunkX:chunkZ:uuid" -> trustLevel ("ACCESS", "CONTAINER", "BUILD", "MANAGER")
-    private final Map<String, String> trustCache = new ConcurrentHashMap<>();
 
     private com.guildcore.teams.TeamManager teamManager;
     private com.guildcore.teams.TeamPermissionManager permissionManager;
+    private com.guildcore.core.GuildCoreManager guildCoreManager;
 
     public ClaimManager(DatabaseManager dbManager) {
         this.dbManager = dbManager;
@@ -34,6 +33,10 @@ public class ClaimManager {
 
     public void setPermissionManager(com.guildcore.teams.TeamPermissionManager permissionManager) {
         this.permissionManager = permissionManager;
+    }
+
+    public void setGuildCoreManager(com.guildcore.core.GuildCoreManager guildCoreManager) {
+        this.guildCoreManager = guildCoreManager;
     }
 
     public void loadClaims() {
@@ -58,14 +61,7 @@ public class ClaimManager {
                     DebugManager.log(DebugFlag.CLAIM_PROTECTION, "Loaded " + claimsCache.size() + " full-chunk claims from database.");
                 }
 
-                try (PreparedStatement ps = conn.prepareStatement("SELECT world, chunk_x, chunk_z, player_uuid, trust_level FROM claim_trust");
-                     ResultSet rs = ps.executeQuery()) {
-                    trustCache.clear();
-                    while (rs.next()) {
-                        String key = makeTrustKey(rs.getString("world"), rs.getInt("chunk_x"), rs.getInt("chunk_z"), rs.getString("player_uuid"));
-                        trustCache.put(key, rs.getString("trust_level"));
-                    }
-                }
+
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -151,7 +147,12 @@ public class ClaimManager {
     }
 
     public boolean createTeamClaim(int teamId, Chunk chunk) {
-        return createTeamClaim(null, teamId, chunk);
+        UUID leaderUuid = null;
+        if (teamManager != null) {
+            com.guildcore.teams.Team team = teamManager.getTeam(teamId);
+            if (team != null) leaderUuid = team.getLeaderUuid();
+        }
+        return createTeamClaim(leaderUuid, teamId, chunk);
     }
 
     public boolean unclaim(Chunk chunk) {
@@ -180,32 +181,7 @@ public class ClaimManager {
         return true;
     }
 
-    public void setTrust(Chunk chunk, UUID target, String trustLevel) {
-        ClaimInfo claim = getClaimAt(chunk);
-        if (claim == null) return;
 
-        String key = makeTrustKey(chunk.getWorld().getName(), chunk.getX(), chunk.getZ(), target.toString());
-        trustCache.put(key, trustLevel);
-
-        dbManager.executeAsync(() -> {
-            try (Connection conn = dbManager.getConnection();
-                 PreparedStatement ps = conn.prepareStatement("INSERT OR REPLACE INTO claim_trust (world, chunk_x, chunk_z, player_uuid, trust_level) VALUES (?, ?, ?, ?, ?)")) {
-                ps.setString(1, chunk.getWorld().getName());
-                ps.setInt(2, chunk.getX());
-                ps.setInt(3, chunk.getZ());
-                ps.setString(4, target.toString());
-                ps.setString(5, trustLevel);
-                ps.executeUpdate();
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        });
-    }
-
-    public String getTrustLevel(Chunk chunk, UUID playerUuid) {
-        if (chunk == null || playerUuid == null) return null;
-        return trustCache.get(makeTrustKey(chunk.getWorld().getName(), chunk.getX(), chunk.getZ(), playerUuid.toString()));
-    }
 
     public boolean canBuild(Player player, Chunk chunk) {
         if (player == null || chunk == null) return true;
@@ -228,8 +204,7 @@ public class ClaimManager {
             return true;
         }
 
-        String trust = getTrustLevel(chunk, player.getUniqueId());
-        return "BUILD".equalsIgnoreCase(trust) || "MANAGER".equalsIgnoreCase(trust);
+        return false;
     }
 
     public int getTeamClaimsCount(int teamId) {
@@ -280,5 +255,27 @@ public class ClaimManager {
             }
         });
         return count;
+    }
+
+    public boolean isAdjacentToTeamClaim(int teamId, String world, int cx, int cz) {
+        int[][] offsets = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+        for (int[] off : offsets) {
+            String key = makeKey(world, cx + off[0], cz + off[1]);
+            ClaimInfo neighbor = claimsCache.get(key);
+            if (neighbor != null && neighbor.isTeamClaim() && neighbor.getTeamId() != null && neighbor.getTeamId() == teamId) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public java.util.List<ClaimInfo> getTeamClaimChunks(int teamId) {
+        java.util.List<ClaimInfo> result = new java.util.ArrayList<>();
+        for (ClaimInfo info : claimsCache.values()) {
+            if (info.isTeamClaim() && info.getTeamId() != null && info.getTeamId() == teamId) {
+                result.add(info);
+            }
+        }
+        return result;
     }
 }

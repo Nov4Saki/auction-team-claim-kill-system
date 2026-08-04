@@ -22,6 +22,8 @@ public class ClaimProtectionListener implements Listener {
     private final SettingsManager settingsManager;
 
     private com.guildcore.teams.TeamManager teamManager;
+    private com.guildcore.shield.OfflineShieldManager offlineShieldManager;
+    private com.guildcore.core.GuildCoreManager guildCoreManager;
 
     public ClaimProtectionListener(ClaimManager claimManager, SettingsManager settingsManager) {
         this.claimManager = claimManager;
@@ -30,6 +32,14 @@ public class ClaimProtectionListener implements Listener {
 
     public void setTeamManager(com.guildcore.teams.TeamManager teamManager) {
         this.teamManager = teamManager;
+    }
+
+    public void setOfflineShieldManager(com.guildcore.shield.OfflineShieldManager offlineShieldManager) {
+        this.offlineShieldManager = offlineShieldManager;
+    }
+
+    public void setGuildCoreManager(com.guildcore.core.GuildCoreManager guildCoreManager) {
+        this.guildCoreManager = guildCoreManager;
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
@@ -86,16 +96,12 @@ public class ClaimProtectionListener implements Listener {
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onPvPDamage(EntityDamageByEntityEvent event) {
         if (event.getEntity() instanceof Player victim && event.getDamager() instanceof Player attacker) {
-            if (teamManager != null) {
-                com.guildcore.teams.Team vTeam = teamManager.getPlayerTeam(victim.getUniqueId());
-                com.guildcore.teams.Team aTeam = teamManager.getPlayerTeam(attacker.getUniqueId());
-                if (vTeam != null && aTeam != null && vTeam.getId() == aTeam.getId()) {
-                    boolean friendlyFire = settingsManager.getBoolean("teams.friendly_fire", false);
-                    if (!friendlyFire) {
-                        event.setCancelled(true);
-                        attacker.sendActionBar(net.kyori.adventure.text.Component.text("🛡 Friendly fire is disabled for your Guild!", net.kyori.adventure.text.format.NamedTextColor.YELLOW));
-                        return;
-                    }
+            if (teamManager != null && teamManager.areSameTeam(victim.getUniqueId(), attacker.getUniqueId())) {
+                boolean friendlyFire = settingsManager.getBoolean("teams.friendly_fire", false);
+                if (!friendlyFire) {
+                    event.setCancelled(true);
+                    attacker.sendActionBar(net.kyori.adventure.text.Component.text("🛡 Friendly fire is disabled for your Guild!", net.kyori.adventure.text.format.NamedTextColor.YELLOW));
+                    return;
                 }
             }
 
@@ -123,6 +129,9 @@ public class ClaimProtectionListener implements Listener {
         while (it.hasNext()) {
             Block block = it.next();
             if (claimManager.isClaimed(block.getChunk())) {
+                if (raidManager != null && raidManager.isActiveRaidAt(block.getLocation())) {
+                    continue; // Skip block removal if active raid occurs here
+                }
                 it.remove();
             }
         }
@@ -140,6 +149,9 @@ public class ClaimProtectionListener implements Listener {
         while (it.hasNext()) {
             Block block = it.next();
             if (claimManager.isClaimed(block.getChunk())) {
+                if (raidManager != null && raidManager.isActiveRaidAt(block.getLocation())) {
+                    continue; // Skip block removal if active raid occurs here
+                }
                 it.remove();
             }
         }

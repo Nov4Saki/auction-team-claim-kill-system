@@ -58,11 +58,14 @@ public class CoinsCommand implements TabExecutor {
                 return true;
             }
             if (args.length < 2) {
-                player.sendMessage(TextUtil.format("<red>Usage: /gcpay <player> <amount></red>"));
+                player.sendMessage(TextUtil.format("<red>Usage: /pay <player> <amount></red>"));
                 return true;
             }
-            Player target = Bukkit.getPlayer(args[0]);
+            org.bukkit.OfflinePlayer target = Bukkit.getPlayer(args[0]);
             if (target == null) {
+                target = Bukkit.getOfflinePlayer(args[0]);
+            }
+            if (target == null || (!target.hasPlayedBefore() && !target.isOnline())) {
                 player.sendMessage(TextUtil.format("<red>Player not found.</red>"));
                 return true;
             }
@@ -73,8 +76,11 @@ public class CoinsCommand implements TabExecutor {
                     return true;
                 }
                 if (economyManager.transfer(player.getUniqueId(), target.getUniqueId(), amount, "pay_command")) {
-                    player.sendMessage(TextUtil.format("<green>Paid $" + amount + " to " + target.getName() + ".</green>"));
-                    target.sendMessage(TextUtil.format("<green>Received $" + amount + " from " + player.getName() + ".</green>"));
+                    String targetName = target.getName() != null ? target.getName() : args[0];
+                    player.sendMessage(TextUtil.format("<green>Paid $" + amount + " to " + targetName + ".</green>"));
+                    if (target.isOnline() && target.getPlayer() != null) {
+                        target.getPlayer().sendMessage(TextUtil.format("<green>Received $" + amount + " from " + player.getName() + ".</green>"));
+                    }
                 } else {
                     player.sendMessage(TextUtil.format("<red>Insufficient balance.</red>"));
                 }
@@ -90,23 +96,30 @@ public class CoinsCommand implements TabExecutor {
                 return true;
             }
             if (args.length < 3) {
-                sender.sendMessage(TextUtil.format("<red>Usage: /gceco <give|take|set> <player> <amount></red>"));
+                sender.sendMessage(TextUtil.format("<red>Usage: /eco <give|take|set> <player> <amount></red>"));
                 return true;
             }
-            Player target = Bukkit.getPlayer(args[1]);
+            org.bukkit.OfflinePlayer target = Bukkit.getPlayer(args[1]);
             if (target == null) {
+                target = Bukkit.getOfflinePlayer(args[1]);
+            }
+            if (target == null || (!target.hasPlayedBefore() && !target.isOnline())) {
                 sender.sendMessage(TextUtil.format("<red>Player not found.</red>"));
                 return true;
             }
             try {
                 long amount = Long.parseLong(args[2]);
                 String sub = args[0].toLowerCase();
+                String targetName = target.getName() != null ? target.getName() : args[1];
                 if (sub.equals("give")) {
                     economyManager.deposit(target.getUniqueId(), amount, "admin_give");
-                    sender.sendMessage(TextUtil.format("<green>Gave $" + amount + " to " + target.getName() + ".</green>"));
+                    sender.sendMessage(TextUtil.format("<green>Gave $" + amount + " to " + targetName + ".</green>"));
                 } else if (sub.equals("take")) {
                     economyManager.withdraw(target.getUniqueId(), amount, "admin_take");
-                    sender.sendMessage(TextUtil.format("<green>Took $" + amount + " from " + target.getName() + ".</green>"));
+                    sender.sendMessage(TextUtil.format("<green>Took $" + amount + " from " + targetName + ".</green>"));
+                } else if (sub.equals("set")) {
+                    economyManager.setBalance(target.getUniqueId(), amount, "admin_set");
+                    sender.sendMessage(TextUtil.format("<green>Set balance of " + targetName + " to $" + amount + ".</green>"));
                 }
             } catch (NumberFormatException e) {
                 sender.sendMessage(TextUtil.format("<red>Invalid amount.</red>"));
@@ -114,9 +127,24 @@ public class CoinsCommand implements TabExecutor {
             return true;
         }
 
+        if (args.length >= 1) {
+            org.bukkit.OfflinePlayer target = Bukkit.getPlayer(args[0]);
+            if (target == null) {
+                target = Bukkit.getOfflinePlayer(args[0]);
+            }
+            if (target != null && (target.hasPlayedBefore() || target.isOnline())) {
+                long bal = economyManager.getBalance(target.getUniqueId());
+                String targetName = target.getName() != null ? target.getName() : args[0];
+                sender.sendMessage(TextUtil.format("<gold>💰 Balance of " + targetName + ": <green>$" + bal + "</green></gold>"));
+                return true;
+            }
+        }
+
         if (sender instanceof Player player) {
             long bal = economyManager.getBalance(player.getUniqueId());
             player.sendMessage(TextUtil.format("<gold>💰 Balance: <green>$" + bal + "</green></gold>"));
+        } else {
+            sender.sendMessage("Usage: /coins <player>");
         }
         return true;
     }

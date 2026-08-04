@@ -28,8 +28,38 @@ public class TeamManager {
     private final Map<UUID, String> playerRoleMap = new ConcurrentHashMap<>();
     private final Map<UUID, Integer> pendingInvites = new ConcurrentHashMap<>();
 
+    private com.guildcore.scheduler.SchedulerWrapper scheduler;
+    private com.guildcore.economy.EconomyManager economyManager;
+    private com.guildcore.core.GuildCoreManager guildCoreManager;
+
     public TeamManager(DatabaseManager dbManager) {
         this.dbManager = dbManager;
+    }
+
+    public void setScheduler(com.guildcore.scheduler.SchedulerWrapper scheduler) {
+        this.scheduler = scheduler;
+    }
+
+    public void setEconomyManager(com.guildcore.economy.EconomyManager economyManager) {
+        this.economyManager = economyManager;
+    }
+
+    public void setGuildCoreManager(com.guildcore.core.GuildCoreManager guildCoreManager) {
+        this.guildCoreManager = guildCoreManager;
+    }
+
+    public void saveTeamBankBalance(Team team) {
+        if (team == null) return;
+        dbManager.executeAsync(() -> {
+            try (Connection conn = dbManager.getConnection();
+                 PreparedStatement ps = conn.prepareStatement("UPDATE teams SET bank_balance = ? WHERE id = ?")) {
+                ps.setLong(1, team.getBankBalance());
+                ps.setInt(2, team.getId());
+                ps.executeUpdate();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
     }
 
     public void loadTeams() {
@@ -122,6 +152,20 @@ public class TeamManager {
 
     public String getPlayerRole(UUID playerUuid) {
         return playerRoleMap.getOrDefault(playerUuid, "RECRUIT");
+    }
+
+    public boolean areSameTeam(UUID p1, UUID p2) {
+        if (p1 == null || p2 == null) return false;
+        Integer t1 = playerTeamMap.get(p1);
+        Integer t2 = playerTeamMap.get(p2);
+        return t1 != null && t1.equals(t2);
+    }
+
+    public boolean hasPendingInvite(Player player) {
+        if (player == null) return false;
+        Long expiry = pendingInviteTimestamps.get(player.getUniqueId());
+        Integer teamId = pendingInvites.get(player.getUniqueId());
+        return teamId != null && expiry != null && System.currentTimeMillis() <= expiry;
     }
 
     public boolean createTeam(Player leader, String name, int defaultMaxMembers) {
@@ -219,9 +263,51 @@ public class TeamManager {
     public boolean invitePlayer(Player inviter, Player target) {
         Team team = getPlayerTeam(inviter.getUniqueId());
         if (team == null) return false;
+        int currentMembers = (int) playerTeamMap.values().stream().filter(id -> id == team.getId()).count();
+        if (currentMembers >= team.getMaxMembers()) {
+            return false;
+        }
+
+        int expireSec = settingsManager != null ? settingsManager.getInt("requests.team-invite-expire-seconds", 120) : 120;
         pendingInvites.put(target.getUniqueId(), team.getId());
         pendingInvitesWithInviter.put(target.getUniqueId(), inviter.getName());
-        pendingInviteTimestamps.put(target.getUniqueId(), System.currentTimeMillis() + 60_000L);
+        pendingInviteTimestamps.put(target.getUniqueId(), System.currentTimeMillis() + (expireSec * 1000L));
+
+        net.kyori.adventure.text.Component inviteMsg = net.kyori.adventure.text.Component.text("🏰 ")
+                .color(net.kyori.adventure.text.format.NamedTextColor.GOLD)
+                .append(net.kyori.adventure.text.Component.text(inviter.getName()).color(net.kyori.adventure.text.format.NamedTextColor.YELLOW))
+                .append(net.kyori.adventure.text.Component.text(" invited you to join Guild ").color(net.kyori.adventure.text.format.NamedTextColor.GOLD))
+                .append(net.kyori.adventure.text.Component.text(team.getName()).color(net.kyori.adventure.text.format.NamedTextColor.GREEN))
+                .append(net.kyori.adventure.text.Component.text(" (Expires in " + expireSec + "s). ").color(net.kyori.adventure.text.format.NamedTextColor.GOLD))
+                .append(net.kyori.adventure.text.Component.text("[ACCEPT]")
+                        .color(net.kyori.adventure.text.format.NamedTextColor.GREEN)
+                        .decorate(net.kyori.adventure.text.format.TextDecoration.BOLD)
+                        .clickEvent(net.kyori.adventure.text.event.ClickEvent.runCommand("/guild join"))
+                        .hoverEvent(net.kyori.adventure.text.event.HoverEvent.showText(net.kyori.adventure.text.Component.text("Click to join " + team.getName()).color(net.kyori.adventure.text.format.NamedTextColor.GREEN))))
+                .append(net.kyori.adventure.text.Component.text("  "))
+                .append(net.kyori.adventure.text.Component.text("[DENY]")
+                        .color(net.kyori.adventure.text.format.NamedTextColor.RED)
+                        .decorate(net.kyori.adventure.text.format.TextDecoration.BOLD)
+                        .clickEvent(net.kyori.adventure.text.event.ClickEvent.runCommand("/guild deny"))
+                        .hoverEvent(net.kyori.adventure.text.event.HoverEvent.showText(net.kyori.adventure.text.Component.text("Click to decline invite from " + team.getName()).color(net.kyori.adventure.text.format.NamedTextColor.RED))));
+
+        target.sendMessage(inviteMsg);
+        return true;
+    }
+
+    public boolean denyInvite(Player player) {
+        Integer teamId = pendingInvites.remove(player.getUniqueId());
+        String inviterName = pendingInvitesWithInviter.remove(player.getUniqueId());
+        pendingInviteTimestamps.remove(player.getUniqueId());
+
+        if (teamId == null) return false;
+
+        if (inviterName != null) {
+            Player inviter = Bukkit.getPlayer(inviterName);
+            if (inviter != null && inviter.isOnline()) {
+                inviter.sendMessage(com.guildcore.util.TextUtil.format("<yellow>" + player.getName() + " declined your Guild invitation.</yellow>"));
+            }
+        }
         return true;
     }
 
@@ -619,6 +705,44 @@ public class TeamManager {
         return true;
     }
 
+    public boolean renameTeam(Player player, String newName) {
+        Team team = getPlayerTeam(player.getUniqueId());
+        if (team == null) {
+            player.sendMessage(com.guildcore.util.TextUtil.format("<red>You are not in a team.</red>"));
+            return false;
+        }
+        if (!team.getLeaderUuid().equals(player.getUniqueId())) {
+            player.sendMessage(com.guildcore.util.TextUtil.format("<red>Only the Guild Leader can rename the guild!</red>"));
+            return false;
+        }
+        if (getTeamByName(newName) != null) {
+            player.sendMessage(com.guildcore.util.TextUtil.format("<red>Team name '" + newName + "' is already taken!</red>"));
+            return false;
+        }
+        String oldName = team.getName();
+        teamIdByName.remove(oldName.toLowerCase());
+        team.setName(newName);
+        teamIdByName.put(newName.toLowerCase(), team.getId());
+
+        dbManager.executeAsync(() -> {
+            try (Connection conn = dbManager.getConnection();
+                 PreparedStatement ps = conn.prepareStatement("UPDATE teams SET name = ? WHERE id = ?")) {
+                ps.setString(1, newName);
+                ps.setInt(2, team.getId());
+                ps.executeUpdate();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
+
+        broadcastToTeam(team.getId(), com.guildcore.util.TextUtil.format("<gradient:#00FF87:#60EFFF><b>✔ [Guild] Guild renamed from " + oldName + " to " + newName + "!</b></gradient>"));
+        return true;
+    }
+
+    public java.util.Collection<Team> getAllTeams() {
+        return teamsById.values();
+    }
+
     public boolean disbandTeam(Player leader) {
         Team team = getPlayerTeam(leader.getUniqueId());
         if (team == null || !team.getLeaderUuid().equals(leader.getUniqueId())) {
@@ -641,6 +765,20 @@ public class TeamManager {
 
         if (claimManager != null) {
             claimManager.removeAllTeamClaims(teamId);
+        }
+
+        // Force close all guild-related GUIs for all online players
+        for (Player online : Bukkit.getOnlinePlayers()) {
+            if (online != null && online.isOnline() && online.getOpenInventory() != null && online.getOpenInventory().getTopInventory() != null) {
+                org.bukkit.inventory.InventoryHolder holder = online.getOpenInventory().getTopInventory().getHolder();
+                if (holder != null && (holder.getClass().getName().contains("Team") || holder instanceof com.guildcore.gui.holders.VaultGUIHolder)) {
+                    if (scheduler != null) {
+                        scheduler.runSync(online, online::closeInventory);
+                    } else {
+                        online.closeInventory();
+                    }
+                }
+            }
         }
 
         try (Connection conn = dbManager.getConnection()) {

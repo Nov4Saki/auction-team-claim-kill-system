@@ -43,6 +43,11 @@ public class AuctionCommand implements TabExecutor {
             return true;
         }
 
+        if (args.length >= 1 && (args[0].equalsIgnoreCase("expired") || args[0].equalsIgnoreCase("stash"))) {
+            guiManager.openExpiredStash(player);
+            return true;
+        }
+
         if (args.length >= 2 && args[0].equalsIgnoreCase("sell")) {
             ItemStack held = player.getInventory().getItemInMainHand();
             if (held.getType() == Material.AIR) {

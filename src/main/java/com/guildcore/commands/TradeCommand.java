@@ -48,6 +48,11 @@ public class TradeCommand implements TabExecutor {
             return true;
         }
 
+        if (args[0].equalsIgnoreCase("deny")) {
+            tradeManager.denyTrade(player);
+            return true;
+        }
+
         Player target = Bukkit.getPlayer(args[0]);
         if (target == null || !target.isOnline()) {
             player.sendMessage(TextUtil.format("<red>Player not found online.</red>"));

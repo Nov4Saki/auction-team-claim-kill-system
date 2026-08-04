@@ -67,14 +67,6 @@ public class DatabaseSetup {
                     "claimed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
                     "PRIMARY KEY (world, chunk_x, chunk_z));");
 
-            // Claim Trust
-            stmt.execute("CREATE TABLE IF NOT EXISTS claim_trust (" +
-                    "world VARCHAR(64), " +
-                    "chunk_x INT, " +
-                    "chunk_z INT, " +
-                    "player_uuid VARCHAR(36), " +
-                    "trust_level VARCHAR(16) DEFAULT 'ACCESS', " +
-                    "PRIMARY KEY (world, chunk_x, chunk_z, player_uuid));");
 
             // Teams
             stmt.execute("CREATE TABLE IF NOT EXISTS teams (" +
@@ -111,14 +103,6 @@ public class DatabaseSetup {
                     "allowed BOOLEAN DEFAULT 1, " +
                     "PRIMARY KEY (team_id, role, permission_node));");
 
-            // Personal Homes
-            stmt.execute("CREATE TABLE IF NOT EXISTS homes (" +
-                    "player_uuid VARCHAR(36), " +
-                    "name VARCHAR(32), " +
-                    "world VARCHAR(64), " +
-                    "x DOUBLE, y DOUBLE, z DOUBLE, " +
-                    "yaw FLOAT, pitch FLOAT, " +
-                    "PRIMARY KEY (player_uuid, name));");
 
             // Server Warps
             stmt.execute("CREATE TABLE IF NOT EXISTS warps (" +
@@ -195,37 +179,6 @@ public class DatabaseSetup {
                     "is_expired BOOLEAN DEFAULT 0, " +
                     "is_claimed BOOLEAN DEFAULT 0);");
 
-            // Auction Items Schema Migration Check
-            boolean hasPurchasableAt = false;
-            boolean hasSellerName = false;
-            try (java.sql.ResultSet rs = stmt.executeQuery("PRAGMA table_info(auction_items);")) {
-                while (rs.next()) {
-                    String col = rs.getString("name");
-                    if ("purchasable_at".equalsIgnoreCase(col)) hasPurchasableAt = true;
-                    if ("seller_name".equalsIgnoreCase(col)) hasSellerName = true;
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-
-            if (!hasSellerName) {
-                try {
-                    stmt.execute("ALTER TABLE auction_items ADD COLUMN seller_name VARCHAR(36) DEFAULT 'Unknown';");
-                    System.out.println("[GuildCore DB] Added missing seller_name column to auction_items.");
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
-
-            if (!hasPurchasableAt) {
-                try {
-                    stmt.execute("ALTER TABLE auction_items ADD COLUMN purchasable_at TIMESTAMP;");
-                    System.out.println("[GuildCore DB] Added missing purchasable_at column to auction_items.");
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
-
             // Auction Stash
             stmt.execute("CREATE TABLE IF NOT EXISTS auction_stash (" +
                     "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
@@ -245,6 +198,26 @@ public class DatabaseSetup {
                     "team_id INT PRIMARY KEY, " +
                     "expires_at TIMESTAMP NOT NULL);");
 
+            // Guild Core Physical Blocks
+            stmt.execute("CREATE TABLE IF NOT EXISTS guild_cores (" +
+                    "team_id INTEGER PRIMARY KEY, " +
+                    "world VARCHAR(64) NOT NULL, " +
+                    "x INT NOT NULL, y INT NOT NULL, z INT NOT NULL, " +
+                    "tier INT DEFAULT 1, " +
+                    "current_hp INT DEFAULT 100, " +
+                    "max_hp INT DEFAULT 100, " +
+                    "armor_stand_uuid VARCHAR(36), " +
+                    "placed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
+                    "FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE);");
+
+            // Offline Shield Charge Tracking
+            stmt.execute("CREATE TABLE IF NOT EXISTS offline_shields (" +
+                    "team_id INTEGER PRIMARY KEY, " +
+                    "charge_minutes DOUBLE DEFAULT 0.0, " +
+                    "last_all_offline_time BIGINT DEFAULT 0, " +
+                    "shield_active BOOLEAN DEFAULT 0, " +
+                    "FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE);");
+
             // Raid Log
             stmt.execute("CREATE TABLE IF NOT EXISTS raid_log (" +
                     "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
@@ -259,37 +232,70 @@ public class DatabaseSetup {
                     "key VARCHAR(64) PRIMARY KEY, " +
                     "value TEXT NOT NULL);");
 
-            // Teams Schema Migration Check
-            boolean hasVaultSlots = false;
-            boolean hasVaultPages = false;
-            try (java.sql.ResultSet rs = stmt.executeQuery("PRAGMA table_info(teams);")) {
-                while (rs.next()) {
-                    String colName = rs.getString("name");
-                    if ("vault_slots".equalsIgnoreCase(colName)) {
-                        hasVaultSlots = true;
-                    }
-                    if ("vault_pages".equalsIgnoreCase(colName)) {
-                        hasVaultPages = true;
-                    }
-                }
+            // Auction Items Schema Migration Check
+            int currentVersion = 1;
+            try (java.sql.ResultSet rs = stmt.executeQuery("SELECT MAX(version) FROM schema_version")) {
+                if (rs.next()) currentVersion = rs.getInt(1);
             } catch (Exception ignored) {}
 
-            if (!hasVaultSlots) {
-                try {
-                    stmt.execute("ALTER TABLE teams ADD COLUMN vault_slots INT DEFAULT 9;");
-                    com.guildcore.debug.DebugManager.log(com.guildcore.debug.DebugFlag.DATABASE_WRITES, "Added missing vault_slots column to teams.");
+            if (currentVersion < 2) {
+                boolean hasPurchasableAt = false;
+                boolean hasSellerName = false;
+                try (java.sql.ResultSet rs = stmt.executeQuery("PRAGMA table_info(auction_items);")) {
+                    while (rs.next()) {
+                        String col = rs.getString("name");
+                        if ("purchasable_at".equalsIgnoreCase(col)) hasPurchasableAt = true;
+                        if ("seller_name".equalsIgnoreCase(col)) hasSellerName = true;
+                    }
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
-            }
 
-            if (!hasVaultPages) {
-                try {
-                    stmt.execute("ALTER TABLE teams ADD COLUMN vault_pages INT DEFAULT 1;");
-                    com.guildcore.debug.DebugManager.log(com.guildcore.debug.DebugFlag.DATABASE_WRITES, "Added missing vault_pages column to teams.");
-                } catch (Exception e) {
-                    e.printStackTrace();
+                if (!hasSellerName) {
+                    try {
+                        stmt.execute("ALTER TABLE auction_items ADD COLUMN seller_name VARCHAR(36) DEFAULT 'Unknown';");
+                        System.out.println("[GuildCore DB] Added missing seller_name column to auction_items.");
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
                 }
+
+                if (!hasPurchasableAt) {
+                    try {
+                        stmt.execute("ALTER TABLE auction_items ADD COLUMN purchasable_at TIMESTAMP;");
+                        System.out.println("[GuildCore DB] Added missing purchasable_at column to auction_items.");
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+
+                boolean hasVaultSlots = false;
+                boolean hasVaultPages = false;
+                try (java.sql.ResultSet rs = stmt.executeQuery("PRAGMA table_info(teams);")) {
+                    while (rs.next()) {
+                        String colName = rs.getString("name");
+                        if ("vault_slots".equalsIgnoreCase(colName)) hasVaultSlots = true;
+                        if ("vault_pages".equalsIgnoreCase(colName)) hasVaultPages = true;
+                    }
+                } catch (Exception ignored) {}
+
+                if (!hasVaultSlots) {
+                    try {
+                        stmt.execute("ALTER TABLE teams ADD COLUMN vault_slots INT DEFAULT 9;");
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+
+                if (!hasVaultPages) {
+                    try {
+                        stmt.execute("ALTER TABLE teams ADD COLUMN vault_pages INT DEFAULT 1;");
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+
+                stmt.execute("INSERT OR REPLACE INTO schema_version (version) VALUES (2);");
             }
 
             // Default Settings Inserts
@@ -304,7 +310,7 @@ public class DatabaseSetup {
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('combat.crystal_enabled', 'false');");
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('combat.anchor_enabled', 'false');");
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('claims.blocks_per_hour', '50');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('teams.creation_cost', '5000');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('teams.creation_cost', '1000');");
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('teams.base_max_members', '3');");
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('teams.vault.base_slot_cost', '500');");
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('teams.vault.slot_cost_step', '250');");
@@ -330,6 +336,80 @@ public class DatabaseSetup {
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('auction.max_listing_price', '1000000000');");
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('auction.max_listings_default', '3');");
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('auction.listing_cooldown_sec', '0');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('requests.tpa-expire-seconds', '60');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('requests.team-invite-expire-seconds', '120');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('guild-home.warmup-seconds', '5');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('guild-home.cooldown-seconds', '60');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('guild-home.require-claim', 'true');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('guild-home.safety-check-radius', '3');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('spawn.warmup-seconds', '3');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('spawn.cooldown-seconds', '60');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('warp.warmup-seconds', '3');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('warp.cooldown-seconds', '60');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('tpa.warmup-seconds', '3');");
+
+            // Guild Core System Settings
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.place_cost', '5000');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.max_hp', '100');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.break_cooldown_ticks', '5');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.max', '5');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.1.money_cost', '1000');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.1.item_cost', 'DIAMOND:10');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.1.claims_granted', '5');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.2.money_cost', '2000');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.2.item_cost', 'DIAMOND:20');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.2.claims_granted', '10');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.3.money_cost', '3000');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.3.item_cost', 'DIAMOND:30');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.3.claims_granted', '15');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.4.money_cost', '4000');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.4.item_cost', 'DIAMOND:40');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.4.claims_granted', '20');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.5.money_cost', '5000');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.5.item_cost', 'DIAMOND:50');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.5.claims_granted', '25');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.raid_tnt_damage', '10');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.creeper_damage', '0');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.sledgehammer_damage', '5');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.sledgehammer_durability', '50');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('claims.max_per_team', '32');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('claims.require_contiguous', 'true');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('claims.cost_per_chunk', '500');");
+
+            // Offline Shield Settings
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('shield.charge_rate', '2.0');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('shield.max_minutes', '1080');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('shield.drain_multiplier', '1.0');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('shield.activation_delay_sec', '10');");
+
+            // Raid Tag Settings
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('raidtag.exit_countdown_sec', '30');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('raidtag.disconnect_timer_sec', '60');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('raidtag.disable_commands', 'true');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('raidtag.allow_cobweb', 'true');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('raidtag.drop_inv_on_expire', 'true');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('raidtag.award_kill_credit', 'true');");
+
+            // Lock Pick Settings
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('lockpick.weak.chance', '10');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('lockpick.weak.durability', '5');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('lockpick.normal.chance', '20');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('lockpick.normal.durability', '10');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('lockpick.fast.chance', '75');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('lockpick.fast.durability', '1');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('lockpick.reinforced.chance', '20');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('lockpick.reinforced.durability', '45');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('lockpick.reinforced.save_chance', '15');");
+
+            // Raid TNT Settings
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('raidtnt.fuse_seconds', '3.0');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('raidtnt.explosion_power', '2.0');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('raidtnt.player_damage', '0.0');");
+
+            // Charged Creeper Settings
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('creeper.fuse_seconds', '3.0');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('creeper.explosion_power', '3.0');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('creeper.player_damage', '0.0');");
         }
     }
 }
