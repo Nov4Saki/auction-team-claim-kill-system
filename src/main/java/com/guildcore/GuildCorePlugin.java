@@ -246,10 +246,14 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
         Player killer = victim.getKiller();
 
         if (killer != null && !killer.equals(victim)) {
-            statsManager.recordKill(killer.getUniqueId(), victim.getUniqueId());
-            long bounty = bountyManager.claimBounty(killer.getUniqueId(), victim.getUniqueId());
-            if (bounty > 0) {
-                killer.sendMessage("§a[Bounty] Claimed $" + bounty + " bounty on " + victim.getName() + "!");
+            if (statsManager != null) {
+                statsManager.recordKill(killer.getUniqueId(), victim.getUniqueId());
+            }
+            if (bountyManager != null) {
+                long bounty = bountyManager.claimBounty(killer.getUniqueId(), victim.getUniqueId());
+                if (bounty > 0) {
+                    killer.sendMessage("§a[Bounty] Claimed $" + bounty + " bounty on " + victim.getName() + "!");
+                }
             }
         }
     }

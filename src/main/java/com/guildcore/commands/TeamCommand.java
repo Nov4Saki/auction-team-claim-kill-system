@@ -306,17 +306,7 @@ public class TeamCommand implements TabExecutor {
         }
 
         if (sub.equals("claim")) {
-            Team team = teamManager.getPlayerTeam(player.getUniqueId());
-            if (team == null) {
-                player.sendMessage(TextUtil.format("<red>You must be in a team to team-claim land.</red>"));
-                return true;
-            }
-            Chunk chunk = player.getLocation().getChunk();
-            if (claimManager.createTeamClaim(player.getUniqueId(), team.getId(), chunk)) {
-                player.sendMessage(TextUtil.format("<green>Claimed full chunk for team " + team.getName() + "!</green>"));
-            } else {
-                player.sendMessage(TextUtil.format("<red>Chunk is already claimed.</red>"));
-            }
+            guiManager.openTeamMapGUI(player);
             return true;
         }
 

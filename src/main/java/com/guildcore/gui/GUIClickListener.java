@@ -1161,6 +1161,12 @@ public class GUIClickListener implements Listener {
                 return;
             }
 
+            String playerRole = teamManager.getPlayerRole(player.getUniqueId());
+            if (!"LEADER".equalsIgnoreCase(playerRole) && !player.hasPermission("guildcore.admin")) {
+                player.sendMessage(TextUtil.format("<red>✖ Only the Guild Leader can modify team permissions!</red>"));
+                return;
+            }
+
             if (slot == 10) { guiManager.openTeamPermissions(player, team, "OFFICER"); return; }
             if (slot == 12) { guiManager.openTeamPermissions(player, team, "MEMBER"); return; }
             if (slot == 14) { guiManager.openTeamPermissions(player, team, "RECRUIT"); return; }

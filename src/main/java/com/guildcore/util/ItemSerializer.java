@@ -52,7 +52,7 @@ public class ItemSerializer {
                 if (item == null || item.getType() == Material.AIR) {
                     boos.writeObject(null);
                 } else {
-                    boos.writeObject(item.serializeAsBytes());
+                    boos.writeObject(item);
                 }
             }
             String result = Base64.getEncoder().encodeToString(baos.toByteArray());
@@ -75,8 +75,16 @@ public class ItemSerializer {
                 int size = bois.readInt();
                 ItemStack[] contents = new ItemStack[size];
                 for (int i = 0; i < size; i++) {
-                    byte[] itemBytes = (byte[]) bois.readObject();
-                    contents[i] = itemBytes == null ? null : ItemStack.deserializeBytes(itemBytes);
+                    Object obj = bois.readObject();
+                    if (obj == null) {
+                        contents[i] = null;
+                    } else if (obj instanceof ItemStack stack) {
+                        contents[i] = stack;
+                    } else if (obj instanceof byte[] itemBytes) {
+                        contents[i] = ItemStack.deserializeBytes(itemBytes);
+                    } else {
+                        contents[i] = null;
+                    }
                 }
                 return contents;
             }

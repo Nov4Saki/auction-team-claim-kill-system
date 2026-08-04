@@ -76,12 +76,15 @@ public class SchedulerWrapper {
                 }
             }, delayMs, periodMs, java.util.concurrent.TimeUnit.MILLISECONDS);
         } else {
-            Bukkit.getScheduler().runTaskTimer(plugin, task -> {
-                boolean continueTask = repeatingTask.getAsBoolean();
-                if (!continueTask) {
-                    task.cancel();
+            new org.bukkit.scheduler.BukkitRunnable() {
+                @Override
+                public void run() {
+                    boolean continueTask = repeatingTask.getAsBoolean();
+                    if (!continueTask) {
+                        cancel();
+                    }
                 }
-            }, delayTicks, periodTicks);
+            }.runTaskTimer(plugin, delayTicks, periodTicks);
         }
     }
 
