@@ -35,9 +35,21 @@ public class CombatTagManager implements Listener {
 
     private void startContinuousActionBarTask() {
         scheduler.runTaskTimer(() -> {
-            for (Player player : Bukkit.getOnlinePlayers()) {
-                if (isTagged(player)) {
-                    int remaining = getRemainingSeconds(player);
+            long now = System.currentTimeMillis();
+            for (Map.Entry<UUID, Long> entry : taggedPlayers.entrySet()) {
+                UUID uuid = entry.getKey();
+                long expiry = entry.getValue();
+                Player player = Bukkit.getPlayer(uuid);
+                if (player == null || !player.isOnline()) {
+                    taggedPlayers.remove(uuid);
+                    continue;
+                }
+                if (now > expiry) {
+                    taggedPlayers.remove(uuid);
+                    scheduler.runSync(player, () -> player.sendActionBar(Component.text("✔ Combat Tag Expired!", NamedTextColor.GREEN)));
+                    DebugManager.log(DebugFlag.COMBAT_TAGGING, "Combat tag expired for " + player.getName());
+                } else {
+                    int remaining = (int) Math.max(0, (expiry - now) / 1000L);
                     scheduler.runSync(player, () -> player.sendActionBar(Component.text("⚔ COMBAT TAGGED: " + remaining + "s", NamedTextColor.RED)));
                 }
             }

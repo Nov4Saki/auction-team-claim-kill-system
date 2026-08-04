@@ -104,13 +104,19 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
         // 5. Full-Chunk Claims
         this.claimManager = new ClaimManager(databaseManager);
         this.claimManager.loadClaims();
-        this.claimVisualizer = new ClaimVisualizer(claimManager);
+        this.claimVisualizer = new ClaimVisualizer(claimManager, scheduler);
 
         // 6. Teams
         this.teamManager = new TeamManager(databaseManager);
         this.teamManager.loadTeams();
         this.teamBankManager = new TeamBankManager(databaseManager, economyManager);
         this.teamVaultManager = new TeamVaultManager(databaseManager);
+        this.scheduler.runTaskTimer(() -> {
+            if (this.teamVaultManager != null) {
+                this.teamVaultManager.saveAllVaultsSync();
+            }
+            return true;
+        }, 1200L, 1200L);
         this.teamUpgradeManager = new TeamUpgradeManager(databaseManager);
         this.teamPermissionManager = new TeamPermissionManager(databaseManager);
         this.teamPermissionManager.loadPermissions();
@@ -227,6 +233,21 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
 
     @Override
     public void onDisable() {
+        if (teamVaultManager != null) {
+            for (Player player : getServer().getOnlinePlayers()) {
+                if (player.getOpenInventory() != null && player.getOpenInventory().getTopInventory() != null) {
+                    var top = player.getOpenInventory().getTopInventory();
+                    if (top.getHolder() instanceof com.guildcore.gui.holders.VaultGUIHolder vaultHolder) {
+                        org.bukkit.inventory.ItemStack[] contents = top.getContents();
+                        if (contents.length > 53 && contents[53] != null && contents[53].getType() == org.bukkit.Material.BARRIER) {
+                            contents[53] = null;
+                        }
+                        teamVaultManager.saveVaultPageSync(vaultHolder.getTeamId(), vaultHolder.getPage(), contents);
+                    }
+                }
+            }
+            teamVaultManager.saveAllVaultsSync();
+        }
         if (databaseManager != null) {
             databaseManager.shutdown();
         }

@@ -59,13 +59,19 @@ public class EconomyManager {
     public boolean withdraw(UUID uuid, long amount, String reason) {
         if (amount <= 0) return false;
         AtomicLong bal = balanceCache.get(uuid);
-        if (bal == null || bal.get() < amount) return false;
+        if (bal == null) return false;
 
-        bal.addAndGet(-amount);
-        logTransaction(uuid, -amount, reason, null);
-        savePlayerCoins(uuid, bal.get());
-        DebugManager.log(DebugFlag.ECONOMY_TRANSACTIONS, "Withdrew " + amount + " from " + uuid + " (" + reason + ")");
-        return true;
+        while (true) {
+            long current = bal.get();
+            if (current < amount) return false;
+            long next = current - amount;
+            if (bal.compareAndSet(current, next)) {
+                logTransaction(uuid, -amount, reason, null);
+                savePlayerCoins(uuid, next);
+                DebugManager.log(DebugFlag.ECONOMY_TRANSACTIONS, "Withdrew " + amount + " from " + uuid + " (" + reason + ")");
+                return true;
+            }
+        }
     }
 
     public void deposit(UUID uuid, long amount, String reason) {

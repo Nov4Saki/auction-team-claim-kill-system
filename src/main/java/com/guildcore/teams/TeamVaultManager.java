@@ -57,18 +57,40 @@ public class TeamVaultManager {
         vaultCache.put(key, contents);
 
         String base64 = ItemSerializer.serializeInventory(contents);
-        dbManager.executeAsync(() -> {
-            try (Connection conn = dbManager.getConnection();
-                 PreparedStatement ps = conn.prepareStatement(
-                         "INSERT OR REPLACE INTO team_vaults (team_id, page, inventory_data) VALUES (?, ?, ?)")) {
-                ps.setInt(1, teamId);
-                ps.setInt(2, page);
-                ps.setString(3, base64);
-                ps.executeUpdate();
-                DebugManager.log(DebugFlag.VAULT_SERIALIZATION, "Saved vault page " + page + " for team ID " + teamId + " (" + base64.length() + " chars)");
-            } catch (Exception e) {
-                e.printStackTrace();
+        dbManager.executeAsync(() -> saveToDatabase(teamId, page, base64));
+    }
+
+    public void saveVaultPageSync(int teamId, int page, ItemStack[] contents) {
+        String key = makeKey(teamId, page);
+        vaultCache.put(key, contents);
+        String base64 = ItemSerializer.serializeInventory(contents);
+        saveToDatabase(teamId, page, base64);
+    }
+
+    private void saveToDatabase(int teamId, int page, String base64) {
+        try (Connection conn = dbManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                     "INSERT OR REPLACE INTO team_vaults (team_id, page, inventory_data) VALUES (?, ?, ?)")) {
+            ps.setInt(1, teamId);
+            ps.setInt(2, page);
+            ps.setString(3, base64);
+            ps.executeUpdate();
+            DebugManager.log(DebugFlag.VAULT_SERIALIZATION, "Saved vault page " + page + " for team ID " + teamId + " (" + base64.length() + " chars)");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void saveAllVaultsSync() {
+        for (Map.Entry<String, ItemStack[]> entry : vaultCache.entrySet()) {
+            String[] parts = entry.getKey().split(":");
+            if (parts.length == 2) {
+                try {
+                    int teamId = Integer.parseInt(parts[0]);
+                    int page = Integer.parseInt(parts[1]);
+                    saveVaultPageSync(teamId, page, entry.getValue());
+                } catch (NumberFormatException ignored) {}
             }
-        });
+        }
     }
 }

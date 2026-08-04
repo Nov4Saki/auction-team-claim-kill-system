@@ -248,26 +248,30 @@ public class AuctionManager {
     }
 
     public boolean buyItem(Player buyer, AuctionItem item) {
-        if (item == null || item.isSold() || item.isExpired()) return false;
-        if (buyer.getUniqueId().equals(item.getSellerUuid())) return false;
-
-        if (!item.isPurchasable()) {
-            buyer.sendMessage(com.guildcore.util.TextUtil.format("<red>[Auction] This listing is currently in its seller grace period and cannot be purchased for another " + item.getRemainingCooldownSec() + " seconds!</red>"));
-            return false;
-        }
+        if (item == null) return false;
 
         long price = item.getPrice();
-        if (!economyManager.withdraw(buyer.getUniqueId(), price, "auction_buy")) {
-            return false;
+        synchronized (item) {
+            if (item.isSold() || item.isExpired()) return false;
+            if (buyer.getUniqueId().equals(item.getSellerUuid())) return false;
+
+            if (!item.isPurchasable()) {
+                buyer.sendMessage(com.guildcore.util.TextUtil.format("<red>[Auction] This listing is currently in its seller grace period and cannot be purchased for another " + item.getRemainingCooldownSec() + " seconds!</red>"));
+                return false;
+            }
+
+            if (!economyManager.withdraw(buyer.getUniqueId(), price, "auction_buy")) {
+                return false;
+            }
+
+            long taxPercent = settingsManager.getInt("economy.sales_tax_percent", 5);
+            long tax = (long) (price * (taxPercent / 100.0));
+            long sellerProceeds = price - tax;
+            economyManager.deposit(item.getSellerUuid(), sellerProceeds, "auction_sale");
+
+            item.setSold(true);
+            auctionItems.remove(item.getId());
         }
-
-        long taxPercent = settingsManager.getInt("economy.sales_tax_percent", 5);
-        long tax = (long) (price * (taxPercent / 100.0));
-        long sellerProceeds = price - tax;
-        economyManager.deposit(item.getSellerUuid(), sellerProceeds, "auction_sale");
-
-        item.setSold(true);
-        auctionItems.remove(item.getId());
 
         if (buyer.getInventory().firstEmpty() == -1) {
             addToStash(buyer.getUniqueId(), item.getItem());
