@@ -54,8 +54,10 @@ public class TeamManager {
                         int maxClaims = rs.getInt("max_claims");
                         int vaultSlots = rs.getInt("vault_slots");
                         if (vaultSlots <= 0) vaultSlots = 9;
+                        int vaultPages = rs.getInt("vault_pages");
+                        if (vaultPages <= 0) vaultPages = 1;
 
-                        Team team = new Team(id, name, leader, level, exp, bank, maxMembers, maxClaims, vaultSlots);
+                        Team team = new Team(id, name, leader, level, exp, bank, maxMembers, maxClaims, vaultSlots, vaultPages);
 
                         String hWorld = rs.getString("home_world");
                         if (hWorld != null && Bukkit.getWorld(hWorld) != null) {
@@ -701,6 +703,20 @@ public class TeamManager {
                 ps.setInt(2, teamId);
                 ps.executeUpdate();
                 DebugManager.log(DebugFlag.TEAM_UPGRADES, "Saved vault_slots=" + vaultSlots + " for team " + teamId);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
+    }
+
+    public void saveTeamVaultPages(int teamId, int vaultPages) {
+        dbManager.executeAsync(() -> {
+            try (Connection conn = dbManager.getConnection();
+                 PreparedStatement ps = conn.prepareStatement("UPDATE teams SET vault_pages = ? WHERE id = ?")) {
+                ps.setInt(1, vaultPages);
+                ps.setInt(2, teamId);
+                ps.executeUpdate();
+                DebugManager.log(DebugFlag.TEAM_UPGRADES, "Saved vault_pages=" + vaultPages + " for team " + teamId);
             } catch (Exception e) {
                 e.printStackTrace();
             }

@@ -87,6 +87,7 @@ public class DatabaseSetup {
                     "max_members INT DEFAULT 3, " +
                     "max_claims INT DEFAULT 5, " +
                     "vault_slots INT DEFAULT 9, " +
+                    "vault_pages INT DEFAULT 1, " +
                     "home_world VARCHAR(64), " +
                     "home_x DOUBLE, home_y DOUBLE, home_z DOUBLE, " +
                     "home_yaw FLOAT, home_pitch FLOAT, " +
@@ -260,10 +261,15 @@ public class DatabaseSetup {
 
             // Teams Schema Migration Check
             boolean hasVaultSlots = false;
+            boolean hasVaultPages = false;
             try (java.sql.ResultSet rs = stmt.executeQuery("PRAGMA table_info(teams);")) {
                 while (rs.next()) {
-                    if ("vault_slots".equalsIgnoreCase(rs.getString("name"))) {
+                    String colName = rs.getString("name");
+                    if ("vault_slots".equalsIgnoreCase(colName)) {
                         hasVaultSlots = true;
+                    }
+                    if ("vault_pages".equalsIgnoreCase(colName)) {
+                        hasVaultPages = true;
                     }
                 }
             } catch (Exception ignored) {}
@@ -272,6 +278,15 @@ public class DatabaseSetup {
                 try {
                     stmt.execute("ALTER TABLE teams ADD COLUMN vault_slots INT DEFAULT 9;");
                     System.out.println("[GuildCore DB] Added missing vault_slots column to teams.");
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+
+            if (!hasVaultPages) {
+                try {
+                    stmt.execute("ALTER TABLE teams ADD COLUMN vault_pages INT DEFAULT 1;");
+                    System.out.println("[GuildCore DB] Added missing vault_pages column to teams.");
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -293,6 +308,8 @@ public class DatabaseSetup {
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('teams.base_max_members', '3');");
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('teams.vault.base_slot_cost', '500');");
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('teams.vault.slot_cost_step', '250');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('teams.vault.base_page_cost', '5000');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('teams.vault.page_cost_step', '2500');");
 
             // Self-Healing Cleanup: Purge orphaned teams without members
             try {

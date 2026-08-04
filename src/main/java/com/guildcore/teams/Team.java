@@ -16,14 +16,19 @@ public class Team {
     private int maxMembers;
     private int maxClaims;
     private int vaultSlots = 9;
+    private int vaultPages = 1;
     private Location homeLocation;
     private Location nexusLocation;
 
     public Team(int id, String name, UUID leaderUuid, int level, long exp, long bankBalance, int maxMembers, int maxClaims) {
-        this(id, name, leaderUuid, level, exp, bankBalance, maxMembers, maxClaims, 9);
+        this(id, name, leaderUuid, level, exp, bankBalance, maxMembers, maxClaims, 9, 1);
     }
 
     public Team(int id, String name, UUID leaderUuid, int level, long exp, long bankBalance, int maxMembers, int maxClaims, int vaultSlots) {
+        this(id, name, leaderUuid, level, exp, bankBalance, maxMembers, maxClaims, vaultSlots, 1);
+    }
+
+    public Team(int id, String name, UUID leaderUuid, int level, long exp, long bankBalance, int maxMembers, int maxClaims, int vaultSlots, int vaultPages) {
         this.id = id;
         this.name = name;
         this.leaderUuid = leaderUuid;
@@ -33,6 +38,7 @@ public class Team {
         this.maxMembers = maxMembers;
         this.maxClaims = maxClaims;
         this.vaultSlots = Math.max(9, vaultSlots);
+        this.vaultPages = Math.max(1, vaultPages);
     }
 
     public int getId() {
@@ -101,6 +107,14 @@ public class Team {
 
     public void setVaultSlots(int vaultSlots) {
         this.vaultSlots = Math.min(54, Math.max(9, vaultSlots));
+    }
+
+    public int getVaultPages() {
+        return vaultPages;
+    }
+
+    public void setVaultPages(int vaultPages) {
+        this.vaultPages = Math.max(1, vaultPages);
     }
 
     public Location getHomeLocation() {

@@ -229,11 +229,7 @@ public class TeamCommand implements TabExecutor {
             if (args.length >= 2) {
                 try { page = Math.max(1, Integer.parseInt(args[1])); } catch (NumberFormatException ignored) {}
             }
-            ItemStack[] contents = vaultManager.getVaultPage(team.getId(), page);
-            Inventory vaultInv = Bukkit.createInventory(new com.guildcore.gui.holders.VaultGUIHolder(team.getId(), page), 54, TextUtil.format("<gold>📦 Team Vault (Page " + page + ")</gold>"));
-            vaultInv.setContents(contents);
-            vaultInv.setItem(53, new GUIItemBuilder(Material.BARRIER).name("<red>◀ Back to Team Menu</red>").build());
-            player.openInventory(vaultInv);
+            guiManager.openTeamVault(player, team, page);
             return true;
         }
 

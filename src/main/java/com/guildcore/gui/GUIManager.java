@@ -830,44 +830,100 @@ public class GUIManager {
     }
 
     public void openTeamVault(Player player, Team team) {
+        openTeamVault(player, team, 1);
+    }
+
+    public void openTeamVault(Player player, Team team, int page) {
         if (player == null || team == null || vaultManager == null) return;
-        int unlocked = Math.min(54, Math.max(9, team.getVaultSlots()));
-        ItemStack[] items = vaultManager.getVaultPage(team.getId(), 1);
-        if (items == null) items = new ItemStack[0];
+        if (page < 1) page = 1;
 
-        Inventory vaultInv = Bukkit.createInventory(new VaultGUIHolder(team.getId(), 1), 54, TextUtil.format("<gradient:#FFD700:#FFA500><b>📦 Shared Team Vault (" + team.getName() + ")</b></gradient>"));
+        int unlockedPages = Math.max(1, team.getVaultPages());
+        boolean isPageUnlocked = page <= unlockedPages;
 
-        for (int i = 0; i < unlocked; i++) {
-            if (i < items.length && items[i] != null && items[i].getType() != Material.AIR) {
-                vaultInv.setItem(i, items[i].clone());
+        Inventory vaultInv = Bukkit.createInventory(
+                new VaultGUIHolder(team.getId(), page),
+                54,
+                TextUtil.format("<gradient:#FFD700:#FFA500><b>📦 Team Vault (" + team.getName() + " - Page " + page + ")</b></gradient>")
+        );
+
+        if (!isPageUnlocked) {
+            for (int i = 0; i < 54; i++) {
+                vaultInv.setItem(i, new GUIItemBuilder(Material.GRAY_STAINED_GLASS_PANE)
+                        .name("<gray>🔒 Locked Vault Page #" + page + "</gray>")
+                        .lore("<dark_gray>Unlock Page #" + (unlockedPages + 1) + " first.</dark_gray>")
+                        .build());
             }
-        }
 
-        if (unlocked < 54) {
-            long baseCost = settingsManager.getLong("teams.vault.base_slot_cost", 500L);
-            long stepCost = settingsManager.getLong("teams.vault.slot_cost_step", 250L);
-            long cost = baseCost + (unlocked - 9) * stepCost;
+            long basePageCost = settingsManager.getLong("teams.vault.base_page_cost", 5000L);
+            long pageStepCost = settingsManager.getLong("teams.vault.page_cost_step", 2500L);
+            long cost = basePageCost + Math.max(0, page - 2) * pageStepCost;
             boolean canAfford = team.getBankBalance() >= cost;
 
-            ItemStack yellowPane = new GUIItemBuilder(Material.YELLOW_STAINED_GLASS_PANE)
-                    .name("<yellow><b>🔓 Unlock Next Vault Slot</b></yellow>")
+            ItemStack unlockButton = new GUIItemBuilder(Material.YELLOW_STAINED_GLASS_PANE)
+                    .name("<yellow><b>🔓 Unlock Vault Page #" + page + "</b></yellow>")
                     .lore(
-                            "<gray>▪ Target Slot: <white>#" + (unlocked + 1) + "</white></gray>",
+                            "<gray>▪ Target Page: <white>#" + page + "</white></gray>",
                             "<gray>▪ Cost: <gold>$" + String.format("%,d", cost) + " Team Bank</gold></gray>",
                             "<gray>▪ Team Bank: <white>$" + String.format("%,d", team.getBankBalance()) + "</white></gray>",
                             "",
-                            canAfford ? "<gradient:#00FF87:#60EFFF><b>✔ CLICK TO UNLOCK SLOT #" + (unlocked + 1) + "</b></gradient>" : "<gradient:#FF416C:#FF4B2B><b>✖ INSUFFICIENT TEAM BANK</b></gradient>"
+                            canAfford ? "<gradient:#00FF87:#60EFFF><b>✔ CLICK TO UNLOCK PAGE #" + page + "</b></gradient>" : "<gradient:#FF416C:#FF4B2B><b>✖ INSUFFICIENT TEAM BANK</b></gradient>"
                     ).build();
+            vaultInv.setItem(22, unlockButton);
 
-            vaultInv.setItem(unlocked, yellowPane);
-        }
+            if (page > 1) {
+                vaultInv.setItem(45, new GUIItemBuilder(Material.ARROW).name("<yellow><b>◀ Previous Page (Page " + (page - 1) + ")</b></yellow>").build());
+            }
+            vaultInv.setItem(49, new GUIItemBuilder(Material.BARRIER).name("<red>◀ Return to Team Menu</red>").build());
+        } else {
+            ItemStack[] items = vaultManager.getVaultPage(team.getId(), page);
+            if (items == null) items = new ItemStack[0];
 
-        for (int i = unlocked + 1; i < 54; i++) {
-            ItemStack grayPane = new GUIItemBuilder(Material.GRAY_STAINED_GLASS_PANE)
-                    .name("<gray>🔒 Locked Vault Slot</gray>")
-                    .lore("<dark_gray>Unlock slot #" + (unlocked + 1) + " first.</dark_gray>")
-                    .build();
-            vaultInv.setItem(i, grayPane);
+            for (int i = 0; i < Math.min(45, items.length); i++) {
+                if (items[i] != null && items[i].getType() != Material.AIR) {
+                    vaultInv.setItem(i, items[i].clone());
+                }
+            }
+
+            for (int i = 45; i < 54; i++) {
+                vaultInv.setItem(i, new GUIItemBuilder(Material.BLACK_STAINED_GLASS_PANE).name(" ").build());
+            }
+
+            if (page > 1) {
+                vaultInv.setItem(45, new GUIItemBuilder(Material.ARROW).name("<yellow><b>◀ Previous Page (Page " + (page - 1) + ")</b></yellow>").build());
+            } else {
+                vaultInv.setItem(45, new GUIItemBuilder(Material.GRAY_STAINED_GLASS_PANE).name("<gray><b>◀ First Page</b></gray>").build());
+            }
+
+            vaultInv.setItem(49, new GUIItemBuilder(Material.BOOK)
+                    .name("<gold><b>📦 Vault Page " + page + " / " + unlockedPages + "</b></gold>")
+                    .lore(
+                            "<gray>▪ Team: <white>" + team.getName() + "</white></gray>",
+                            "<gray>▪ Unlocked Pages: <green>" + unlockedPages + "</green></gray>",
+                            "<gray>▪ Team Bank: <gold>$" + String.format("%,d", team.getBankBalance()) + "</gold></gray>",
+                            "",
+                            "<yellow>▶ Click to return to Main Menu</yellow>"
+                    ).build());
+
+            if (page < unlockedPages) {
+                vaultInv.setItem(53, new GUIItemBuilder(Material.ARROW).name("<yellow><b>Next Page (Page " + (page + 1) + ") ▶</b></yellow>").build());
+            } else {
+                int nextPage = unlockedPages + 1;
+                long basePageCost = settingsManager.getLong("teams.vault.base_page_cost", 5000L);
+                long pageStepCost = settingsManager.getLong("teams.vault.page_cost_step", 2500L);
+                long cost = basePageCost + Math.max(0, nextPage - 2) * pageStepCost;
+                boolean canAfford = team.getBankBalance() >= cost;
+
+                ItemStack nextLocked = new GUIItemBuilder(Material.YELLOW_STAINED_GLASS_PANE)
+                        .name("<yellow><b>🔒 Page #" + nextPage + " Locked (Click to Unlock)</b></yellow>")
+                        .lore(
+                                "<gray>▪ Target Page: <white>#" + nextPage + "</white></gray>",
+                                "<gray>▪ Unlock Cost: <gold>$" + String.format("%,d", cost) + " Team Bank</gold></gray>",
+                                "<gray>▪ Team Bank: <white>$" + String.format("%,d", team.getBankBalance()) + "</white></gray>",
+                                "",
+                                canAfford ? "<gradient:#00FF87:#60EFFF><b>✔ CLICK TO UNLOCK PAGE #" + nextPage + "</b></gradient>" : "<gradient:#FF416C:#FF4B2B><b>✖ INSUFFICIENT TEAM BANK</b></gradient>"
+                        ).build();
+                vaultInv.setItem(53, nextLocked);
+            }
         }
 
         if (scheduler != null) {
@@ -877,14 +933,14 @@ public class GUIManager {
         }
     }
 
-    public void refreshTeamVault(int teamId) {
+    public void refreshTeamVault(int teamId, int page) {
         Team team = teamManager.getTeam(teamId);
         if (team == null) return;
         for (Player p : Bukkit.getOnlinePlayers()) {
             if (p != null && p.isOnline() && p.getOpenInventory() != null && p.getOpenInventory().getTopInventory() != null) {
                 Inventory top = p.getOpenInventory().getTopInventory();
-                if (top.getHolder() instanceof VaultGUIHolder vh && vh.getTeamId() == teamId) {
-                    openTeamVault(p, team);
+                if (top.getHolder() instanceof VaultGUIHolder vh && vh.getTeamId() == teamId && vh.getPage() == page) {
+                    openTeamVault(p, team, page);
                 }
             }
         }
