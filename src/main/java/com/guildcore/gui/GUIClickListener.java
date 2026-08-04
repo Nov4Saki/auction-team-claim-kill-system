@@ -1265,14 +1265,15 @@ public class GUIClickListener implements Listener {
             }
 
             if (slot == 11) { // Member Cap Upgrade
-                if (team.getBankBalance() >= 5000) {
-                    team.setBankBalance(team.getBankBalance() - 5000);
+                long memberCost = settingsManager.getLong("teams.upgrade.member_cap_cost", 5000);
+                if (team.getBankBalance() >= memberCost) {
+                    team.setBankBalance(team.getBankBalance() - memberCost);
                     team.setMaxMembers(team.getMaxMembers() + 2);
                     teamManager.saveTeamMaxMembers(team.getId(), team.getMaxMembers());
                     player.sendMessage(TextUtil.format("<green>Upgraded Team Member Cap to " + team.getMaxMembers() + "!</green>"));
                     guiManager.openTeamUpgrades(player, team);
                 } else {
-                    player.sendMessage(TextUtil.format("<red>✖ Insufficient Team Bank balance ($5,000 required). Your Bank: $" + String.format("%,d", team.getBankBalance()) + "</red>"));
+                    player.sendMessage(TextUtil.format("<red>✖ Insufficient Team Bank balance ($" + String.format("%,d", memberCost) + " required). Your Bank: $" + String.format("%,d", team.getBankBalance()) + "</red>"));
                 }
             }
             return;

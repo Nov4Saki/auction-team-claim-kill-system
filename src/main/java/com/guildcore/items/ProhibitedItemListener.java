@@ -85,17 +85,26 @@ public class ProhibitedItemListener implements Listener {
         }
     }
 
-    @EventHandler(priority = EventPriority.MONITOR)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onItemHeld(PlayerItemHeldEvent event) {
         if (prohibitedManager == null) return;
         Player player = event.getPlayer();
-        prohibitedManager.purgePlayerFull(player);
+        ItemStack item = player.getInventory().getItem(event.getNewSlot());
+        if (item != null && prohibitedManager.isProhibited(item)) {
+            player.getInventory().setItem(event.getNewSlot(), null);
+            player.sendMessage(TextUtil.format("<red>⚠ Prohibited item (" + item.getType().name() + ") destroyed on slot change!</red>"));
+        }
     }
 
-    @EventHandler(priority = EventPriority.MONITOR)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onInteract(PlayerInteractEvent event) {
         if (prohibitedManager == null) return;
-        Player player = event.getPlayer();
-        prohibitedManager.purgePlayerFull(player);
+        ItemStack item = event.getItem();
+        if (item != null && prohibitedManager.isProhibited(item)) {
+            event.setCancelled(true);
+            Player player = event.getPlayer();
+            player.getInventory().removeItem(item);
+            player.sendMessage(TextUtil.format("<red>⚠ Prohibited item (" + item.getType().name() + ") destroyed on interact!</red>"));
+        }
     }
 }

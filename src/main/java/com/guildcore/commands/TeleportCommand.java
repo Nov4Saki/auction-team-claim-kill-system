@@ -38,6 +38,7 @@ public class TeleportCommand implements TabExecutor {
     private final GUIManager guiManager;
     private final Map<UUID, UUID> tpaRequests = new ConcurrentHashMap<>();
     private final Map<UUID, Long> rtpCooldowns = new ConcurrentHashMap<>();
+    private final Map<String, Location> homeCache = new ConcurrentHashMap<>();
     private final Random random = new Random();
 
     public TeleportCommand(DatabaseManager dbManager, SettingsManager settingsManager, SchedulerWrapper scheduler, GUIManager guiManager) {
@@ -225,6 +226,8 @@ public class TeleportCommand implements TabExecutor {
         if (cmd.equals("sethome")) {
             String name = args.length >= 1 ? args[0].toLowerCase() : "home";
             Location loc = player.getLocation();
+            String cacheKey = player.getUniqueId().toString() + ":" + name;
+            homeCache.put(cacheKey, loc);
             dbManager.executeAsync(() -> {
                 try (Connection conn = dbManager.getConnection();
                      PreparedStatement ps = conn.prepareStatement("INSERT OR REPLACE INTO homes (player_uuid, name, world, x, y, z, yaw, pitch) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")) {
@@ -247,6 +250,18 @@ public class TeleportCommand implements TabExecutor {
 
         if (cmd.equals("home")) {
             String name = args.length >= 1 ? args[0].toLowerCase() : "home";
+            String cacheKey = player.getUniqueId().toString() + ":" + name;
+
+            Location cachedLoc = homeCache.get(cacheKey);
+            if (cachedLoc != null) {
+                player.teleportAsync(cachedLoc).thenAccept(success -> {
+                    if (success) {
+                        player.sendMessage(TextUtil.format("<green>Teleported home (" + name + ")!</green>"));
+                    }
+                });
+                return true;
+            }
+
             dbManager.executeAsync(() -> {
                 try (Connection conn = dbManager.getConnection();
                      PreparedStatement ps = conn.prepareStatement("SELECT world, x, y, z, yaw, pitch FROM homes WHERE player_uuid = ? AND name = ?")) {
@@ -257,6 +272,7 @@ public class TeleportCommand implements TabExecutor {
                             World w = Bukkit.getWorld(rs.getString("world"));
                             if (w != null) {
                                 Location loc = new Location(w, rs.getDouble("x"), rs.getDouble("y"), rs.getDouble("z"), rs.getFloat("yaw"), rs.getFloat("pitch"));
+                                homeCache.put(cacheKey, loc);
                                 player.teleportAsync(loc).thenAccept(success -> {
                                     if (success) {
                                         player.sendMessage(TextUtil.format("<green>Teleported home (" + name + ")!</green>"));
@@ -276,6 +292,8 @@ public class TeleportCommand implements TabExecutor {
 
         if (cmd.equals("delhome")) {
             String name = args.length >= 1 ? args[0].toLowerCase() : "home";
+            String cacheKey = player.getUniqueId().toString() + ":" + name;
+            homeCache.remove(cacheKey);
             dbManager.executeAsync(() -> {
                 try (Connection conn = dbManager.getConnection();
                      PreparedStatement ps = conn.prepareStatement("DELETE FROM homes WHERE player_uuid = ? AND name = ?")) {

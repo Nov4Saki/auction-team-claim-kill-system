@@ -824,27 +824,31 @@ public class GUIManager {
 
         fillBorder27(inv, Material.CYAN_STAINED_GLASS_PANE);
 
-        boolean memberCapAfford = team.getBankBalance() >= 5000;
+        long memberCost = settingsManager.getLong("teams.upgrade.member_cap_cost", 5000);
+        long vaultCost = settingsManager.getLong("teams.upgrade.vault_page_cost", 10000);
+        long claimsCost = settingsManager.getLong("teams.upgrade.claims_cost", 7500);
+
+        boolean memberCapAfford = team.getBankBalance() >= memberCost;
         inv.setItem(11, new GUIItemBuilder(Material.PLAYER_HEAD).name("<yellow><b>👥 Member Capacity (+2 Members)</b></yellow>")
                 .lore(
                         "<gray>▪ Current Cap: <white>" + team.getMaxMembers() + " Members</white></gray>",
-                        "<gray>▪ Upgrade Cost: <gradient:#00FF87:#60EFFF>$5,000 Guild Treasury</gradient></gray>",
+                        "<gray>▪ Upgrade Cost: <gradient:#00FF87:#60EFFF>$" + String.format("%,d", memberCost) + " Guild Treasury</gradient></gray>",
                         "",
                         memberCapAfford ? "<gradient:#00FF87:#60EFFF><b>✔ TREASURY SUFFICIENT - CLICK TO UPGRADE</b></gradient>" : "<gradient:#FF416C:#FF4B2B><b>✖ INSUFFICIENT GUILD BANK</b></gradient>"
                 ).build());
 
         inv.setItem(13, new GUIItemBuilder(Material.CHEST).name("<gold><b>📦 Vault Capacity (+1 Page)</b></gold>")
                 .lore(
-                        "<gray>▪ Upgrade Cost: <gradient:#00FF87:#60EFFF>$10,000 Guild Treasury</gradient></gray>",
+                        "<gray>▪ Upgrade Cost: <gradient:#00FF87:#60EFFF>$" + String.format("%,d", vaultCost) + " Guild Treasury</gradient></gray>",
                         "",
-                        team.getBankBalance() >= 10000 ? "<gradient:#00FF87:#60EFFF><b>✔ TREASURY SUFFICIENT - CLICK TO UPGRADE</b></gradient>" : "<gradient:#FF416C:#FF4B2B><b>✖ INSUFFICIENT GUILD BANK</b></gradient>"
+                        team.getBankBalance() >= vaultCost ? "<gradient:#00FF87:#60EFFF><b>✔ TREASURY SUFFICIENT - CLICK TO UPGRADE</b></gradient>" : "<gradient:#FF416C:#FF4B2B><b>✖ INSUFFICIENT GUILD BANK</b></gradient>"
                 ).build());
 
         inv.setItem(15, new GUIItemBuilder(Material.GRASS_BLOCK).name("<green><b>🗺 Land Claims (+5 Chunks)</b></green>")
                 .lore(
-                        "<gray>▪ Upgrade Cost: <gradient:#00FF87:#60EFFF>$7,500 Guild Treasury</gradient></gray>",
+                        "<gray>▪ Upgrade Cost: <gradient:#00FF87:#60EFFF>$" + String.format("%,d", claimsCost) + " Guild Treasury</gradient></gray>",
                         "",
-                        team.getBankBalance() >= 7500 ? "<gradient:#00FF87:#60EFFF><b>✔ TREASURY SUFFICIENT - CLICK TO UPGRADE</b></gradient>" : "<gradient:#FF416C:#FF4B2B><b>✖ INSUFFICIENT GUILD BANK</b></gradient>"
+                        team.getBankBalance() >= claimsCost ? "<gradient:#00FF87:#60EFFF><b>✔ TREASURY SUFFICIENT - CLICK TO UPGRADE</b></gradient>" : "<gradient:#FF416C:#FF4B2B><b>✖ INSUFFICIENT GUILD BANK</b></gradient>"
                 ).build());
 
         inv.setItem(26, new GUIItemBuilder(Material.BARRIER).name("<red><b>◀ Return to Guild Citadel</b></red>").build());
