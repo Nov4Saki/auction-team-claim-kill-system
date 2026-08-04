@@ -724,4 +724,38 @@ public class TeamManager {
             }
         });
     }
+
+    public synchronized boolean purchaseVaultSlot(Team team, int targetGlobalSlot, long cost) {
+        if (team == null || targetGlobalSlot <= 0 || cost < 0) return false;
+
+        // 1. Check if slot was already unlocked by a concurrent click
+        if (team.getVaultSlots() >= targetGlobalSlot) {
+            return false;
+        }
+
+        // 2. Verify bank balance sufficiency
+        if (team.getBankBalance() < cost) {
+            return false;
+        }
+
+        // 3. Atomically update team memory state
+        team.setBankBalance(team.getBankBalance() - cost);
+        team.setVaultSlots(targetGlobalSlot);
+
+        // 4. Save BOTH bank balance AND vault slots to database in one atomic update
+        dbManager.executeAsync(() -> {
+            try (Connection conn = dbManager.getConnection();
+                 PreparedStatement ps = conn.prepareStatement("UPDATE teams SET bank_balance = ?, vault_slots = ? WHERE id = ?")) {
+                ps.setLong(1, team.getBankBalance());
+                ps.setInt(2, targetGlobalSlot);
+                ps.setInt(3, team.getId());
+                ps.executeUpdate();
+                DebugManager.log(DebugFlag.TEAM_UPGRADES, "Atomically saved bank_balance=" + team.getBankBalance() + " and vault_slots=" + targetGlobalSlot + " for team " + team.getId());
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
+
+        return true;
+    }
 }

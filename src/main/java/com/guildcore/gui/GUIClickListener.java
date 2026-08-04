@@ -312,17 +312,15 @@ public class GUIClickListener implements Listener {
                         long stepCost = settingsManager.getLong("teams.vault.slot_cost_step", 250L);
                         long cost = baseCost + (targetGlobalSlot - 10) * stepCost;
 
-                        if (team.getBankBalance() >= cost) {
-                            team.setBankBalance(team.getBankBalance() - cost);
-                            team.setVaultSlots(targetGlobalSlot);
-                            teamManager.saveTeamVaultSlots(team.getId(), team.getVaultSlots());
+                        if (teamManager.purchaseVaultSlot(team, targetGlobalSlot, cost)) {
                             saveVaultTopInventory(team.getId(), page, topInv);
                             SoundUtil.playSuccess(player);
                             player.sendMessage(TextUtil.format("<green>✔ Unlocked Team Vault Slot #" + targetGlobalSlot + " (Opening Page #" + (page + 1) + ")!</green>"));
                             guiManager.openTeamVault(player, team, page + 1);
                         } else {
                             SoundUtil.playError(player);
-                            player.sendMessage(TextUtil.format("<red>✖ Insufficient Team Bank balance ($" + String.format("%,d", cost) + " required). Current Bank: $" + String.format("%,d", team.getBankBalance()) + "</red>"));
+                            player.sendMessage(TextUtil.format("<red>✖ Purchase failed! Check Team Bank balance ($" + String.format("%,d", cost) + " required) or slot was already unlocked.</red>"));
+                            guiManager.refreshTeamVault(team.getId(), page);
                         }
                     } else {
                         SoundUtil.playError(player);
@@ -340,16 +338,14 @@ public class GUIClickListener implements Listener {
                         long stepCost = settingsManager.getLong("teams.vault.slot_cost_step", 250L);
                         long cost = baseCost + (targetGlobalSlot - 10) * stepCost;
 
-                        if (team.getBankBalance() >= cost) {
-                            team.setBankBalance(team.getBankBalance() - cost);
-                            team.setVaultSlots(targetGlobalSlot);
-                            teamManager.saveTeamVaultSlots(team.getId(), team.getVaultSlots());
+                        if (teamManager.purchaseVaultSlot(team, targetGlobalSlot, cost)) {
                             SoundUtil.playSuccess(player);
                             player.sendMessage(TextUtil.format("<green>✔ Unlocked Team Vault Slot #" + targetGlobalSlot + " for $" + String.format("%,d", cost) + " Team Bank!</green>"));
                             guiManager.refreshTeamVault(team.getId(), page);
                         } else {
                             SoundUtil.playError(player);
-                            player.sendMessage(TextUtil.format("<red>✖ Insufficient Team Bank balance ($" + String.format("%,d", cost) + " required). Current Bank: $" + String.format("%,d", team.getBankBalance()) + "</red>"));
+                            player.sendMessage(TextUtil.format("<red>✖ Purchase failed! Check Team Bank balance ($" + String.format("%,d", cost) + " required) or slot was already unlocked.</red>"));
+                            guiManager.refreshTeamVault(team.getId(), page);
                         }
                         return;
                     }
