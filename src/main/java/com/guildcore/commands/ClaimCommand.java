@@ -51,7 +51,7 @@ public class ClaimCommand implements TabExecutor {
             }
         } else if (cmd.contains("claim") && !cmd.contains("unclaim")) {
             if (args.length == 1) {
-                for (String sub : Arrays.asList("auto", "map", "flags")) {
+                for (String sub : Arrays.asList("auto", "map", "flags", "border")) {
                     if (sub.startsWith(args[0].toLowerCase())) completions.add(sub);
                 }
             }
@@ -68,6 +68,12 @@ public class ClaimCommand implements TabExecutor {
 
         Chunk chunk = player.getLocation().getChunk();
         String cmd = label.toLowerCase();
+
+        if (args.length >= 1 && (args[0].equalsIgnoreCase("border") || args[0].equalsIgnoreCase("visual") || args[0].equalsIgnoreCase("visualize"))) {
+            visualizer.showBorder(player, chunk);
+            player.sendMessage(TextUtil.format("<cyan>✨ Displaying claim border particles for chunk (" + chunk.getX() + ", " + chunk.getZ() + ").</cyan>"));
+            return true;
+        }
 
         if (cmd.contains("unclaim")) {
             Team team = guiManager.getTeamManager().getPlayerTeam(player.getUniqueId());
