@@ -573,18 +573,17 @@ public class GUIClickListener implements Listener {
                     return;
                 }
 
-                if (costCoins > 0) {
-                    team.setBankBalance(team.getBankBalance() - costCoins);
-                }
-                if (costXpLevels > 0) {
-                    player.setLevel(player.getLevel() - costXpLevels);
-                }
-                if (costItemAmount > 0) {
-                    player.getInventory().removeItem(new ItemStack(costItemMat, costItemAmount));
-                }
-
                 boolean success = guiManager.getClaimManager().createTeamClaim(player.getUniqueId(), team.getId(), targetChunk);
                 if (success) {
+                    if (costCoins > 0) {
+                        team.setBankBalance(team.getBankBalance() - costCoins);
+                    }
+                    if (costXpLevels > 0) {
+                        player.setLevel(player.getLevel() - costXpLevels);
+                    }
+                    if (costItemAmount > 0) {
+                        player.getInventory().removeItem(new ItemStack(costItemMat, costItemAmount));
+                    }
                     SoundUtil.playSuccess(player);
                     player.sendMessage(TextUtil.format("<green>✔ Successfully claimed chunk (" + targetCx + ", " + targetCz + ") for your Guild!</green>"));
                     guiManager.openTeamMapGUI(player);

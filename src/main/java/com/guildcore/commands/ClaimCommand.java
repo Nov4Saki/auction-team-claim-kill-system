@@ -177,17 +177,16 @@ public class ClaimCommand implements TabExecutor {
             return true;
         }
 
-        if (costCoins > 0) {
-            team.setBankBalance(team.getBankBalance() - costCoins);
-        }
-        if (costXpLevels > 0) {
-            player.setLevel(player.getLevel() - costXpLevels);
-        }
-        if (costItemAmount > 0) {
-            player.getInventory().removeItem(new org.bukkit.inventory.ItemStack(costItemMat, costItemAmount));
-        }
-
         if (claimManager.createTeamClaim(player.getUniqueId(), team.getId(), chunk)) {
+            if (costCoins > 0) {
+                team.setBankBalance(team.getBankBalance() - costCoins);
+            }
+            if (costXpLevels > 0) {
+                player.setLevel(player.getLevel() - costXpLevels);
+            }
+            if (costItemAmount > 0) {
+                player.getInventory().removeItem(new org.bukkit.inventory.ItemStack(costItemMat, costItemAmount));
+            }
             visualizer.showBorder(player, chunk);
             player.sendMessage(TextUtil.format("<green>✔ Successfully claimed chunk (" + chunk.getX() + ", " + chunk.getZ() + ") for your Guild!</green>"));
         } else {
