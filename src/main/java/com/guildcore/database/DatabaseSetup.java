@@ -277,7 +277,7 @@ public class DatabaseSetup {
             if (!hasVaultSlots) {
                 try {
                     stmt.execute("ALTER TABLE teams ADD COLUMN vault_slots INT DEFAULT 9;");
-                    System.out.println("[GuildCore DB] Added missing vault_slots column to teams.");
+                    com.guildcore.debug.DebugManager.log(com.guildcore.debug.DebugFlag.DATABASE_WRITES, "Added missing vault_slots column to teams.");
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -286,7 +286,7 @@ public class DatabaseSetup {
             if (!hasVaultPages) {
                 try {
                     stmt.execute("ALTER TABLE teams ADD COLUMN vault_pages INT DEFAULT 1;");
-                    System.out.println("[GuildCore DB] Added missing vault_pages column to teams.");
+                    com.guildcore.debug.DebugManager.log(com.guildcore.debug.DebugFlag.DATABASE_WRITES, "Added missing vault_pages column to teams.");
                 } catch (Exception e) {
                     e.printStackTrace();
                 }

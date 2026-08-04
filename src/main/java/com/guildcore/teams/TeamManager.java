@@ -35,9 +35,7 @@ public class TeamManager {
     public void loadTeams() {
         dbManager.executeAsync(() -> {
             try (Connection conn = dbManager.getConnection()) {
-                try (PreparedStatement ps = conn.prepareStatement(
-                        "SELECT id, name, leader_uuid, level, exp, bank_balance, max_members, max_claims, " +
-                        "home_world, home_x, home_y, home_z, home_yaw, home_pitch, nexus_world, nexus_x, nexus_y, nexus_z FROM teams");
+                try (PreparedStatement ps = conn.prepareStatement("SELECT * FROM teams");
                      ResultSet rs = ps.executeQuery()) {
 
                     teamsById.clear();
@@ -52,9 +50,13 @@ public class TeamManager {
                         long bank = rs.getLong("bank_balance");
                         int maxMembers = rs.getInt("max_members");
                         int maxClaims = rs.getInt("max_claims");
-                        int vaultSlots = rs.getInt("vault_slots");
+
+                        int vaultSlots = 9;
+                        try { vaultSlots = rs.getInt("vault_slots"); } catch (Exception ignored) {}
                         if (vaultSlots <= 0) vaultSlots = 9;
-                        int vaultPages = rs.getInt("vault_pages");
+
+                        int vaultPages = 1;
+                        try { vaultPages = rs.getInt("vault_pages"); } catch (Exception ignored) {}
                         if (vaultPages <= 0) vaultPages = 1;
 
                         Team team = new Team(id, name, leader, level, exp, bank, maxMembers, maxClaims, vaultSlots, vaultPages);
