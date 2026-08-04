@@ -45,6 +45,8 @@ public class GUIManager {
     private ShopManager shopManager;
     private com.guildcore.economy.EconomyManager economyManager;
     private com.guildcore.teams.TeamBankManager teamBankManager;
+    private com.guildcore.teams.TeamVaultManager vaultManager;
+    private com.guildcore.scheduler.SchedulerWrapper scheduler;
 
     public GUIManager(SettingsManager settingsManager, TeamManager teamManager, ClaimManager claimManager, AuctionManager auctionManager, StatsManager statsManager, TeamPermissionManager permissionManager) {
         this.settingsManager = settingsManager;
@@ -53,6 +55,14 @@ public class GUIManager {
         this.auctionManager = auctionManager;
         this.statsManager = statsManager;
         this.permissionManager = permissionManager;
+    }
+
+    public void setTeamVaultManager(com.guildcore.teams.TeamVaultManager vaultManager) {
+        this.vaultManager = vaultManager;
+    }
+
+    public void setScheduler(com.guildcore.scheduler.SchedulerWrapper scheduler) {
+        this.scheduler = scheduler;
     }
 
     public void setEconomyManager(com.guildcore.economy.EconomyManager economyManager) {
@@ -817,6 +827,67 @@ public class GUIManager {
 
         player.openInventory(inv);
         DebugManager.log(DebugFlag.GUI_CLICKS, "Opened main Team GUI for " + player.getName());
+    }
+
+    public void openTeamVault(Player player, Team team) {
+        if (player == null || team == null || vaultManager == null) return;
+        int unlocked = Math.min(54, Math.max(9, team.getVaultSlots()));
+        ItemStack[] items = vaultManager.getVaultPage(team.getId(), 1);
+        if (items == null) items = new ItemStack[0];
+
+        Inventory vaultInv = Bukkit.createInventory(new VaultGUIHolder(team.getId(), 1), 54, TextUtil.format("<gradient:#FFD700:#FFA500><b>📦 Shared Team Vault (" + team.getName() + ")</b></gradient>"));
+
+        for (int i = 0; i < unlocked; i++) {
+            if (i < items.length && items[i] != null && items[i].getType() != Material.AIR) {
+                vaultInv.setItem(i, items[i].clone());
+            }
+        }
+
+        if (unlocked < 54) {
+            long baseCost = settingsManager.getLong("teams.vault.base_slot_cost", 500L);
+            long stepCost = settingsManager.getLong("teams.vault.slot_cost_step", 250L);
+            long cost = baseCost + (unlocked - 9) * stepCost;
+            boolean canAfford = team.getBankBalance() >= cost;
+
+            ItemStack yellowPane = new GUIItemBuilder(Material.YELLOW_STAINED_GLASS_PANE)
+                    .name("<yellow><b>🔓 Unlock Next Vault Slot</b></yellow>")
+                    .lore(
+                            "<gray>▪ Target Slot: <white>#" + (unlocked + 1) + "</white></gray>",
+                            "<gray>▪ Cost: <gold>$" + String.format("%,d", cost) + " Team Bank</gold></gray>",
+                            "<gray>▪ Team Bank: <white>$" + String.format("%,d", team.getBankBalance()) + "</white></gray>",
+                            "",
+                            canAfford ? "<gradient:#00FF87:#60EFFF><b>✔ CLICK TO UNLOCK SLOT #" + (unlocked + 1) + "</b></gradient>" : "<gradient:#FF416C:#FF4B2B><b>✖ INSUFFICIENT TEAM BANK</b></gradient>"
+                    ).build();
+
+            vaultInv.setItem(unlocked, yellowPane);
+        }
+
+        for (int i = unlocked + 1; i < 54; i++) {
+            ItemStack grayPane = new GUIItemBuilder(Material.GRAY_STAINED_GLASS_PANE)
+                    .name("<gray>🔒 Locked Vault Slot</gray>")
+                    .lore("<dark_gray>Unlock slot #" + (unlocked + 1) + " first.</dark_gray>")
+                    .build();
+            vaultInv.setItem(i, grayPane);
+        }
+
+        if (scheduler != null) {
+            scheduler.runSync(player, () -> player.openInventory(vaultInv));
+        } else {
+            player.openInventory(vaultInv);
+        }
+    }
+
+    public void refreshTeamVault(int teamId) {
+        Team team = teamManager.getTeam(teamId);
+        if (team == null) return;
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            if (p != null && p.isOnline() && p.getOpenInventory() != null && p.getOpenInventory().getTopInventory() != null) {
+                Inventory top = p.getOpenInventory().getTopInventory();
+                if (top.getHolder() instanceof VaultGUIHolder vh && vh.getTeamId() == teamId) {
+                    openTeamVault(p, team);
+                }
+            }
+        }
     }
 
     public void openTeamUpgrades(Player player, Team team) {

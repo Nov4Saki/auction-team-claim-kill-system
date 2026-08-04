@@ -151,6 +151,8 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
         this.guiManager.setShopManager(shopManager);
         this.guiManager.setEconomyManager(economyManager);
         this.guiManager.setTeamBankManager(teamBankManager);
+        this.guiManager.setTeamVaultManager(teamVaultManager);
+        this.guiManager.setScheduler(scheduler);
 
         // Register Event Listeners
         PluginManager pm = getServer().getPluginManager();

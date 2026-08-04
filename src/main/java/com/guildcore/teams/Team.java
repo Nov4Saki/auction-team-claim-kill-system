@@ -15,10 +15,15 @@ public class Team {
     private long bankBalance;
     private int maxMembers;
     private int maxClaims;
+    private int vaultSlots = 9;
     private Location homeLocation;
     private Location nexusLocation;
 
     public Team(int id, String name, UUID leaderUuid, int level, long exp, long bankBalance, int maxMembers, int maxClaims) {
+        this(id, name, leaderUuid, level, exp, bankBalance, maxMembers, maxClaims, 9);
+    }
+
+    public Team(int id, String name, UUID leaderUuid, int level, long exp, long bankBalance, int maxMembers, int maxClaims, int vaultSlots) {
         this.id = id;
         this.name = name;
         this.leaderUuid = leaderUuid;
@@ -27,6 +32,7 @@ public class Team {
         this.bankBalance = bankBalance;
         this.maxMembers = maxMembers;
         this.maxClaims = maxClaims;
+        this.vaultSlots = Math.max(9, vaultSlots);
     }
 
     public int getId() {
@@ -87,6 +93,14 @@ public class Team {
 
     public void setMaxClaims(int maxClaims) {
         this.maxClaims = maxClaims;
+    }
+
+    public int getVaultSlots() {
+        return vaultSlots;
+    }
+
+    public void setVaultSlots(int vaultSlots) {
+        this.vaultSlots = Math.min(54, Math.max(9, vaultSlots));
     }
 
     public Location getHomeLocation() {

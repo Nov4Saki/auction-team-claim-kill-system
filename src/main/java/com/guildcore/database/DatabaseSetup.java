@@ -86,6 +86,7 @@ public class DatabaseSetup {
                     "bank_balance BIGINT DEFAULT 0, " +
                     "max_members INT DEFAULT 3, " +
                     "max_claims INT DEFAULT 5, " +
+                    "vault_slots INT DEFAULT 9, " +
                     "home_world VARCHAR(64), " +
                     "home_x DOUBLE, home_y DOUBLE, home_z DOUBLE, " +
                     "home_yaw FLOAT, home_pitch FLOAT, " +
@@ -257,6 +258,25 @@ public class DatabaseSetup {
                     "key VARCHAR(64) PRIMARY KEY, " +
                     "value TEXT NOT NULL);");
 
+            // Teams Schema Migration Check
+            boolean hasVaultSlots = false;
+            try (java.sql.ResultSet rs = stmt.executeQuery("PRAGMA table_info(teams);")) {
+                while (rs.next()) {
+                    if ("vault_slots".equalsIgnoreCase(rs.getString("name"))) {
+                        hasVaultSlots = true;
+                    }
+                }
+            } catch (Exception ignored) {}
+
+            if (!hasVaultSlots) {
+                try {
+                    stmt.execute("ALTER TABLE teams ADD COLUMN vault_slots INT DEFAULT 9;");
+                    System.out.println("[GuildCore DB] Added missing vault_slots column to teams.");
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+
             // Default Settings Inserts
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('economy.starting_balance', '100');");
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('economy.pvp_kill_reward', '50');");
@@ -271,6 +291,8 @@ public class DatabaseSetup {
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('claims.blocks_per_hour', '50');");
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('teams.creation_cost', '5000');");
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('teams.base_max_members', '3');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('teams.vault.base_slot_cost', '500');");
+            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('teams.vault.slot_cost_step', '250');");
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('raids.warmup_minutes', '5');");
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('raids.duration_minutes', '15');");
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('raids.declaration_cost', '2000');");

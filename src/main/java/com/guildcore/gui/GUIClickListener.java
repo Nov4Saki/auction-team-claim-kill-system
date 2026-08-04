@@ -83,15 +83,19 @@ public class GUIClickListener implements Listener {
         if (event.getInventory() == null) return;
         InventoryHolder holder = event.getInventory().getHolder();
         if (holder instanceof VaultGUIHolder vaultHolder) {
-            ItemStack[] contents = event.getInventory().getContents();
-            if (contents.length > 53 && contents[53] != null && contents[53].getType() == Material.BARRIER) {
-                contents[53] = null;
+            ItemStack[] contents = new ItemStack[54];
+            ItemStack[] invContents = event.getInventory().getContents();
+            for (int i = 0; i < Math.min(54, invContents.length); i++) {
+                ItemStack item = invContents[i];
+                if (item != null && item.getType() != Material.AIR && item.getType() != Material.YELLOW_STAINED_GLASS_PANE && item.getType() != Material.GRAY_STAINED_GLASS_PANE && item.getType() != Material.BARRIER) {
+                    contents[i] = item.clone();
+                }
             }
-            vaultManager.saveVaultPage(vaultHolder.getTeamId(), vaultHolder.getPage(), contents);
+            vaultManager.saveVaultPage(vaultHolder.getTeamId(), 1, contents);
             if (event.getPlayer() instanceof Player player) {
-                vaultManager.logVaultAction(vaultHolder.getTeamId(), player.getUniqueId(), "VAULT_PAGE_" + vaultHolder.getPage(), contents.length, "SAVE");
+                vaultManager.logVaultAction(vaultHolder.getTeamId(), player.getUniqueId(), "VAULT_CLOSE", 1, "SAVE");
             }
-            DebugManager.log(DebugFlag.VAULT_SERIALIZATION, "Saved team vault on close for team " + vaultHolder.getTeamId() + " page " + vaultHolder.getPage());
+            DebugManager.log(DebugFlag.VAULT_SERIALIZATION, "Saved team vault on close for team " + vaultHolder.getTeamId());
         }
     }
 
@@ -254,13 +258,116 @@ public class GUIClickListener implements Listener {
             return;
         }
 
-        // Vault GUI Back Button handling
+        // Shared Single-Page Team Vault GUI Click & Inventory Handling
         if (holder instanceof VaultGUIHolder vaultHolder) {
-            if (event.getSlot() == 53 && event.getCurrentItem() != null && event.getCurrentItem().getType() == Material.BARRIER) {
-                event.setCancelled(true);
+            Team team = teamManager.getTeam(vaultHolder.getTeamId());
+            if (team == null) return;
+
+            event.setCancelled(true);
+
+            org.bukkit.inventory.Inventory clickedInv = event.getClickedInventory();
+            if (clickedInv == null) return;
+
+            int unlocked = Math.min(54, Math.max(9, team.getVaultSlots()));
+            org.bukkit.inventory.Inventory topInv = event.getView().getTopInventory();
+
+            // Case A: Clicked inside top inventory (Team Vault)
+            if (clickedInv.equals(topInv)) {
+                int slot = event.getSlot();
+
+                // 1. Clicked Yellow Glass Pane (Next Unlockable Slot)
+                if (slot == unlocked && unlocked < 54) {
+                    SoundUtil.playClick(player);
+                    long baseCost = settingsManager.getLong("teams.vault.base_slot_cost", 500L);
+                    long stepCost = settingsManager.getLong("teams.vault.slot_cost_step", 250L);
+                    long cost = baseCost + (unlocked - 9) * stepCost;
+
+                    if (team.getBankBalance() >= cost) {
+                        team.setBankBalance(team.getBankBalance() - cost);
+                        team.setVaultSlots(unlocked + 1);
+                        teamManager.saveTeamVaultSlots(team.getId(), team.getVaultSlots());
+                        SoundUtil.playSuccess(player);
+                        player.sendMessage(TextUtil.format("<green>✔ Unlocked Team Vault Slot #" + (unlocked + 1) + " for $" + String.format("%,d", cost) + " Team Bank!</green>"));
+                        guiManager.refreshTeamVault(team.getId());
+                    } else {
+                        SoundUtil.playError(player);
+                        player.sendMessage(TextUtil.format("<red>✖ Insufficient Team Bank balance ($" + String.format("%,d", cost) + " required). Current Bank: $" + String.format("%,d", team.getBankBalance()) + "</red>"));
+                    }
+                    return;
+                }
+
+                // 2. Clicked Locked Slot (Dark Grey Glass Pane)
+                if (slot >= unlocked) {
+                    SoundUtil.playError(player);
+                    return;
+                }
+
+                // 3. Clicked Unlocked Slot (Slots 0 to unlocked - 1)
+                ItemStack item = topInv.getItem(slot);
+                if (item != null && item.getType() != Material.AIR && item.getType() != Material.YELLOW_STAINED_GLASS_PANE && item.getType() != Material.GRAY_STAINED_GLASS_PANE) {
+                    SoundUtil.playClick(player);
+                    ItemStack itemToGive = item.clone();
+                    java.util.HashMap<Integer, ItemStack> leftover = player.getInventory().addItem(itemToGive);
+                    if (leftover.isEmpty()) {
+                        topInv.setItem(slot, null);
+                    } else {
+                        topInv.setItem(slot, leftover.get(0));
+                    }
+                    saveVaultTopInventory(team.getId(), topInv, unlocked);
+                    vaultManager.logVaultAction(team.getId(), player.getUniqueId(), itemToGive.getType().name(), itemToGive.getAmount() - (leftover.isEmpty() ? 0 : leftover.get(0).getAmount()), "WITHDRAW");
+                    guiManager.refreshTeamVault(team.getId());
+                }
+                return;
+            }
+
+            // Case B: Clicked inside bottom inventory (Player's Inventory)
+            if (clickedInv.equals(event.getView().getBottomInventory())) {
+                ItemStack itemToDeposit = event.getCurrentItem();
+                if (itemToDeposit == null || itemToDeposit.getType() == Material.AIR) return;
+
                 SoundUtil.playClick(player);
-                Team team = teamManager.getTeam(vaultHolder.getTeamId());
-                guiManager.openTeamMenu(player, team);
+                ItemStack stackToDeposit = itemToDeposit.clone();
+                int originalAmount = stackToDeposit.getAmount();
+
+                // Merge into existing matching stacks in unlocked slots (0 to unlocked - 1)
+                for (int i = 0; i < unlocked; i++) {
+                    ItemStack slotItem = topInv.getItem(i);
+                    if (slotItem != null && slotItem.getType() != Material.AIR && slotItem.isSimilar(stackToDeposit)) {
+                        int maxStack = slotItem.getMaxStackSize();
+                        int space = maxStack - slotItem.getAmount();
+                        if (space > 0) {
+                            int toAdd = Math.min(space, stackToDeposit.getAmount());
+                            slotItem.setAmount(slotItem.getAmount() + toAdd);
+                            stackToDeposit.setAmount(stackToDeposit.getAmount() - toAdd);
+                            topInv.setItem(i, slotItem);
+                            if (stackToDeposit.getAmount() <= 0) break;
+                        }
+                    }
+                }
+
+                // Place remaining stack into first empty unlocked slot (0 to unlocked - 1)
+                if (stackToDeposit.getAmount() > 0) {
+                    for (int i = 0; i < unlocked; i++) {
+                        ItemStack slotItem = topInv.getItem(i);
+                        if (slotItem == null || slotItem.getType() == Material.AIR) {
+                            topInv.setItem(i, stackToDeposit.clone());
+                            stackToDeposit.setAmount(0);
+                            break;
+                        }
+                    }
+                }
+
+                int depositedAmount = originalAmount - stackToDeposit.getAmount();
+                if (depositedAmount > 0) {
+                    itemToDeposit.setAmount(stackToDeposit.getAmount());
+                    saveVaultTopInventory(team.getId(), topInv, unlocked);
+                    vaultManager.logVaultAction(team.getId(), player.getUniqueId(), itemToDeposit.getType().name(), depositedAmount, "DEPOSIT");
+                    guiManager.refreshTeamVault(team.getId());
+                } else {
+                    SoundUtil.playError(player);
+                    player.sendMessage(TextUtil.format("<red>✖ No free unlocked vault slots available!</red>"));
+                }
+                return;
             }
             return;
         }
@@ -1163,8 +1270,7 @@ public class GUIClickListener implements Listener {
                 return;
             }
 
-            String playerRole = teamManager.getPlayerRole(player.getUniqueId());
-            if (!"LEADER".equalsIgnoreCase(playerRole) && !player.hasPermission("guildcore.admin")) {
+            if (!player.getUniqueId().equals(team.getLeaderUuid())) {
                 player.sendMessage(TextUtil.format("<red>✖ Only the Guild Leader can modify team permissions!</red>"));
                 return;
             }
@@ -1291,5 +1397,16 @@ public class GUIClickListener implements Listener {
             event.setCancelled(true);
             SoundUtil.playClick(player);
         }
+    }
+
+    private void saveVaultTopInventory(int teamId, org.bukkit.inventory.Inventory topInv, int unlockedSlots) {
+        ItemStack[] contents = new ItemStack[54];
+        for (int i = 0; i < Math.min(54, unlockedSlots); i++) {
+            ItemStack item = topInv.getItem(i);
+            if (item != null && item.getType() != Material.AIR && item.getType() != Material.YELLOW_STAINED_GLASS_PANE && item.getType() != Material.GRAY_STAINED_GLASS_PANE) {
+                contents[i] = item.clone();
+            }
+        }
+        vaultManager.saveVaultPage(teamId, 1, contents);
     }
 }
