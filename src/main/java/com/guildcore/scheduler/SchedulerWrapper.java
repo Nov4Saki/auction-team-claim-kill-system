@@ -7,8 +7,6 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.entity.Entity;
 
-import java.util.concurrent.Callable;
-import java.util.concurrent.Future;
 import java.util.function.BooleanSupplier;
 
 public class SchedulerWrapper {
@@ -32,46 +30,64 @@ public class SchedulerWrapper {
     }
 
     public void runSync(Runnable runnable) {
+        if (!plugin.isEnabled()) return;
         if (isFolia) {
-            Bukkit.getGlobalRegionScheduler().run(plugin, task -> runnable.run());
+            Bukkit.getGlobalRegionScheduler().run(plugin, task -> {
+                if (plugin.isEnabled()) runnable.run();
+            });
         } else {
             Bukkit.getScheduler().runTask(plugin, runnable);
         }
     }
 
     public void runSync(Entity entity, Runnable runnable) {
+        if (!plugin.isEnabled()) return;
         if (isFolia && entity != null) {
-            entity.getScheduler().run(plugin, task -> runnable.run(), null);
+            if (!entity.isValid()) return;
+            entity.getScheduler().run(plugin, task -> {
+                if (plugin.isEnabled()) runnable.run();
+            }, null);
         } else {
             Bukkit.getScheduler().runTask(plugin, runnable);
         }
     }
 
     public void runSync(Location location, Runnable runnable) {
+        if (!plugin.isEnabled()) return;
         if (isFolia && location != null) {
-            Bukkit.getRegionScheduler().run(plugin, location, task -> runnable.run());
+            Bukkit.getRegionScheduler().run(plugin, location, task -> {
+                if (plugin.isEnabled()) runnable.run();
+            });
         } else {
             Bukkit.getScheduler().runTask(plugin, runnable);
         }
     }
 
     public void runAsync(Runnable runnable) {
+        if (!plugin.isEnabled()) return;
         if (isFolia) {
-            Bukkit.getAsyncScheduler().runNow(plugin, task -> runnable.run());
+            Bukkit.getAsyncScheduler().runNow(plugin, task -> {
+                if (plugin.isEnabled()) runnable.run();
+            });
         } else {
             Bukkit.getScheduler().runTaskAsynchronously(plugin, runnable);
         }
     }
 
     public void runTaskTimer(BooleanSupplier repeatingTask, long delayTicks, long periodTicks) {
+        if (!plugin.isEnabled()) return;
         if (isFolia) {
             long delayMs = delayTicks * 50L;
             long periodMs = periodTicks * 50L;
             if (delayMs < 1) delayMs = 1;
             if (periodMs < 1) periodMs = 1;
             Bukkit.getAsyncScheduler().runAtFixedRate(plugin, task -> {
+                if (!plugin.isEnabled()) {
+                    task.cancel();
+                    return;
+                }
                 boolean continueTask = repeatingTask.getAsBoolean();
-                if (!continueTask) {
+                if (!continueTask || !plugin.isEnabled()) {
                     task.cancel();
                 }
             }, delayMs, periodMs, java.util.concurrent.TimeUnit.MILLISECONDS);
@@ -79,8 +95,12 @@ public class SchedulerWrapper {
             new org.bukkit.scheduler.BukkitRunnable() {
                 @Override
                 public void run() {
+                    if (!plugin.isEnabled()) {
+                        cancel();
+                        return;
+                    }
                     boolean continueTask = repeatingTask.getAsBoolean();
-                    if (!continueTask) {
+                    if (!continueTask || !plugin.isEnabled()) {
                         cancel();
                     }
                 }
@@ -89,16 +109,23 @@ public class SchedulerWrapper {
     }
 
     public void runLater(Entity entity, Runnable runnable, long delayTicks) {
+        if (!plugin.isEnabled()) return;
         if (isFolia && entity != null) {
-            entity.getScheduler().runDelayed(plugin, task -> runnable.run(), null, Math.max(1L, delayTicks));
+            if (!entity.isValid()) return;
+            entity.getScheduler().runDelayed(plugin, task -> {
+                if (plugin.isEnabled()) runnable.run();
+            }, null, Math.max(1L, delayTicks));
         } else {
             Bukkit.getScheduler().runTaskLater(plugin, runnable, Math.max(1L, delayTicks));
         }
     }
 
     public void runLater(Location location, Runnable runnable, long delayTicks) {
+        if (!plugin.isEnabled()) return;
         if (isFolia && location != null) {
-            Bukkit.getRegionScheduler().runDelayed(plugin, location, task -> runnable.run(), Math.max(1L, delayTicks));
+            Bukkit.getRegionScheduler().runDelayed(plugin, location, task -> {
+                if (plugin.isEnabled()) runnable.run();
+            }, Math.max(1L, delayTicks));
         } else {
             Bukkit.getScheduler().runTaskLater(plugin, runnable, Math.max(1L, delayTicks));
         }

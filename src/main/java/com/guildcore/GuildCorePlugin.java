@@ -112,6 +112,7 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
         this.teamBankManager = new TeamBankManager(databaseManager, economyManager);
         this.teamVaultManager = new TeamVaultManager(databaseManager);
         this.scheduler.runTaskTimer(() -> {
+            if (!this.isEnabled()) return false;
             if (this.teamVaultManager != null) {
                 this.teamVaultManager.saveAllVaultsSync();
             }
