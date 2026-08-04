@@ -246,12 +246,17 @@ public class TeamManager {
         }
 
         UUID playerUuid = player.getUniqueId();
+        if (playerTeamMap.containsKey(playerUuid)) {
+            player.sendMessage(com.guildcore.util.TextUtil.format("<red>✖ You are already in a team! Leave your current team first.</red>"));
+            return false;
+        }
+
         playerTeamMap.put(playerUuid, teamId);
         playerRoleMap.put(playerUuid, "RECRUIT");
 
         dbManager.executeAsync(() -> {
             try (Connection conn = dbManager.getConnection();
-                 PreparedStatement ps = conn.prepareStatement("INSERT INTO team_members (team_id, player_uuid, role) VALUES (?, ?, 'RECRUIT')")) {
+                 PreparedStatement ps = conn.prepareStatement("INSERT OR REPLACE INTO team_members (team_id, player_uuid, role) VALUES (?, ?, 'RECRUIT')")) {
                 ps.setInt(1, teamId);
                 ps.setString(2, playerUuid.toString());
                 ps.executeUpdate();

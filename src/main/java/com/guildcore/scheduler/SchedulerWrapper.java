@@ -6,6 +6,7 @@ import com.guildcore.debug.DebugManager;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.entity.Entity;
+import org.bukkit.plugin.IllegalPluginAccessException;
 
 import java.util.function.BooleanSupplier;
 
@@ -31,103 +32,131 @@ public class SchedulerWrapper {
 
     public void runSync(Runnable runnable) {
         if (!plugin.isEnabled()) return;
-        if (isFolia) {
-            Bukkit.getGlobalRegionScheduler().run(plugin, task -> {
-                if (plugin.isEnabled()) runnable.run();
-            });
-        } else {
-            Bukkit.getScheduler().runTask(plugin, runnable);
+        try {
+            if (isFolia) {
+                Bukkit.getGlobalRegionScheduler().run(plugin, task -> {
+                    if (plugin.isEnabled()) runnable.run();
+                });
+            } else {
+                Bukkit.getScheduler().runTask(plugin, runnable);
+            }
+        } catch (IllegalPluginAccessException | IllegalArgumentException ignored) {
+            // Plugin is shutting down / disabled
         }
     }
 
     public void runSync(Entity entity, Runnable runnable) {
         if (!plugin.isEnabled()) return;
-        if (isFolia && entity != null) {
-            if (!entity.isValid()) return;
-            entity.getScheduler().run(plugin, task -> {
-                if (plugin.isEnabled()) runnable.run();
-            }, null);
-        } else {
-            Bukkit.getScheduler().runTask(plugin, runnable);
+        try {
+            if (isFolia && entity != null) {
+                if (!entity.isValid()) return;
+                entity.getScheduler().run(plugin, task -> {
+                    if (plugin.isEnabled()) runnable.run();
+                }, null);
+            } else {
+                Bukkit.getScheduler().runTask(plugin, runnable);
+            }
+        } catch (IllegalPluginAccessException | IllegalArgumentException ignored) {
+            // Plugin is shutting down / disabled
         }
     }
 
     public void runSync(Location location, Runnable runnable) {
         if (!plugin.isEnabled()) return;
-        if (isFolia && location != null) {
-            Bukkit.getRegionScheduler().run(plugin, location, task -> {
-                if (plugin.isEnabled()) runnable.run();
-            });
-        } else {
-            Bukkit.getScheduler().runTask(plugin, runnable);
+        try {
+            if (isFolia && location != null) {
+                Bukkit.getRegionScheduler().run(plugin, location, task -> {
+                    if (plugin.isEnabled()) runnable.run();
+                });
+            } else {
+                Bukkit.getScheduler().runTask(plugin, runnable);
+            }
+        } catch (IllegalPluginAccessException | IllegalArgumentException ignored) {
+            // Plugin is shutting down / disabled
         }
     }
 
     public void runAsync(Runnable runnable) {
         if (!plugin.isEnabled()) return;
-        if (isFolia) {
-            Bukkit.getAsyncScheduler().runNow(plugin, task -> {
-                if (plugin.isEnabled()) runnable.run();
-            });
-        } else {
-            Bukkit.getScheduler().runTaskAsynchronously(plugin, runnable);
+        try {
+            if (isFolia) {
+                Bukkit.getAsyncScheduler().runNow(plugin, task -> {
+                    if (plugin.isEnabled()) runnable.run();
+                });
+            } else {
+                Bukkit.getScheduler().runTaskAsynchronously(plugin, runnable);
+            }
+        } catch (IllegalPluginAccessException | IllegalArgumentException ignored) {
+            // Plugin is shutting down / disabled
         }
     }
 
     public void runTaskTimer(BooleanSupplier repeatingTask, long delayTicks, long periodTicks) {
         if (!plugin.isEnabled()) return;
-        if (isFolia) {
-            long delayMs = delayTicks * 50L;
-            long periodMs = periodTicks * 50L;
-            if (delayMs < 1) delayMs = 1;
-            if (periodMs < 1) periodMs = 1;
-            Bukkit.getAsyncScheduler().runAtFixedRate(plugin, task -> {
-                if (!plugin.isEnabled()) {
-                    task.cancel();
-                    return;
-                }
-                boolean continueTask = repeatingTask.getAsBoolean();
-                if (!continueTask || !plugin.isEnabled()) {
-                    task.cancel();
-                }
-            }, delayMs, periodMs, java.util.concurrent.TimeUnit.MILLISECONDS);
-        } else {
-            new org.bukkit.scheduler.BukkitRunnable() {
-                @Override
-                public void run() {
+        try {
+            if (isFolia) {
+                long delayMs = delayTicks * 50L;
+                long periodMs = periodTicks * 50L;
+                if (delayMs < 1) delayMs = 1;
+                if (periodMs < 1) periodMs = 1;
+                Bukkit.getAsyncScheduler().runAtFixedRate(plugin, task -> {
                     if (!plugin.isEnabled()) {
-                        cancel();
+                        task.cancel();
                         return;
                     }
                     boolean continueTask = repeatingTask.getAsBoolean();
                     if (!continueTask || !plugin.isEnabled()) {
-                        cancel();
+                        task.cancel();
                     }
-                }
-            }.runTaskTimer(plugin, delayTicks, periodTicks);
+                }, delayMs, periodMs, java.util.concurrent.TimeUnit.MILLISECONDS);
+            } else {
+                new org.bukkit.scheduler.BukkitRunnable() {
+                    @Override
+                    public void run() {
+                        if (!plugin.isEnabled()) {
+                            cancel();
+                            return;
+                        }
+                        boolean continueTask = repeatingTask.getAsBoolean();
+                        if (!continueTask || !plugin.isEnabled()) {
+                            cancel();
+                        }
+                    }
+                }.runTaskTimer(plugin, delayTicks, periodTicks);
+            }
+        } catch (IllegalPluginAccessException | IllegalArgumentException ignored) {
+            // Plugin is shutting down / disabled
         }
     }
 
     public void runLater(Entity entity, Runnable runnable, long delayTicks) {
         if (!plugin.isEnabled()) return;
-        if (isFolia && entity != null) {
-            if (!entity.isValid()) return;
-            entity.getScheduler().runDelayed(plugin, task -> {
-                if (plugin.isEnabled()) runnable.run();
-            }, null, Math.max(1L, delayTicks));
-        } else {
-            Bukkit.getScheduler().runTaskLater(plugin, runnable, Math.max(1L, delayTicks));
+        try {
+            if (isFolia && entity != null) {
+                if (!entity.isValid()) return;
+                entity.getScheduler().runDelayed(plugin, task -> {
+                    if (plugin.isEnabled()) runnable.run();
+                }, null, Math.max(1L, delayTicks));
+            } else {
+                Bukkit.getScheduler().runTaskLater(plugin, runnable, Math.max(1L, delayTicks));
+            }
+        } catch (IllegalPluginAccessException | IllegalArgumentException ignored) {
+            // Plugin is shutting down / disabled
         }
     }
 
     public void runLater(Location location, Runnable runnable, long delayTicks) {
         if (!plugin.isEnabled()) return;
-        if (isFolia && location != null) {
-            Bukkit.getRegionScheduler().runDelayed(plugin, location, task -> {
-                if (plugin.isEnabled()) runnable.run();
-            }, Math.max(1L, delayTicks));
-        } else {
-            Bukkit.getScheduler().runTaskLater(plugin, runnable, Math.max(1L, delayTicks));
+        try {
+            if (isFolia && location != null) {
+                Bukkit.getRegionScheduler().runDelayed(plugin, location, task -> {
+                    if (plugin.isEnabled()) runnable.run();
+                }, Math.max(1L, delayTicks));
+            } else {
+                Bukkit.getScheduler().runTaskLater(plugin, runnable, Math.max(1L, delayTicks));
+            }
+        } catch (IllegalPluginAccessException | IllegalArgumentException ignored) {
+            // Plugin is shutting down / disabled
         }
     }
 }
