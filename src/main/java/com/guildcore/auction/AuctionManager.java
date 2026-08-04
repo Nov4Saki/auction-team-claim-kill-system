@@ -85,10 +85,16 @@ public class AuctionManager {
     public void checkAndSweepExpiredItems() {
         long now = System.currentTimeMillis();
         for (AuctionItem item : new ArrayList<>(auctionItems.values())) {
-            if (!item.isSold() && !item.isExpired() && now >= item.getExpiresAtMs()) {
-                item.setExpired(true);
-                auctionItems.remove(item.getId());
+            boolean swept = false;
+            synchronized (item) {
+                if (!item.isSold() && !item.isExpired() && now >= item.getExpiresAtMs()) {
+                    item.setExpired(true);
+                    auctionItems.remove(item.getId());
+                    swept = true;
+                }
+            }
 
+            if (swept) {
                 addToStash(item.getSellerUuid(), item.getItem());
                 dbManager.executeAsync(() -> {
                     try (Connection conn = dbManager.getConnection();
@@ -218,11 +224,14 @@ public class AuctionManager {
     }
 
     public boolean cancelListing(Player seller, AuctionItem item) {
-        if (item == null || item.isSold() || item.isExpired()) return false;
-        if (!seller.getUniqueId().equals(item.getSellerUuid()) && !seller.isOp()) return false;
+        if (item == null) return false;
+        synchronized (item) {
+            if (item.isSold() || item.isExpired()) return false;
+            if (!seller.getUniqueId().equals(item.getSellerUuid()) && !seller.isOp()) return false;
 
-        item.setSold(true);
-        auctionItems.remove(item.getId());
+            item.setSold(true);
+            auctionItems.remove(item.getId());
+        }
 
         if (seller.getInventory().firstEmpty() == -1) {
             addToStash(seller.getUniqueId(), item.getItem());
