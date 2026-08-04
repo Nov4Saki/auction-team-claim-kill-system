@@ -293,6 +293,11 @@ public class DatabaseSetup {
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('teams.base_max_members', '3');");
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('teams.vault.base_slot_cost', '500');");
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('teams.vault.slot_cost_step', '250');");
+
+            // Self-Healing Cleanup: Purge orphaned teams without members
+            try {
+                stmt.execute("DELETE FROM teams WHERE id NOT IN (SELECT DISTINCT team_id FROM team_members);");
+            } catch (Exception ignored) {}
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('raids.warmup_minutes', '5');");
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('raids.duration_minutes', '15');");
             stmt.execute("INSERT OR IGNORE INTO settings VALUES ('raids.declaration_cost', '2000');");

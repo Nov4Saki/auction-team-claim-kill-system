@@ -121,43 +121,68 @@ public class TeamManager {
     }
 
     public boolean createTeam(Player leader, String name, int defaultMaxMembers) {
-        if (playerTeamMap.containsKey(leader.getUniqueId())) return false;
-        if (teamIdByName.containsKey(name.toLowerCase())) return false;
-
+        if (leader == null || name == null || name.trim().isEmpty()) return false;
+        String cleanName = name.trim();
         UUID leaderUuid = leader.getUniqueId();
-        try (Connection conn = dbManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(
-                     "INSERT INTO teams (name, leader_uuid, max_members) VALUES (?, ?, ?)",
-                     Statement.RETURN_GENERATED_KEYS)) {
 
-            ps.setString(1, name);
-            ps.setString(2, leaderUuid.toString());
-            ps.setInt(3, defaultMaxMembers);
-            ps.executeUpdate();
+        if (playerTeamMap.containsKey(leaderUuid)) return false;
+        if (teamIdByName.containsKey(cleanName.toLowerCase())) return false;
 
-            try (ResultSet rs = ps.getGeneratedKeys()) {
-                if (rs.next()) {
-                    int id = rs.getInt(1);
-                    Team team = new Team(id, name, leaderUuid, 1, 0L, 0L, defaultMaxMembers, 5);
-                    teamsById.put(id, team);
-                    teamIdByName.put(name.toLowerCase(), id);
-
-                    playerTeamMap.put(leaderUuid, id);
-                    playerRoleMap.put(leaderUuid, "LEADER");
-
-                    try (PreparedStatement memberPs = conn.prepareStatement(
-                            "INSERT INTO team_members (team_id, player_uuid, role) VALUES (?, ?, 'LEADER')")) {
-                        memberPs.setInt(1, id);
-                        memberPs.setString(2, leaderUuid.toString());
-                        memberPs.executeUpdate();
+        try (Connection conn = dbManager.getConnection()) {
+            // DB Pre-check to prevent constraint violations
+            try (PreparedStatement checkPs = conn.prepareStatement(
+                    "SELECT 1 FROM teams WHERE LOWER(name) = LOWER(?) UNION ALL SELECT 1 FROM team_members WHERE player_uuid = ?")) {
+                checkPs.setString(1, cleanName);
+                checkPs.setString(2, leaderUuid.toString());
+                try (ResultSet rs = checkPs.executeQuery()) {
+                    if (rs.next()) {
+                        return false; // Name taken or player already in a team
                     }
-
-                    DebugManager.log(DebugFlag.TEAM_UPGRADES, "Created team " + name + " (ID: " + id + ") with leader " + leader.getName());
-                    return true;
                 }
             }
+
+            conn.setAutoCommit(false);
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "INSERT INTO teams (name, leader_uuid, max_members) VALUES (?, ?, ?)",
+                    Statement.RETURN_GENERATED_KEYS)) {
+
+                ps.setString(1, cleanName);
+                ps.setString(2, leaderUuid.toString());
+                ps.setInt(3, defaultMaxMembers);
+                ps.executeUpdate();
+
+                try (ResultSet rs = ps.getGeneratedKeys()) {
+                    if (rs.next()) {
+                        int id = rs.getInt(1);
+
+                        try (PreparedStatement memberPs = conn.prepareStatement(
+                                "INSERT INTO team_members (team_id, player_uuid, role) VALUES (?, ?, 'LEADER')")) {
+                            memberPs.setInt(1, id);
+                            memberPs.setString(2, leaderUuid.toString());
+                            memberPs.executeUpdate();
+                        }
+
+                        conn.commit();
+                        conn.setAutoCommit(true);
+
+                        Team team = new Team(id, cleanName, leaderUuid, 1, 0L, 0L, defaultMaxMembers, 5, 9);
+                        teamsById.put(id, team);
+                        teamIdByName.put(cleanName.toLowerCase(), id);
+                        playerTeamMap.put(leaderUuid, id);
+                        playerRoleMap.put(leaderUuid, "LEADER");
+
+                        DebugManager.log(DebugFlag.TEAM_UPGRADES, "Created team " + cleanName + " (ID: " + id + ") with leader " + leader.getName());
+                        return true;
+                    }
+                }
+            } catch (Exception ex) {
+                conn.rollback();
+                conn.setAutoCommit(true);
+                DebugManager.log(DebugFlag.TEAM_UPGRADES, "Team creation rolled back for " + cleanName + ": " + ex.getMessage());
+                return false;
+            }
         } catch (Exception e) {
-            e.printStackTrace();
+            DebugManager.log(DebugFlag.TEAM_UPGRADES, "Database error during team creation: " + e.getMessage());
         }
         return false;
     }
