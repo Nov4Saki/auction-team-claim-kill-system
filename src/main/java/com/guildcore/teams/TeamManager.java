@@ -129,14 +129,36 @@ public class TeamManager {
         if (teamIdByName.containsKey(cleanName.toLowerCase())) return false;
 
         try (Connection conn = dbManager.getConnection()) {
-            // DB Pre-check to prevent constraint violations
-            try (PreparedStatement checkPs = conn.prepareStatement(
-                    "SELECT 1 FROM teams WHERE LOWER(name) = LOWER(?) UNION ALL SELECT 1 FROM team_members WHERE player_uuid = ?")) {
-                checkPs.setString(1, cleanName);
-                checkPs.setString(2, leaderUuid.toString());
-                try (ResultSet rs = checkPs.executeQuery()) {
+            // Self-healing: purge stale team_members records for non-existent teams
+            try (PreparedStatement purgePs = conn.prepareStatement(
+                    "DELETE FROM team_members WHERE player_uuid = ? AND team_id NOT IN (SELECT id FROM teams)")) {
+                purgePs.setString(1, leaderUuid.toString());
+                purgePs.executeUpdate();
+            }
+
+            // DB check for duplicate name
+            try (PreparedStatement checkNamePs = conn.prepareStatement("SELECT 1 FROM teams WHERE LOWER(name) = LOWER(?)")) {
+                checkNamePs.setString(1, cleanName);
+                try (ResultSet rs = checkNamePs.executeQuery()) {
+                    if (rs.next()) return false; // Name taken
+                }
+            }
+
+            // DB check if player has an active team membership in DB
+            try (PreparedStatement checkMemPs = conn.prepareStatement("SELECT team_id FROM team_members WHERE player_uuid = ?")) {
+                checkMemPs.setString(1, leaderUuid.toString());
+                try (ResultSet rs = checkMemPs.executeQuery()) {
                     if (rs.next()) {
-                        return false; // Name taken or player already in a team
+                        int activeTeamId = rs.getInt("team_id");
+                        if (teamsById.containsKey(activeTeamId)) {
+                            playerTeamMap.put(leaderUuid, activeTeamId);
+                            return false;
+                        } else {
+                            try (PreparedStatement delStale = conn.prepareStatement("DELETE FROM team_members WHERE player_uuid = ?")) {
+                                delStale.setString(1, leaderUuid.toString());
+                                delStale.executeUpdate();
+                            }
+                        }
                     }
                 }
             }
@@ -293,16 +315,14 @@ public class TeamManager {
         playerTeamMap.remove(targetUuid);
         playerRoleMap.remove(targetUuid);
 
-        dbManager.executeAsync(() -> {
-            try (Connection conn = dbManager.getConnection();
-                 PreparedStatement ps = conn.prepareStatement("DELETE FROM team_members WHERE team_id = ? AND player_uuid = ?")) {
-                ps.setInt(1, team.getId());
-                ps.setString(2, finalTargetUuid.toString());
-                ps.executeUpdate();
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        });
+        try (Connection conn = dbManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement("DELETE FROM team_members WHERE team_id = ? AND player_uuid = ?")) {
+            ps.setInt(1, team.getId());
+            ps.setString(2, finalTargetUuid.toString());
+            ps.executeUpdate();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
 
         if (targetPlayer != null && targetPlayer.isOnline()) {
             targetPlayer.sendMessage(com.guildcore.util.TextUtil.format("<gradient:#FF416C:#FF4B2B><b>✖ You were kicked from team " + team.getName() + " by " + kicker.getName() + "!</b></gradient>"));
@@ -387,16 +407,14 @@ public class TeamManager {
         playerTeamMap.remove(uuid);
         playerRoleMap.remove(uuid);
 
-        dbManager.executeAsync(() -> {
-            try (Connection conn = dbManager.getConnection();
-                 PreparedStatement ps = conn.prepareStatement("DELETE FROM team_members WHERE team_id = ? AND player_uuid = ?")) {
-                ps.setInt(1, team.getId());
-                ps.setString(2, uuid.toString());
-                ps.executeUpdate();
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        });
+        try (Connection conn = dbManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement("DELETE FROM team_members WHERE team_id = ? AND player_uuid = ?")) {
+            ps.setInt(1, team.getId());
+            ps.setString(2, uuid.toString());
+            ps.executeUpdate();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
 
         player.sendMessage(com.guildcore.util.TextUtil.format("<yellow>You left team " + team.getName() + ".</yellow>"));
         broadcastToTeam(team.getId(), com.guildcore.util.TextUtil.format("<gradient:#FF416C:#FF4B2B><b>🏰 [Guild] Member <yellow>" + player.getName() + "</yellow> has left the guild.</b></gradient>"));
@@ -616,14 +634,12 @@ public class TeamManager {
             claimManager.removeAllTeamClaims(teamId);
         }
 
-        dbManager.executeAsync(() -> {
-            try (Connection conn = dbManager.getConnection()) {
-                try (PreparedStatement ps = conn.prepareStatement("DELETE FROM team_members WHERE team_id = ?")) { ps.setInt(1, teamId); ps.executeUpdate(); }
-                try (PreparedStatement ps = conn.prepareStatement("DELETE FROM teams WHERE id = ?")) { ps.setInt(1, teamId); ps.executeUpdate(); }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        });
+        try (Connection conn = dbManager.getConnection()) {
+            try (PreparedStatement ps = conn.prepareStatement("DELETE FROM team_members WHERE team_id = ?")) { ps.setInt(1, teamId); ps.executeUpdate(); }
+            try (PreparedStatement ps = conn.prepareStatement("DELETE FROM teams WHERE id = ?")) { ps.setInt(1, teamId); ps.executeUpdate(); }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
         return true;
     }
 
