@@ -829,6 +829,12 @@ public class GUIManager {
         DebugManager.log(DebugFlag.GUI_CLICKS, "Opened main Team GUI for " + player.getName());
     }
 
+    public long getVaultSlotCost(int targetGlobalSlot) {
+        long baseCost = settingsManager.getLong("teams.vault.base_slot_cost", 500L);
+        long stepCost = settingsManager.getLong("teams.vault.slot_cost_step", 250L);
+        return baseCost + Math.max(0, targetGlobalSlot - 10) * stepCost;
+    }
+
     public void openTeamVault(Player player, Team team) {
         openTeamVault(player, team, 1);
     }
@@ -873,9 +879,7 @@ public class GUIManager {
                     }
                 } else if (i == unlockedOnThisPage) {
                     int targetGlobalSlot = globalStartIndex + i + 1;
-                    long baseCost = settingsManager.getLong("teams.vault.base_slot_cost", 500L);
-                    long stepCost = settingsManager.getLong("teams.vault.slot_cost_step", 250L);
-                    long cost = baseCost + (targetGlobalSlot - 10) * stepCost;
+                    long cost = getVaultSlotCost(targetGlobalSlot);
                     boolean canAfford = team.getBankBalance() >= cost;
 
                     ItemStack yellowPane = new GUIItemBuilder(Material.YELLOW_STAINED_GLASS_PANE)
@@ -922,9 +926,7 @@ public class GUIManager {
             } else if (page == totalUnlockedPages) {
                 if (unlockedOnThisPage == 45) {
                     int targetGlobalSlot = vaultSlots + 1;
-                    long baseCost = settingsManager.getLong("teams.vault.base_slot_cost", 500L);
-                    long stepCost = settingsManager.getLong("teams.vault.slot_cost_step", 250L);
-                    long cost = baseCost + (targetGlobalSlot - 10) * stepCost;
+                    long cost = getVaultSlotCost(targetGlobalSlot);
                     boolean canAfford = team.getBankBalance() >= cost;
 
                     ItemStack nextUnlock = new GUIItemBuilder(Material.YELLOW_STAINED_GLASS_PANE)

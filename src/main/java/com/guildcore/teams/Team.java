@@ -106,11 +106,11 @@ public class Team {
     }
 
     public void setVaultSlots(int vaultSlots) {
-        this.vaultSlots = Math.min(54, Math.max(9, vaultSlots));
+        this.vaultSlots = Math.max(9, vaultSlots);
     }
 
     public int getVaultPages() {
-        return vaultPages;
+        return Math.max(1, (vaultSlots + 44) / 45);
     }
 
     public void setVaultPages(int vaultPages) {

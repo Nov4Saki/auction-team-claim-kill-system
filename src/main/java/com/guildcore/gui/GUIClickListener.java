@@ -83,15 +83,7 @@ public class GUIClickListener implements Listener {
         if (event.getInventory() == null) return;
         InventoryHolder holder = event.getInventory().getHolder();
         if (holder instanceof VaultGUIHolder vaultHolder) {
-            ItemStack[] contents = new ItemStack[45];
-            ItemStack[] invContents = event.getInventory().getContents();
-            for (int i = 0; i < Math.min(45, invContents.length); i++) {
-                ItemStack item = invContents[i];
-                if (item != null && item.getType() != Material.AIR && item.getType() != Material.YELLOW_STAINED_GLASS_PANE && item.getType() != Material.GRAY_STAINED_GLASS_PANE && item.getType() != Material.BARRIER && item.getType() != Material.BLACK_STAINED_GLASS_PANE && item.getType() != Material.ARROW && item.getType() != Material.BOOK) {
-                    contents[i] = item.clone();
-                }
-            }
-            vaultManager.saveVaultPage(vaultHolder.getTeamId(), vaultHolder.getPage(), contents);
+            saveVaultTopInventory(vaultHolder.getTeamId(), vaultHolder.getPage(), event.getInventory());
             if (event.getPlayer() instanceof Player player) {
                 vaultManager.logVaultAction(vaultHolder.getTeamId(), player.getUniqueId(), "VAULT_CLOSE_PAGE_" + vaultHolder.getPage(), 1, "SAVE");
             }
@@ -308,9 +300,7 @@ public class GUIClickListener implements Listener {
                         // Clicked to unlock & open Next Page (Slot vaultSlots + 1)
                         int targetGlobalSlot = vaultSlots + 1;
                         SoundUtil.playClick(player);
-                        long baseCost = settingsManager.getLong("teams.vault.base_slot_cost", 500L);
-                        long stepCost = settingsManager.getLong("teams.vault.slot_cost_step", 250L);
-                        long cost = baseCost + (targetGlobalSlot - 10) * stepCost;
+                        long cost = guiManager.getVaultSlotCost(targetGlobalSlot);
 
                         if (teamManager.purchaseVaultSlot(team, targetGlobalSlot, cost)) {
                             saveVaultTopInventory(team.getId(), page, topInv);
@@ -334,9 +324,7 @@ public class GUIClickListener implements Listener {
                         // Clicked Yellow Glass Pane (Unlock Next Slot)
                         int targetGlobalSlot = globalStartIndex + slot + 1;
                         SoundUtil.playClick(player);
-                        long baseCost = settingsManager.getLong("teams.vault.base_slot_cost", 500L);
-                        long stepCost = settingsManager.getLong("teams.vault.slot_cost_step", 250L);
-                        long cost = baseCost + (targetGlobalSlot - 10) * stepCost;
+                        long cost = guiManager.getVaultSlotCost(targetGlobalSlot);
 
                         if (teamManager.purchaseVaultSlot(team, targetGlobalSlot, cost)) {
                             SoundUtil.playSuccess(player);
