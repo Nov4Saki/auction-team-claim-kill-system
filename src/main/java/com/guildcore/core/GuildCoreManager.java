@@ -59,7 +59,7 @@ public class GuildCoreManager {
     // ═══════════════════════════════════════════════
 
     /**
-     * Places a guild core as an invisible armor stand inside a chest block.
+     * Places a guild core with a floating hologram display above the chest block.
      * Called by ClaimChestManager when a claim chest is placed.
      */
     public boolean placeCoreForChest(int teamId, Location chestLoc) {
@@ -75,20 +75,25 @@ public class GuildCoreManager {
         World world = chestLoc.getWorld();
         int baseMaxHp = settingsManager.getInt("core.max_hp", 100);
 
-        // Spawn invisible armor stand INSIDE the chest block for hitbox/title
-        Location standLoc = chestLoc.clone().add(0.5, 0.5, 0.5);
+        // Spawn invisible armor stand floating ABOVE the chest block for hologram title
+        Location standLoc = chestLoc.clone().add(0.5, 1.2, 0.5);
         ArmorStand stand = world.spawn(standLoc, ArmorStand.class, as -> {
             as.setVisible(false);
             as.setGravity(false);
             as.setInvulnerable(true);
-            as.setSmall(false);
+            as.setSmall(true);
             as.setMarker(true);
-            as.setCustomNameVisible(false);
             as.setBasePlate(false);
             as.setArms(false);
             as.setCollidable(false);
             as.setSilent(true);
             as.setRemoveWhenFarAway(false);
+            as.customName(TextUtil.format(
+                    "<gradient:#FFD700:#FFA500><b>⚔ " + team.getName() + " Guild Core</b></gradient> <gray>[" +
+                            getHpColor(baseMaxHp, baseMaxHp) + baseMaxHp + "/" + baseMaxHp + "</" +
+                            getHpColorTag(baseMaxHp, baseMaxHp) + ">] (T1)</gray>"
+            ));
+            as.setCustomNameVisible(true);
         });
 
         GuildCoreBlock core = new GuildCoreBlock(
@@ -108,15 +113,6 @@ public class GuildCoreManager {
                 " at " + core.getLocationKey());
 
         return true;
-    }
-
-    /**
-     * Old placeCore - kept for backward compatibility but redirects to claim chest system.
-     */
-    public boolean placeCore(Player leader, Location loc) {
-        if (leader == null || loc == null) return false;
-        leader.sendMessage(TextUtil.format("<yellow>Use /guild getcore to receive a Claim Chest, then place it to establish territory.</yellow>"));
-        return false;
     }
 
     // ═══════════════════════════════════════════════
@@ -253,6 +249,7 @@ public class GuildCoreManager {
                 scheduler.runSync(destructionTask);
             }
         } else {
+            updateCoreHologram(core);
             saveCoreToDb(core);
         }
 
@@ -276,6 +273,7 @@ public class GuildCoreManager {
 
         team.setBankBalance(team.getBankBalance() - cost);
         core.setCurrentHp(core.getMaxHp());
+        updateCoreHologram(core);
         saveCoreToDb(core);
 
         teamManager.saveTeamBankBalance(team);
@@ -338,6 +336,7 @@ public class GuildCoreManager {
         core.setMaxHp(newMaxHp);
         core.setCurrentHp(newMaxHp);
 
+        updateCoreHologram(core);
         saveCoreToDb(core);
         teamManager.saveTeamBankBalance(team);
 
@@ -393,11 +392,52 @@ public class GuildCoreManager {
     }
 
     // ═══════════════════════════════════════════════
-    //  REFRESH DISPLAYS
+    //  REFRESH DISPLAYS & HOLOGRAMS
     // ═══════════════════════════════════════════════
 
+    public void updateCoreHologram(GuildCoreBlock core) {
+        if (core == null || core.getArmorStandUuid() == null) return;
+        World world = Bukkit.getWorld(core.getWorld());
+        if (world == null) return;
+
+        Team team = teamManager.getTeam(core.getTeamId());
+        String teamName = team != null ? team.getName() : "Guild";
+
+        Location loc = new Location(world, core.getX() + 0.5, core.getY() + 1.2, core.getZ() + 0.5);
+        for (Entity entity : world.getNearbyEntities(loc, 2, 2, 2)) {
+            if (entity instanceof ArmorStand stand && entity.getUniqueId().equals(core.getArmorStandUuid())) {
+                stand.teleport(loc);
+                stand.customName(TextUtil.format(
+                        "<gradient:#FFD700:#FFA500><b>⚔ " + teamName + " Guild Core</b></gradient> <gray>[" +
+                                getHpColor(core.getCurrentHp(), core.getMaxHp()) + core.getCurrentHp() + "/" + core.getMaxHp() + "</" +
+                                getHpColorTag(core.getCurrentHp(), core.getMaxHp()) + ">] (T" + core.getTier() + ")</gray>"
+                ));
+                stand.setCustomNameVisible(true);
+                break;
+            }
+        }
+    }
+
     public void refreshAllCoreDisplays() {
-        // Armor stands are invisible now, no display to refresh
+        for (GuildCoreBlock core : coresByTeamId.values()) {
+            updateCoreHologram(core);
+        }
+    }
+
+    private String getHpColor(int current, int max) {
+        float percent = max > 0 ? (float) current / max : 0f;
+        if (percent > 0.66f) return "<green>";
+        if (percent > 0.33f) return "<yellow>";
+        if (percent > 0f) return "<red>";
+        return "<dark_red>";
+    }
+
+    private String getHpColorTag(int current, int max) {
+        float percent = max > 0 ? (float) current / max : 0f;
+        if (percent > 0.66f) return "green";
+        if (percent > 0.33f) return "yellow";
+        if (percent > 0f) return "red";
+        return "dark_red";
     }
 
     // ═══════════════════════════════════════════════
@@ -435,6 +475,7 @@ public class GuildCoreManager {
                 teamIdByLocationKey.put(core.getLocationKey(), teamId);
             }
 
+            refreshAllCoreDisplays();
             DebugManager.log(DebugFlag.GUILD_CORE, "Loaded " + coresByTeamId.size() +
                     " guild cores from database.");
         } catch (Exception e) {

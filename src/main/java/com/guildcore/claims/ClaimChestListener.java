@@ -38,10 +38,7 @@ public class ClaimChestListener implements Listener {
 
         if (!claimChestManager.isClaimChestItem(itemInHand)) return;
 
-        // Cancel vanilla placement immediately
-        event.setCancelled(true);
-
-        // Get the block where the chest would be placed
+        // Get the block where the chest is being placed
         Block chestLocation = event.getBlock();
 
         if (claimChestManager.placeClaimChest(player, chestLocation)) {
@@ -49,6 +46,8 @@ public class ClaimChestListener implements Listener {
             if (itemInHand.getAmount() <= 0) {
                 player.getInventory().setItemInMainHand(null);
             }
+        } else {
+            event.setCancelled(true);
         }
     }
 
