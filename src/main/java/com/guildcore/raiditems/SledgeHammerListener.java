@@ -7,6 +7,8 @@ import com.guildcore.debug.DebugFlag;
 import com.guildcore.debug.DebugManager;
 import com.guildcore.raidtag.RaidTagManager;
 import com.guildcore.shield.OfflineShieldManager;
+import com.guildcore.teams.Team;
+import com.guildcore.teams.TeamManager;
 import com.guildcore.util.TextUtil;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -19,23 +21,27 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.inventory.ItemStack;
 
+// FILE: src/main/java/com/guildcore/raiditems/SledgeHammerListener.java
+// Only showing modified parts - add teamManager field and own team check
+
 public class SledgeHammerListener implements Listener {
     private final RaidItemManager raidItemManager;
     private final GuildCoreManager guildCoreManager;
     private final OfflineShieldManager offlineShieldManager;
     private final SettingsManager settingsManager;
     private RaidTagManager raidTagManager;
+    private TeamManager teamManager; // ADD THIS
 
-    public SledgeHammerListener(RaidItemManager raidItemManager, GuildCoreManager guildCoreManager, OfflineShieldManager offlineShieldManager, SettingsManager settingsManager) {
+    public SledgeHammerListener(RaidItemManager raidItemManager, GuildCoreManager guildCoreManager,
+                                OfflineShieldManager offlineShieldManager, SettingsManager settingsManager) {
         this.raidItemManager = raidItemManager;
         this.guildCoreManager = guildCoreManager;
         this.offlineShieldManager = offlineShieldManager;
         this.settingsManager = settingsManager;
     }
 
-    public void setRaidTagManager(RaidTagManager raidTagManager) {
-        this.raidTagManager = raidTagManager;
-    }
+    public void setRaidTagManager(RaidTagManager raidTagManager) { this.raidTagManager = raidTagManager; }
+    public void setTeamManager(TeamManager teamManager) { this.teamManager = teamManager; } // ADD THIS
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = false)
     public void onEntityDamage(EntityDamageByEntityEvent event) {
@@ -46,7 +52,6 @@ public class SledgeHammerListener implements Listener {
         RaidItemManager.RaidItemType type = raidItemManager.getRaidItemType(item);
         if (type != RaidItemManager.RaidItemType.SLEDGE_HAMMER) return;
 
-        // Find the core this armor stand belongs to
         GuildCoreBlock targetCore = null;
         for (GuildCoreBlock core : guildCoreManager.getAllCores()) {
             if (core.getArmorStandUuid() != null && core.getArmorStandUuid().equals(stand.getUniqueId())) {
@@ -56,9 +61,16 @@ public class SledgeHammerListener implements Listener {
         }
 
         if (targetCore == null) return;
-
-        // Cancel the vanilla damage event since we're handling it ourselves
         event.setCancelled(true);
+
+        // Check if own team
+        if (teamManager != null) {
+            Team playerTeam = teamManager.getPlayerTeam(player.getUniqueId());
+            if (playerTeam != null && playerTeam.getId() == targetCore.getTeamId()) {
+                player.sendActionBar(Component.text("⚔ You cannot damage your own Guild Core!", NamedTextColor.RED));
+                return;
+            }
+        }
 
         // Check shield
         if (offlineShieldManager.isShieldActive(targetCore.getTeamId())) {
@@ -70,14 +82,13 @@ public class SledgeHammerListener implements Listener {
         guildCoreManager.damageCore(targetCore.getTeamId(), damage, player);
         raidItemManager.consumeDurability(item, player);
 
-        // Apply raid tag
         if (raidTagManager != null) {
             raidTagManager.applyRaidTag(player, targetCore.getTeamId(), player.getLocation().getChunk());
         }
 
-        // Sound effect
         player.playSound(player.getLocation(), Sound.BLOCK_ANVIL_LAND, 1.0f, 0.8f);
 
-        DebugManager.log(DebugFlag.RAID_ITEMS, player.getName() + " sledge-hammered core of team " + targetCore.getTeamId() + " for " + damage + " damage");
+        DebugManager.log(DebugFlag.RAID_ITEMS, player.getName() + " sledge-hammered core of team " +
+                targetCore.getTeamId() + " for " + damage + " damage");
     }
 }

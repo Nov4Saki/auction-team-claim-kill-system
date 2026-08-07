@@ -221,6 +221,14 @@ public class DatabaseSetup {
                     "action VARCHAR(16) NOT NULL, " +
                     "timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP);");
 
+            stmt.execute("CREATE TABLE IF NOT EXISTS claim_chests (" +
+                    "team_id INTEGER PRIMARY KEY, " +
+                    "world VARCHAR(64) NOT NULL, " +
+                    "x INT NOT NULL, y INT NOT NULL, z INT NOT NULL, " +
+                    "armor_stand_uuid VARCHAR(36), " +
+                    "placed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
+                    "FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE);");
+
             // Admin Settings
             stmt.execute("CREATE TABLE IF NOT EXISTS settings (" +
                     "key VARCHAR(64) PRIMARY KEY, " +
@@ -228,6 +236,7 @@ public class DatabaseSetup {
 
             // Default Settings Inserts
             insertDefaultSettings(stmt);
+
         }
     }
 
@@ -346,5 +355,17 @@ public class DatabaseSetup {
         stmt.execute("INSERT OR IGNORE INTO settings VALUES ('teams.friendly_fire', 'false');");
         stmt.execute("INSERT OR IGNORE INTO settings VALUES ('teams.auto_transfer_leader_on_leave', 'true');");
         stmt.execute("INSERT OR IGNORE INTO settings VALUES ('teams.transfer_leader_allow_offline', 'true');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('claims.chest_cooldown_seconds', '600');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('claims.chest_material', 'CHEST');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('claims.admin_bypass', 'true');");
+        // Customizable Raid Item Materials
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('items.lockpick_weak.material', 'IRON_NUGGET');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('items.lockpick_normal.material', 'IRON_INGOT');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('items.lockpick_fast.material', 'GOLD_INGOT');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('items.lockpick_reinforced.material', 'NETHERITE_INGOT');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('items.sledge_hammer.material', 'NETHERITE_AXE');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('items.raid_tnt.material', 'TNT');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('items.charged_creeper.material', 'CREEPER_SPAWN_EGG');");
+
     }
 }

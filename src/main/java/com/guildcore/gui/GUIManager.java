@@ -9,7 +9,6 @@ import com.guildcore.debug.DebugFlag;
 import com.guildcore.debug.DebugManager;
 import com.guildcore.gui.holders.*;
 import com.guildcore.items.ProhibitedItemManager;
-import com.guildcore.scoreboard.ScoreboardManager;
 import com.guildcore.scheduler.SchedulerWrapper;
 import com.guildcore.shop.ShopManager;
 import com.guildcore.stats.StatsManager;
@@ -18,8 +17,6 @@ import com.guildcore.teams.TeamManager;
 import com.guildcore.teams.TeamPermissionManager;
 import com.guildcore.util.TextUtil;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
-
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.Material;
@@ -30,7 +27,7 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.SkullMeta;
-
+import com.guildcore.claims.ClaimChestManager;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -48,6 +45,7 @@ public class GUIManager {
     private com.guildcore.teams.TeamBankManager teamBankManager;
     private com.guildcore.teams.TeamVaultManager vaultManager;
     private com.guildcore.scheduler.SchedulerWrapper scheduler;
+    private ClaimChestManager claimChestManager;
 
     public GUIManager(SettingsManager settingsManager, TeamManager teamManager, ClaimManager claimManager, AuctionManager auctionManager, StatsManager statsManager, TeamPermissionManager permissionManager) {
         this.settingsManager = settingsManager;
@@ -58,6 +56,9 @@ public class GUIManager {
         this.permissionManager = permissionManager;
     }
 
+    public void setClaimChestManager(ClaimChestManager ccm) {
+        this.claimChestManager = ccm;
+    }
     public void setTeamVaultManager(com.guildcore.teams.TeamVaultManager vaultManager) {
         this.vaultManager = vaultManager;
     }
@@ -198,7 +199,7 @@ public class GUIManager {
      * Opens the Guild Core & Raid admin settings page.
      */
     public void openAdminGuildCoreSettings(Player player) {
-        Inventory inv = Bukkit.createInventory(new AdminClaimHolder(), 54,
+        Inventory inv = Bukkit.createInventory(new com.guildcore.gui.holders.AdminGuildCoreHolder(), 54,
                 TextUtil.format("<gradient:#FF4500:#DC143C><b>⚔ Guild Core & Raid Settings</b></gradient>"));
 
         long placeCost = settingsManager.getLong("core.place_cost", 5000);
@@ -244,7 +245,6 @@ public class GUIManager {
                 .name("<green><b>Charged Creeper Core Damage: " + creeperDamage + " HP</b></green>")
                 .lore("<gray>▪ Damage dealt to nearby cores from charged creepers</gray>", "<gray>▪ Set to 0 to disable core damage from creepers</gray>", "", "<yellow>▶ Click to edit value in chat</yellow>").build());
 
-        // Tier upgrade buttons
         for (int tier = 1; tier <= Math.min(maxTier, 5); tier++) {
             int slot = 28 + (tier - 1);
             long tierCost = settingsManager.getLong("core.tier." + tier + ".money_cost", tier * 1000L);
@@ -271,7 +271,7 @@ public class GUIManager {
      * Opens the Offline Shield admin settings page.
      */
     public void openAdminShieldSettings(Player player) {
-        Inventory inv = Bukkit.createInventory(new AdminClaimHolder(), 36,
+        Inventory inv = Bukkit.createInventory(new com.guildcore.gui.holders.AdminShieldHolder(), 36,
                 TextUtil.format("<gradient:#00c6ff:#0072ff><b>🛡 Offline Shield Settings</b></gradient>"));
 
         double chargeRate = settingsManager.getDouble("shield.charge_rate", 2.0);
@@ -314,7 +314,7 @@ public class GUIManager {
      * Opens the Raid Tag & Combat Log admin settings page.
      */
     public void openAdminRaidTagSettings(Player player) {
-        Inventory inv = Bukkit.createInventory(new AdminClaimHolder(), 36,
+        Inventory inv = Bukkit.createInventory(new com.guildcore.gui.holders.AdminRaidTagHolder(), 36,
                 TextUtil.format("<gradient:#FF416C:#FF4B2B><b>🏷 Raid Tag & Combat Log Settings</b></gradient>"));
 
         int exitCountdown = settingsManager.getInt("raidtag.exit_countdown_sec", 30);
@@ -358,12 +358,11 @@ public class GUIManager {
      * Opens the Raid Tool Config admin settings page.
      */
     public void openAdminRaidToolSettings(Player player) {
-        Inventory inv = Bukkit.createInventory(new AdminClaimHolder(), 54,
+        Inventory inv = Bukkit.createInventory(new com.guildcore.gui.holders.AdminRaidToolHolder(), 54,
                 TextUtil.format("<gradient:#C0C0C0:#E0E0E0><b>🔑 Raid Tool Configuration</b></gradient>"));
 
         fillBorder54(inv, Material.LIGHT_GRAY_STAINED_GLASS_PANE);
 
-        // Lock Pick Settings
         int weakChance = settingsManager.getInt("lockpick.weak.chance", 10);
         int weakDurability = settingsManager.getInt("lockpick.weak.durability", 5);
         int normalChance = settingsManager.getInt("lockpick.normal.chance", 20);
@@ -376,79 +375,114 @@ public class GUIManager {
 
         inv.setItem(10, new GUIItemBuilder(Material.IRON_NUGGET)
                 .name("<gray><b>Weak Lock Pick</b></gray>")
-                .lore(
-                        "<gray>▪ Success: <yellow>" + weakChance + "%</yellow></gray>",
-                        "<gray>▪ Durability: <white>" + weakDurability + " uses</white></gray>",
-                        "",
-                        "<yellow>▶ Left-Click to edit success %</yellow>",
-                        "<yellow>▶ Right-Click to edit durability</yellow>"
-                ).build());
+                .lore("<gray>▪ Success: <yellow>" + weakChance + "%</yellow></gray>", "<gray>▪ Durability: <white>" + weakDurability + " uses</white></gray>", "", "<yellow>▶ Left-Click to edit success %</yellow>", "<yellow>▶ Right-Click to edit durability</yellow>").build());
 
         inv.setItem(11, new GUIItemBuilder(Material.IRON_INGOT)
                 .name("<white><b>Normal Lock Pick</b></white>")
-                .lore(
-                        "<gray>▪ Success: <yellow>" + normalChance + "%</yellow></gray>",
-                        "<gray>▪ Durability: <white>" + normalDurability + " uses</white></gray>",
-                        "",
-                        "<yellow>▶ Left-Click to edit success %</yellow>",
-                        "<yellow>▶ Right-Click to edit durability</yellow>"
-                ).build());
+                .lore("<gray>▪ Success: <yellow>" + normalChance + "%</yellow></gray>", "<gray>▪ Durability: <white>" + normalDurability + " uses</white></gray>", "", "<yellow>▶ Left-Click to edit success %</yellow>", "<yellow>▶ Right-Click to edit durability</yellow>").build());
 
         inv.setItem(12, new GUIItemBuilder(Material.GOLD_INGOT)
                 .name("<gold><b>Fast Lock Pick</b></gold>")
-                .lore(
-                        "<gray>▪ Success: <yellow>" + fastChance + "%</yellow></gray>",
-                        "<gray>▪ Durability: <white>" + fastDurability + " use</white></gray>",
-                        "",
-                        "<yellow>▶ Left-Click to edit success %</yellow>",
-                        "<yellow>▶ Right-Click to edit durability</yellow>"
-                ).build());
+                .lore("<gray>▪ Success: <yellow>" + fastChance + "%</yellow></gray>", "<gray>▪ Durability: <white>" + fastDurability + " use</white></gray>", "", "<yellow>▶ Left-Click to edit success %</yellow>", "<yellow>▶ Right-Click to edit durability</yellow>").build());
 
         inv.setItem(13, new GUIItemBuilder(Material.NETHERITE_INGOT)
                 .name("<light_purple><b>Reinforced Lock Pick</b></light_purple>")
-                .lore(
-                        "<gray>▪ Success: <yellow>" + reinforcedChance + "%</yellow></gray>",
-                        "<gray>▪ Durability: <white>" + reinforcedDurability + " uses</white></gray>",
-                        "<gray>▪ Save Chance: <light_purple>" + reinforcedSaveChance + "%</light_purple></gray>",
-                        "",
-                        "<yellow>▶ Left-Click to edit success %</yellow>",
-                        "<yellow>▶ Right-Click to edit durability</yellow>",
-                        "<yellow>▶ Shift-Click to edit save chance</yellow>"
-                ).build());
+                .lore("<gray>▪ Success: <yellow>" + reinforcedChance + "%</yellow></gray>", "<gray>▪ Durability: <white>" + reinforcedDurability + " uses</white></gray>", "<gray>▪ Save Chance: <light_purple>" + reinforcedSaveChance + "%</light_purple></gray>", "", "<yellow>▶ Left-Click to edit success %</yellow>", "<yellow>▶ Right-Click to edit durability</yellow>", "<yellow>▶ Shift-Click to edit save chance</yellow>").build());
 
-        // Raid TNT Settings
         double tntFuse = settingsManager.getDouble("raidtnt.fuse_seconds", 3.0);
         double tntPower = settingsManager.getDouble("raidtnt.explosion_power", 2.0);
         double tntPlayerDamage = settingsManager.getDouble("raidtnt.player_damage", 0.0);
 
         inv.setItem(19, new GUIItemBuilder(Material.TNT)
                 .name("<red><b>Raid TNT</b></red>")
-                .lore(
-                        "<gray>▪ Fuse: <yellow>" + String.format("%.1f", tntFuse) + "s</yellow></gray>",
-                        "<gray>▪ Explosion Power: <yellow>" + String.format("%.1f", tntPower) + "</yellow></gray>",
-                        "<gray>▪ Player Damage: <yellow>" + String.format("%.1f", tntPlayerDamage) + "x</yellow></gray>",
-                        "",
-                        "<yellow>▶ Left-Click to edit fuse</yellow>",
-                        "<yellow>▶ Right-Click to edit power</yellow>"
-                ).build());
+                .lore("<gray>▪ Fuse: <yellow>" + String.format("%.1f", tntFuse) + "s</yellow></gray>", "<gray>▪ Explosion Power: <yellow>" + String.format("%.1f", tntPower) + "</yellow></gray>", "<gray>▪ Player Damage: <yellow>" + String.format("%.1f", tntPlayerDamage) + "x</yellow></gray>", "", "<yellow>▶ Left-Click to edit fuse</yellow>", "<yellow>▶ Right-Click to edit power</yellow>").build());
 
-        // Charged Creeper Settings
         double creeperFuse = settingsManager.getDouble("creeper.fuse_seconds", 3.0);
         double creeperPower = settingsManager.getDouble("creeper.explosion_power", 3.0);
         double creeperPlayerDamage = settingsManager.getDouble("creeper.player_damage", 0.0);
 
         inv.setItem(20, new GUIItemBuilder(Material.CREEPER_SPAWN_EGG)
                 .name("<green><b>Charged Creeper Egg</b></green>")
-                .lore(
-                        "<gray>▪ Fuse: <yellow>" + String.format("%.1f", creeperFuse) + "s</yellow></gray>",
-                        "<gray>▪ Explosion Power: <yellow>" + String.format("%.1f", creeperPower) + "</yellow></gray>",
-                        "<gray>▪ Player Damage: <yellow>" + String.format("%.1f", creeperPlayerDamage) + "x</yellow></gray>",
-                        "",
-                        "<yellow>▶ Left-Click to edit fuse</yellow>",
-                        "<yellow>▶ Right-Click to edit power</yellow>"
-                ).build());
+                .lore("<gray>▪ Fuse: <yellow>" + String.format("%.1f", creeperFuse) + "s</yellow></gray>", "<gray>▪ Explosion Power: <yellow>" + String.format("%.1f", creeperPower) + "</yellow></gray>", "<gray>▪ Player Damage: <yellow>" + String.format("%.1f", creeperPlayerDamage) + "x</yellow></gray>", "", "<yellow>▶ Left-Click to edit fuse</yellow>", "<yellow>▶ Right-Click to edit power</yellow>").build());
 
         inv.setItem(49, new GUIItemBuilder(Material.BARRIER).name("<red><b>◀ Return to High Sovereign Panel</b></red>").build());
+        player.openInventory(inv);
+    }
+    public void openClaimChestManagement(Player player, int teamId) {
+        if (player == null) return;
+        Team team = teamManager.getTeam(teamId);
+        if (team == null) return;
+
+        Inventory inv = Bukkit.createInventory(
+                new com.guildcore.gui.holders.ClaimChestGUIHolder(teamId), 27,
+                TextUtil.format("<gradient:#FFD700:#FFA500><b>🏰 Guild Claim Chest Management</b></gradient>"));
+
+        fillBorder27(inv, Material.ORANGE_STAINED_GLASS_PANE);
+
+        inv.setItem(13, new GUIItemBuilder(Material.BEACON)
+                .name("<gradient:#FFD700:#FFA500><b>🏰 " + team.getName() + " Guild Core</b></gradient>")
+                .lore(
+                        "<gray>▪ Guild Level: <yellow>" + team.getLevel() + "</yellow></gray>",
+                        "<gray>▪ Bank Balance: <gold>$" + String.format("%,d", team.getBankBalance()) + "</gold></gray>",
+                        "<gray>▪ Claims: <green>" + claimManager.getTeamClaimsCount(teamId) + "</green></gray>",
+                        "",
+                        "<gray>Right-click the chest to manage territory, claims, and upgrades.</gray>"
+                ).build());
+
+        if (team.getLeaderUuid().equals(player.getUniqueId()) || player.hasPermission("guildcore.admin")) {
+            inv.setItem(11, new GUIItemBuilder(Material.RED_WOOL)
+                    .name("<red><b>💥 REMOVE CLAIM CHEST</b></red>")
+                    .lore(
+                            "<gray>⚠ This will:</gray>",
+                            "<red>• Strip all tier upgrades</red>",
+                            "<red>• Delete all territory claims</red>",
+                            "<red>• Destroy the Guild Core</red>",
+                            "",
+                            "<yellow>▶ Click to confirm removal</yellow>"
+                    ).build());
+        }
+
+        inv.setItem(15, new GUIItemBuilder(Material.BARRIER)
+                .name("<gray><b>✖ Close</b></gray>")
+                .lore("<gray>Close this menu</gray>")
+                .build());
+
+        player.openInventory(inv);
+    }
+
+    // NEW: openClaimChestRemoveConfirm
+    public void openClaimChestRemoveConfirm(Player player, Team team) {
+        if (player == null || team == null) return;
+
+        Inventory inv = Bukkit.createInventory(
+                new com.guildcore.gui.holders.ClaimChestRemoveConfirmHolder(team.getId()), 27,
+                TextUtil.format("<red><b>⚠ CONFIRM: Remove " + team.getName() + " Claim Chest?</b></red>"));
+
+        fillBorder27(inv, Material.RED_STAINED_GLASS_PANE);
+
+        inv.setItem(11, new GUIItemBuilder(Material.RED_CONCRETE)
+                .name("<red><b>💥 YES, REMOVE EVERYTHING</b></red>")
+                .lore(
+                        "<red>This action is IRREVERSIBLE!</red>",
+                        "<red>• All tier upgrades will be lost</red>",
+                        "<red>• All territory claims will be deleted</red>",
+                        "<red>• The Guild Core will be destroyed</red>",
+                        "",
+                        "<yellow>▶ Click to confirm</yellow>"
+                ).build());
+
+        inv.setItem(13, new GUIItemBuilder(Material.BEACON)
+                .name("<gold><b>" + team.getName() + "</b></gold>")
+                .lore(
+                        "<gray>Guild Level: " + team.getLevel() + "</gray>",
+                        "<gray>Bank: $" + String.format("%,d", team.getBankBalance()) + "</gray>"
+                ).build());
+
+        inv.setItem(15, new GUIItemBuilder(Material.LIME_WOOL)
+                .name("<green><b>✖ CANCEL</b></green>")
+                .lore("<gray>Keep your Guild safe</gray>", "", "<yellow>▶ Click to cancel</yellow>")
+                .build());
+
         player.openInventory(inv);
     }
 

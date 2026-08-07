@@ -1,3 +1,4 @@
+// FILE: src/main/java/com/guildcore/core/GuildCoreManager.java
 package com.guildcore.core;
 
 import com.guildcore.claims.ClaimManager;
@@ -54,127 +55,74 @@ public class GuildCoreManager {
     }
 
     // ═══════════════════════════════════════════════
-    //  PLACE CORE
+    //  PLACE CORE FOR CLAIM CHEST
     // ═══════════════════════════════════════════════
-    public boolean placeCore(Player leader, Location loc) {
-        if (leader == null || loc == null) return false;
 
-        Team team = teamManager.getPlayerTeam(leader.getUniqueId());
-        if (team == null) {
-            leader.sendMessage(TextUtil.format("<red>✖ You must be in a Guild to place a core!</red>"));
+    /**
+     * Places a guild core as an invisible armor stand inside a chest block.
+     * Called by ClaimChestManager when a claim chest is placed.
+     */
+    public boolean placeCoreForChest(int teamId, Location chestLoc) {
+        if (chestLoc == null) return false;
+
+        Team team = teamManager.getTeam(teamId);
+        if (team == null) return false;
+
+        if (coresByTeamId.containsKey(teamId)) {
             return false;
         }
 
-        if (!team.getLeaderUuid().equals(leader.getUniqueId())) {
-            leader.sendMessage(TextUtil.format("<red>✖ Only the Guild Leader can place the Guild Core!</red>"));
-            return false;
-        }
-
-        if (coresByTeamId.containsKey(team.getId())) {
-            leader.sendMessage(TextUtil.format("<red>✖ Your Guild already has a core placed! Destroy it first to relocate.</red>"));
-            return false;
-        }
-
-        Chunk chunk = loc.getChunk();
-        if (claimManager.isClaimed(chunk)) {
-            leader.sendMessage(TextUtil.format("<red>✖ Guild Core can only be placed in UNCLAIMED chunks!</red>"));
-            return false;
-        }
-
-        Block targetBlock = loc.getBlock();
-        Block above = targetBlock.getRelative(BlockFace.UP);
-        if (!targetBlock.getType().isSolid() || !above.getType().isAir()) {
-            leader.sendMessage(TextUtil.format("<red>✖ Invalid placement location! Need a solid block with air above.</red>"));
-            return false;
-        }
-
-        for (GuildCoreBlock existing : coresByTeamId.values()) {
-            if (existing.getWorld().equals(loc.getWorld().getName())) {
-                double distance = Math.sqrt(
-                        Math.pow(existing.getX() - loc.getBlockX(), 2) +
-                                Math.pow(existing.getY() - loc.getBlockY(), 2) +
-                                Math.pow(existing.getZ() - loc.getBlockZ(), 2)
-                );
-                if (distance < 16) {
-                    leader.sendMessage(TextUtil.format("<red>✖ Too close to another Guild Core! Minimum distance: 16 blocks.</red>"));
-                    return false;
-                }
-            }
-        }
-
-        long cost = settingsManager.getLong("core.place_cost", 5000);
-        if (economyManager != null) {
-            long balance = economyManager.getBalance(leader.getUniqueId());
-            if (balance < cost) {
-                leader.sendMessage(TextUtil.format("<red>✖ Insufficient funds! Core placement costs $" +
-                        String.format("%,d", cost) + " Gold. Your balance: $" + String.format("%,d", balance) + "</red>"));
-                return false;
-            }
-            economyManager.withdraw(leader.getUniqueId(), cost, "core_placement");
-        }
-
-        targetBlock.setType(Material.CHEST);
-
-        World world = loc.getWorld();
+        World world = chestLoc.getWorld();
         int baseMaxHp = settingsManager.getInt("core.max_hp", 100);
 
-        Location standLoc = loc.clone().add(0.5, 1.5, 0.5);
+        // Spawn invisible armor stand INSIDE the chest block for hitbox
+        Location standLoc = chestLoc.clone().add(0.5, 0.5, 0.5);
         ArmorStand stand = world.spawn(standLoc, ArmorStand.class, as -> {
-            as.setVisible(true);
+            as.setVisible(false);
             as.setGravity(false);
-            as.setInvulnerable(false);
+            as.setInvulnerable(true);
             as.setSmall(false);
             as.setMarker(false);
-            as.setCustomNameVisible(true);
-            as.customName(buildCoreName(team.getName(), baseMaxHp, baseMaxHp, 1));
+            as.setCustomNameVisible(false);
             as.setBasePlate(false);
             as.setArms(false);
-            ItemStack helmet = new ItemStack(Material.BEACON);
-            ItemMeta meta = helmet.getItemMeta();
-            if (meta != null) {
-                meta.setUnbreakable(true);
-                helmet.setItemMeta(meta);
-            }
-            as.getEquipment().setHelmet(helmet);
+            as.setCollidable(true);
+            as.setSilent(true);
             as.setRemoveWhenFarAway(false);
         });
 
         GuildCoreBlock core = new GuildCoreBlock(
-                team.getId(), world.getName(),
-                targetBlock.getX(), targetBlock.getY(), targetBlock.getZ(),
+                teamId, world.getName(),
+                chestLoc.getBlockX(), chestLoc.getBlockY(), chestLoc.getBlockZ(),
                 1, baseMaxHp, baseMaxHp,
                 stand.getUniqueId(),
                 System.currentTimeMillis()
         );
 
-        coresByTeamId.put(team.getId(), core);
-        teamIdByLocationKey.put(core.getLocationKey(), team.getId());
-
-        claimManager.createTeamClaim(team.getId(), chunk);
+        coresByTeamId.put(teamId, core);
+        teamIdByLocationKey.put(core.getLocationKey(), teamId);
 
         saveCoreToDb(core);
 
-        teamManager.broadcastToTeam(team.getId(), TextUtil.format(
-                "<gradient:#FFD700:#FFA500><b>⚔ Guild Core has been placed at " +
-                        loc.getBlockX() + ", " + loc.getBlockY() + ", " + loc.getBlockZ() +
-                        "!</b></gradient>"
-        ));
-        leader.sendMessage(TextUtil.format("<green>✔ Guild Core placed successfully! Cost: $" +
-                String.format("%,d", cost) + " Gold.</green>"));
-        leader.sendMessage(TextUtil.format("<yellow>⚡ The chunk has been auto-claimed. Interact with the core to manage territory!</yellow>"));
-
-        world.playSound(loc, Sound.BLOCK_BEACON_ACTIVATE, 1.5f, 1.0f);
-        world.spawnParticle(Particle.TOTEM_OF_UNDYING, loc.clone().add(0.5, 1.5, 0.5),
-                50, 0.5, 1.0, 0.5, 0.1);
-
         DebugManager.log(DebugFlag.GUILD_CORE, "Core placed for team " + team.getName() +
-                " at " + core.getLocationKey() + " by " + leader.getName());
+                " at " + core.getLocationKey());
+
         return true;
+    }
+
+    /**
+     * Old placeCore - kept for backward compatibility but redirects to claim chest system.
+     */
+    public boolean placeCore(Player leader, Location loc) {
+        if (leader == null || loc == null) return false;
+        leader.sendMessage(TextUtil.format("<yellow>Use /guild getcore to receive a Claim Chest, then place it to establish territory.</yellow>"));
+        return false;
     }
 
     // ═══════════════════════════════════════════════
     //  REMOVE CORE
     // ═══════════════════════════════════════════════
+
     public void removeCore(int teamId, boolean destroyed) {
         GuildCoreBlock core = coresByTeamId.remove(teamId);
         if (core == null) return;
@@ -188,14 +136,11 @@ public class GuildCoreManager {
 
         if (world != null) {
             Location coreLoc = new Location(world, core.getX(), core.getY(), core.getZ());
-            Block block = world.getBlockAt(coreLoc);
-            if (block.getType() == Material.CHEST) {
-                block.setType(Material.AIR);
-            }
 
+            // Remove armor stand
             if (core.getArmorStandUuid() != null) {
                 for (Entity entity : world.getNearbyEntities(
-                        coreLoc.clone().add(0.5, 1.5, 0.5), 2, 2, 2)) {
+                        coreLoc.clone().add(0.5, 0.5, 0.5), 2, 2, 2)) {
                     if (entity instanceof ArmorStand &&
                             entity.getUniqueId().equals(core.getArmorStandUuid())) {
                         entity.remove();
@@ -241,6 +186,7 @@ public class GuildCoreManager {
     // ═══════════════════════════════════════════════
     //  DAMAGE CORE
     // ═══════════════════════════════════════════════
+
     public boolean damageCore(int teamId, int damage, Player attacker) {
         GuildCoreBlock core = coresByTeamId.get(teamId);
         if (core == null || core.isDestroyed()) return false;
@@ -260,8 +206,6 @@ public class GuildCoreManager {
         lastDamageTime.put(teamId, now);
 
         core.setCurrentHp(core.getCurrentHp() - damage);
-
-        updateArmorStandName(core);
 
         World world = Bukkit.getWorld(core.getWorld());
         if (world != null) {
@@ -290,7 +234,6 @@ public class GuildCoreManager {
             final String teamName = team != null ? team.getName() : "Unknown";
             final boolean awardCredit = settingsManager.getBoolean("raidtag.award_kill_credit", true);
 
-            // Use location-based scheduler to avoid ambiguity
             Location destructionLoc = world != null ?
                     new Location(world, core.getX() + 0.5, core.getY() + 0.5, core.getZ() + 0.5) : null;
 
@@ -319,6 +262,7 @@ public class GuildCoreManager {
     // ═══════════════════════════════════════════════
     //  REPAIR CORE
     // ═══════════════════════════════════════════════
+
     public boolean repairCore(int teamId, long cost) {
         GuildCoreBlock core = coresByTeamId.get(teamId);
         if (core == null || core.isDestroyed()) return false;
@@ -332,7 +276,6 @@ public class GuildCoreManager {
 
         team.setBankBalance(team.getBankBalance() - cost);
         core.setCurrentHp(core.getMaxHp());
-        updateArmorStandName(core);
         saveCoreToDb(core);
 
         teamManager.saveTeamBankBalance(team);
@@ -345,6 +288,7 @@ public class GuildCoreManager {
     // ═══════════════════════════════════════════════
     //  UPGRADE CORE TIER
     // ═══════════════════════════════════════════════
+
     public boolean upgradeCoreTier(int teamId, Player player) {
         GuildCoreBlock core = coresByTeamId.get(teamId);
         if (core == null) return false;
@@ -394,13 +338,12 @@ public class GuildCoreManager {
         core.setMaxHp(newMaxHp);
         core.setCurrentHp(newMaxHp);
 
-        updateArmorStandName(core);
         saveCoreToDb(core);
         teamManager.saveTeamBankBalance(team);
 
         World world = Bukkit.getWorld(core.getWorld());
         if (world != null && player != null) {
-            Location loc = new Location(world, core.getX() + 0.5, core.getY() + 1.5, core.getZ() + 0.5);
+            Location loc = new Location(world, core.getX() + 0.5, core.getY() + 0.5, core.getZ() + 0.5);
             world.playSound(loc, Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.5f, 1.2f);
             world.spawnParticle(Particle.TOTEM_OF_UNDYING, loc, 50, 0.5, 1.5, 0.5, 0.05);
             world.spawnParticle(Particle.HAPPY_VILLAGER, loc, 20, 0.5, 1.0, 0.5, 0);
@@ -418,6 +361,7 @@ public class GuildCoreManager {
     // ═══════════════════════════════════════════════
     //  GETTERS
     // ═══════════════════════════════════════════════
+
     public GuildCoreBlock getCoreForTeam(int teamId) {
         return coresByTeamId.get(teamId);
     }
@@ -449,57 +393,17 @@ public class GuildCoreManager {
     }
 
     // ═══════════════════════════════════════════════
-    //  ARMOR STAND DISPLAY
+    //  REFRESH DISPLAYS
     // ═══════════════════════════════════════════════
-    private void updateArmorStandName(GuildCoreBlock core) {
-        World world = Bukkit.getWorld(core.getWorld());
-        if (world == null || core.getArmorStandUuid() == null) return;
-
-        Team team = teamManager.getTeam(core.getTeamId());
-        String teamName = team != null ? team.getName() : "Unknown";
-
-        Location searchLoc = new Location(world, core.getX() + 0.5, core.getY() + 1.5, core.getZ() + 0.5);
-        for (Entity entity : world.getNearbyEntities(searchLoc, 3, 3, 3)) {
-            if (entity instanceof ArmorStand stand &&
-                    entity.getUniqueId().equals(core.getArmorStandUuid())) {
-                stand.customName(buildCoreName(teamName, core.getCurrentHp(),
-                        core.getMaxHp(), core.getTier()));
-                break;
-            }
-        }
-    }
-
-    private Component buildCoreName(String teamName, int currentHp, int maxHp, int tier) {
-        String hpColor;
-        float hpPercent = maxHp > 0 ? (float) currentHp / maxHp : 0f;
-
-        if (hpPercent > 0.66f) {
-            hpColor = "green";
-        } else if (hpPercent > 0.33f) {
-            hpColor = "yellow";
-        } else if (hpPercent > 0f) {
-            hpColor = "red";
-        } else {
-            hpColor = "dark_red";
-        }
-
-        String miniMessage = "<gradient:#FFD700:#FFA500><b>⚔ " + teamName + " GUILD CORE</b></gradient> " +
-                "<gray>|</gray> " +
-                "<" + hpColor + ">HP: " + currentHp + "/" + maxHp + "</" + hpColor + "> " +
-                "<gray>|</gray> <yellow>T" + tier + "</yellow>";
-
-        return TextUtil.format(miniMessage);
-    }
 
     public void refreshAllCoreDisplays() {
-        for (GuildCoreBlock core : coresByTeamId.values()) {
-            updateArmorStandName(core);
-        }
+        // Armor stands are invisible now, no display to refresh
     }
 
     // ═══════════════════════════════════════════════
     //  DATABASE OPERATIONS
     // ═══════════════════════════════════════════════
+
     public void loadAllCores() {
         try (Connection conn = dbManager.getConnection();
              PreparedStatement ps = conn.prepareStatement("SELECT * FROM guild_cores");

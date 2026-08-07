@@ -1,3 +1,4 @@
+// FILE: src/main/java/com/guildcore/raiditems/RaidTNTListener.java
 package com.guildcore.raiditems;
 
 import com.guildcore.claims.ClaimInfo;
@@ -15,10 +16,7 @@ import com.guildcore.teams.TeamManager;
 import com.guildcore.util.TextUtil;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import org.bukkit.Chunk;
-import org.bukkit.Location;
-import org.bukkit.Material;
-import org.bukkit.Sound;
+import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
@@ -48,9 +46,12 @@ public class RaidTNTListener implements Listener {
     private TeamManager teamManager;
 
     private final Set<UUID> trackedTntUuids = ConcurrentHashMap.newKeySet();
-    private static final org.bukkit.NamespacedKey TNT_MARKER = new org.bukkit.NamespacedKey("guildcore", "raid_tnt");
+    private static final NamespacedKey TNT_MARKER = new NamespacedKey("guildcore", "raid_tnt");
+    private static final NamespacedKey TNT_TEAM_KEY = new NamespacedKey("guildcore", "tnt_team_id");
 
-    public RaidTNTListener(RaidItemManager raidItemManager, ClaimManager claimManager, GuildCoreManager guildCoreManager, OfflineShieldManager offlineShieldManager, SettingsManager settingsManager, SchedulerWrapper scheduler) {
+    public RaidTNTListener(RaidItemManager raidItemManager, ClaimManager claimManager,
+                           GuildCoreManager guildCoreManager, OfflineShieldManager offlineShieldManager,
+                           SettingsManager settingsManager, SchedulerWrapper scheduler) {
         this.raidItemManager = raidItemManager;
         this.claimManager = claimManager;
         this.guildCoreManager = guildCoreManager;
@@ -59,15 +60,10 @@ public class RaidTNTListener implements Listener {
         this.scheduler = scheduler;
     }
 
-    public void setRaidTagManager(RaidTagManager raidTagManager) {
-        this.raidTagManager = raidTagManager;
-    }
+    public void setRaidTagManager(RaidTagManager raidTagManager) { this.raidTagManager = raidTagManager; }
+    public void setTeamManager(TeamManager teamManager) { this.teamManager = teamManager; }
 
-    public void setTeamManager(TeamManager teamManager) {
-        this.teamManager = teamManager;
-    }
-
-    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPlayerInteract(PlayerInteractEvent event) {
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
         if (event.getClickedBlock() == null) return;
@@ -77,31 +73,34 @@ public class RaidTNTListener implements Listener {
         RaidItemManager.RaidItemType type = raidItemManager.getRaidItemType(item);
         if (type != RaidItemManager.RaidItemType.RAID_TNT) return;
 
+        // ALWAYS cancel the event to prevent vanilla TNT placement
+        event.setCancelled(true);
+
         Block clicked = event.getClickedBlock();
         Chunk chunk = clicked.getChunk();
         ClaimInfo claim = claimManager.getClaimAt(chunk);
 
-        if (claim == null || !claim.isTeamClaim()) {
-            player.sendActionBar(Component.text("💣 Raid TNT can only be placed in claimed territory!", NamedTextColor.RED));
-            return;
-        }
+        int defendingTeamId = -1;
+        boolean isOwnClaim = false;
 
-        // Check not own team
-        if (teamManager != null) {
-            Team playerTeam = teamManager.getPlayerTeam(player.getUniqueId());
-            if (playerTeam != null && playerTeam.getId() == claim.getTeamId()) {
-                player.sendActionBar(Component.text("💣 You can't use Raid TNT on your own territory!", NamedTextColor.RED));
+        if (claim != null && claim.isTeamClaim()) {
+            defendingTeamId = claim.getTeamId() != null ? claim.getTeamId() : -1;
+
+            // Check if own team
+            if (teamManager != null) {
+                Team playerTeam = teamManager.getPlayerTeam(player.getUniqueId());
+                if (playerTeam != null && playerTeam.getId() == defendingTeamId) {
+                    player.sendActionBar(Component.text("💣 You cannot use Raid TNT on your own territory!", NamedTextColor.RED));
+                    return;
+                }
+            }
+
+            // Check shield
+            if (offlineShieldManager.isShieldActive(defendingTeamId)) {
+                player.sendActionBar(Component.text("🛡 This territory is protected by an Offline Shield!", NamedTextColor.AQUA));
                 return;
             }
         }
-
-        if (offlineShieldManager.isShieldActive(claim.getTeamId())) {
-            event.setCancelled(true);
-            player.sendActionBar(Component.text("🛡 This territory is protected by an Offline Shield!", NamedTextColor.AQUA));
-            return;
-        }
-
-        event.setCancelled(true);
 
         // Consume 1 item
         item.setAmount(item.getAmount() - 1);
@@ -109,11 +108,13 @@ public class RaidTNTListener implements Listener {
         // Spawn primed TNT
         double fuseSeconds = settingsManager.getDouble("raidtnt.fuse_seconds", 3.0);
         Location spawnLoc = clicked.getLocation().add(0.5, 1.0, 0.5);
+
+        final int finalTeamId = defendingTeamId;
         TNTPrimed tnt = clicked.getWorld().spawn(spawnLoc, TNTPrimed.class, t -> {
             t.setFuseTicks((int) (fuseSeconds * 20));
             t.setSource(player);
-            // Mark the TNT entity
             t.getPersistentDataContainer().set(TNT_MARKER, PersistentDataType.BOOLEAN, true);
+            t.getPersistentDataContainer().set(TNT_TEAM_KEY, PersistentDataType.INTEGER, finalTeamId);
         });
 
         trackedTntUuids.add(tnt.getUniqueId());
@@ -121,12 +122,13 @@ public class RaidTNTListener implements Listener {
         player.playSound(player.getLocation(), Sound.ENTITY_TNT_PRIMED, 1.5f, 1.0f);
         player.sendActionBar(TextUtil.format("<red>💣 Raid TNT placed! Fuse: " + String.format("%.1f", fuseSeconds) + "s</red>"));
 
-        // Apply raid tag
-        if (raidTagManager != null) {
-            raidTagManager.applyRaidTag(player, claim.getTeamId(), chunk);
+        // Apply raid tag only if in enemy claim
+        if (raidTagManager != null && defendingTeamId > 0) {
+            raidTagManager.applyRaidTag(player, defendingTeamId, chunk);
         }
 
-        DebugManager.log(DebugFlag.RAID_ITEMS, player.getName() + " placed Raid TNT at " + spawnLoc + " in team " + claim.getTeamId() + " territory");
+        DebugManager.log(DebugFlag.RAID_ITEMS, player.getName() + " placed Raid TNT at " + spawnLoc +
+                " (team: " + defendingTeamId + ")");
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
@@ -134,17 +136,26 @@ public class RaidTNTListener implements Listener {
         Entity entity = event.getEntity();
         if (!trackedTntUuids.remove(entity.getUniqueId())) return;
 
-        // No player damage from Raid TNT
+        // No player damage
         event.setYield(0);
+
+        int defendingTeamId = entity.getPersistentDataContainer()
+                .getOrDefault(TNT_TEAM_KEY, PersistentDataType.INTEGER, -1);
+
+        Location explosionCenter = event.getLocation();
 
         // Apply block transformation chain
         Iterator<Block> it = event.blockList().iterator();
-        Location explosionCenter = event.getLocation();
-        int defendingTeamId = -1;
-
         while (it.hasNext()) {
             Block block = it.next();
-            // Check if this is a core location - protect it
+
+            // Always protect claim chests
+            if (isClaimChest(block)) {
+                it.remove();
+                continue;
+            }
+
+            // Protect core blocks
             GuildCoreBlock core = guildCoreManager.getCoreAtLocation(block.getLocation());
             if (core != null) {
                 defendingTeamId = core.getTeamId();
@@ -152,15 +163,10 @@ public class RaidTNTListener implements Listener {
                 continue;
             }
 
-            ClaimInfo claim = claimManager.getClaimAt(block.getChunk());
-            if (claim != null && claim.isTeamClaim()) {
-                if (defendingTeamId < 0) defendingTeamId = claim.getTeamId();
-            }
-
-            // Apply transformation chain instead of destroying
+            // Apply transformation chain
             Material blockType = block.getType();
             Material transformed = getTransformation(blockType);
-            it.remove(); // Remove from vanilla explosion list
+            it.remove();
 
             if (transformed != null) {
                 final Block targetBlock = block;
@@ -169,18 +175,36 @@ public class RaidTNTListener implements Listener {
             }
         }
 
-        // Apply core damage if nearby
+        // Apply core damage if in enemy claim
         if (defendingTeamId > 0) {
             int coreDamage = settingsManager.getInt("core.raid_tnt_damage", 10);
             GuildCoreBlock core = guildCoreManager.getCoreForTeam(defendingTeamId);
             if (core != null) {
-                Location coreLoc = new Location(explosionCenter.getWorld(), core.getX(), core.getY(), core.getZ());
+                Location coreLoc = new Location(explosionCenter.getWorld(),
+                        core.getX(), core.getY(), core.getZ());
                 if (coreLoc.distance(explosionCenter) <= 8.0) {
                     guildCoreManager.damageCore(defendingTeamId, coreDamage, null);
-                    DebugManager.log(DebugFlag.RAID_ITEMS, "Raid TNT dealt " + coreDamage + " damage to core of team " + defendingTeamId);
+                    DebugManager.log(DebugFlag.RAID_ITEMS,
+                            "Raid TNT dealt " + coreDamage + " damage to core of team " + defendingTeamId);
                 }
             }
         }
+    }
+
+    private boolean isClaimChest(Block block) {
+        try {
+            Class<?> ccmClass = Class.forName("com.guildcore.claims.ClaimChestManager");
+            Object plugin = com.guildcore.GuildCorePlugin.getInstance();
+            if (plugin != null) {
+                java.lang.reflect.Method m = plugin.getClass().getMethod("getClaimChestManager");
+                Object ccm = m.invoke(plugin);
+                if (ccm != null) {
+                    java.lang.reflect.Method isCc = ccm.getClass().getMethod("isClaimChest", Location.class);
+                    return (boolean) isCc.invoke(ccm, block.getLocation());
+                }
+            }
+        } catch (Exception ignored) {}
+        return false;
     }
 
     private Material getTransformation(Material type) {

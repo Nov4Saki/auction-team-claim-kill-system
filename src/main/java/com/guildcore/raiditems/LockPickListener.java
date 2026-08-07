@@ -75,10 +75,10 @@ public class LockPickListener implements Listener {
         if (teamManager != null) {
             Team playerTeam = teamManager.getPlayerTeam(player.getUniqueId());
             if (playerTeam != null && playerTeam.getId() == claim.getTeamId()) {
-                return; // Don't need lock picks on own claim
+                player.sendActionBar(Component.text("🔑 You don't need lock picks on your own territory!", NamedTextColor.RED));
+                return;
             }
         }
-
         // Check shield
         if (offlineShieldManager.isShieldActive(claim.getTeamId())) {
             event.setCancelled(true);

@@ -1,3 +1,6 @@
+// FILE: src/main/java/com/guildcore/claims/ClaimProtectionListener.java
+// Add claimChestManager field and update constructor
+
 package com.guildcore.claims;
 
 import com.guildcore.config.SettingsManager;
@@ -28,74 +31,85 @@ import java.util.Iterator;
 public class ClaimProtectionListener implements Listener {
     private final ClaimManager claimManager;
     private final SettingsManager settingsManager;
+    private final ClaimChestManager claimChestManager;
 
     private TeamManager teamManager;
     private OfflineShieldManager offlineShieldManager;
     private GuildCoreManager guildCoreManager;
 
-    public ClaimProtectionListener(ClaimManager claimManager, SettingsManager settingsManager) {
+    public ClaimProtectionListener(ClaimManager claimManager, SettingsManager settingsManager,
+                                   ClaimChestManager claimChestManager) {
         this.claimManager = claimManager;
         this.settingsManager = settingsManager;
+        this.claimChestManager = claimChestManager;
     }
 
-    public void setTeamManager(TeamManager teamManager) {
-        this.teamManager = teamManager;
-    }
-
-    public void setOfflineShieldManager(OfflineShieldManager offlineShieldManager) {
-        this.offlineShieldManager = offlineShieldManager;
-    }
-
-    public void setGuildCoreManager(GuildCoreManager guildCoreManager) {
-        this.guildCoreManager = guildCoreManager;
-    }
+    public void setTeamManager(TeamManager teamManager) { this.teamManager = teamManager; }
+    public void setOfflineShieldManager(OfflineShieldManager offlineShieldManager) { this.offlineShieldManager = offlineShieldManager; }
+    public void setGuildCoreManager(GuildCoreManager guildCoreManager) { this.guildCoreManager = guildCoreManager; }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onBlockBreak(BlockBreakEvent event) {
         Player player = event.getPlayer();
-        Chunk chunk = event.getBlock().getChunk();
-        ClaimInfo claim = claimManager.getClaimAt(chunk);
 
-        if (claim == null) return;
-
-        // If offline shield is active, block ALL breaking (even by outsiders)
-        if (claim.isTeamClaim() && claim.getTeamId() != null &&
-                offlineShieldManager != null && offlineShieldManager.isShieldActive(claim.getTeamId())) {
+        // Check claim chest first
+        if (claimChestManager.isClaimChest(event.getBlock().getLocation())) {
             event.setCancelled(true);
-            player.sendActionBar(Component.text(
-                    "🛡 This territory is protected by an Offline Shield!", NamedTextColor.AQUA));
+            player.sendActionBar(Component.text("🚫 This is a Guild Claim Chest!", NamedTextColor.RED));
             return;
         }
 
-        // Normal permission check
+        Chunk chunk = event.getBlock().getChunk();
+        ClaimInfo claim = claimManager.getClaimAt(chunk);
+        if (claim == null) return;
+
+        // Offline shield check
+        if (claim.isTeamClaim() && claim.getTeamId() != null &&
+                offlineShieldManager != null && offlineShieldManager.isShieldActive(claim.getTeamId())) {
+            event.setCancelled(true);
+            player.sendActionBar(Component.text("🛡 This territory is protected by an Offline Shield!", NamedTextColor.AQUA));
+            return;
+        }
+
+        // Admin bypass
+        if (player.hasPermission("guildcore.admin") && settingsManager.getBoolean("claims.admin_bypass", true)) {
+            return;
+        }
+
         if (!claimManager.canBuild(player, chunk)) {
             event.setCancelled(true);
-            player.sendActionBar(Component.text(
-                    "🚫 This chunk is claimed territory!", NamedTextColor.RED));
+            player.sendActionBar(Component.text("🚫 This chunk is claimed territory!", NamedTextColor.RED));
         }
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onBlockPlace(BlockPlaceEvent event) {
         Player player = event.getPlayer();
+
+        if (claimChestManager.isClaimChest(event.getBlock().getLocation())) {
+            event.setCancelled(true);
+            player.sendActionBar(Component.text("🚫 Cannot place on a Guild Claim Chest!", NamedTextColor.RED));
+            return;
+        }
+
         Chunk chunk = event.getBlock().getChunk();
         ClaimInfo claim = claimManager.getClaimAt(chunk);
-
         if (claim == null) return;
 
-        // Shield check
         if (claim.isTeamClaim() && claim.getTeamId() != null &&
                 offlineShieldManager != null && offlineShieldManager.isShieldActive(claim.getTeamId())) {
             event.setCancelled(true);
-            player.sendActionBar(Component.text(
-                    "🛡 This territory is protected by an Offline Shield!", NamedTextColor.AQUA));
+            player.sendActionBar(Component.text("🛡 This territory is protected by an Offline Shield!", NamedTextColor.AQUA));
+            return;
+        }
+
+        if (player.hasPermission("guildcore.admin") && settingsManager.getBoolean("claims.admin_bypass", true)) {
             return;
         }
 
         if (!claimManager.canBuild(player, chunk)) {
             event.setCancelled(true);
-            player.sendActionBar(Component.text(
-                    "🚫 This chunk is claimed territory!", NamedTextColor.RED));
+            player.sendActionBar(Component.text("🚫 This chunk is claimed territory!", NamedTextColor.RED));
         }
     }
 
@@ -105,38 +119,37 @@ public class ClaimProtectionListener implements Listener {
 
         Player player = event.getPlayer();
         Block clicked = event.getClickedBlock();
+
+        // Allow claim chest interaction
+        if (claimChestManager.isClaimChest(clicked.getLocation())) return;
+
         Chunk chunk = clicked.getChunk();
         ClaimInfo claim = claimManager.getClaimAt(chunk);
-
         if (claim == null) return;
 
-        // Exempt Crafting Table and Ender Chest from claim interaction protection
+        // Exempt Crafting Table and Ender Chest
         Material type = clicked.getType();
-        if (type == Material.CRAFTING_TABLE || type == Material.ENDER_CHEST) {
-            return;
-        }
+        if (type == Material.CRAFTING_TABLE || type == Material.ENDER_CHEST) return;
 
-        // Shield check - block container access when shield is active
+        // Shield check
         if (claim.isTeamClaim() && claim.getTeamId() != null &&
                 offlineShieldManager != null && offlineShieldManager.isShieldActive(claim.getTeamId())) {
-
-            // Check if player is not a team member trying to access containers
             Team playerTeam = teamManager != null ? teamManager.getPlayerTeam(player.getUniqueId()) : null;
             boolean isTeamMember = playerTeam != null && playerTeam.getId() == claim.getTeamId();
-
             if (!isTeamMember && clicked.getState() instanceof Container) {
                 event.setCancelled(true);
-                player.sendActionBar(Component.text(
-                        "🛡 This container is protected by an Offline Shield!", NamedTextColor.AQUA));
+                player.sendActionBar(Component.text("🛡 This container is protected by an Offline Shield!", NamedTextColor.AQUA));
                 return;
             }
         }
 
-        // Normal permission check
+        if (player.hasPermission("guildcore.admin") && settingsManager.getBoolean("claims.admin_bypass", true)) {
+            return;
+        }
+
         if (!claimManager.canBuild(player, chunk)) {
             event.setCancelled(true);
-            player.sendActionBar(Component.text(
-                    "🚫 You do not have permission in this claim!", NamedTextColor.RED));
+            player.sendActionBar(Component.text("🚫 You do not have permission in this claim!", NamedTextColor.RED));
         }
     }
 
@@ -144,15 +157,12 @@ public class ClaimProtectionListener implements Listener {
     public void onEntityChangeBlock(EntityChangeBlockEvent event) {
         Chunk chunk = event.getBlock().getChunk();
         ClaimInfo claim = claimManager.getClaimAt(chunk);
-
         if (claim != null) {
-            // Check shield
             if (claim.isTeamClaim() && claim.getTeamId() != null &&
                     offlineShieldManager != null && offlineShieldManager.isShieldActive(claim.getTeamId())) {
                 event.setCancelled(true);
                 return;
             }
-
             if (!(event.getEntity() instanceof Player player && claimManager.canBuild(player, chunk))) {
                 event.setCancelled(true);
             }
@@ -162,26 +172,21 @@ public class ClaimProtectionListener implements Listener {
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onPvPDamage(EntityDamageByEntityEvent event) {
         if (event.getEntity() instanceof Player victim && event.getDamager() instanceof Player attacker) {
-            // Friendly fire check
             if (teamManager != null && teamManager.areSameTeam(victim.getUniqueId(), attacker.getUniqueId())) {
                 boolean friendlyFire = settingsManager.getBoolean("teams.friendly_fire", false);
                 if (!friendlyFire) {
                     event.setCancelled(true);
-                    attacker.sendActionBar(Component.text(
-                            "🛡 Friendly fire is disabled for your Guild!", NamedTextColor.YELLOW));
+                    attacker.sendActionBar(Component.text("🛡 Friendly fire is disabled for your Guild!", NamedTextColor.YELLOW));
                     return;
                 }
             }
-
-            // PvP in claims check
             Chunk chunk = victim.getLocation().getChunk();
             ClaimInfo claim = claimManager.getClaimAt(chunk);
             if (claim != null) {
                 boolean globalClaimPvp = settingsManager.getBoolean("claims.pvp_enabled", true);
                 if (!globalClaimPvp || !claim.hasFlag("pvp")) {
                     event.setCancelled(true);
-                    attacker.sendActionBar(Component.text(
-                            "🛡 PvP is disabled in claimed territory!", NamedTextColor.RED));
+                    attacker.sendActionBar(Component.text("🛡 PvP is disabled in claimed territory!", NamedTextColor.RED));
                 }
             }
         }
@@ -198,8 +203,13 @@ public class ClaimProtectionListener implements Listener {
         Iterator<Block> it = event.blockList().iterator();
         while (it.hasNext()) {
             Block block = it.next();
-            ClaimInfo claim = claimManager.getClaimAt(block.getChunk());
+            // Protect claim chests from explosions
+            if (claimChestManager.isClaimChest(block.getLocation())) {
+                it.remove();
+                continue;
+            }
 
+            ClaimInfo claim = claimManager.getClaimAt(block.getChunk());
             if (claim != null) {
                 if (claim.isTeamClaim() && claim.getTeamId() != null &&
                         offlineShieldManager != null && offlineShieldManager.isShieldActive(claim.getTeamId())) {
@@ -222,8 +232,12 @@ public class ClaimProtectionListener implements Listener {
         Iterator<Block> it = event.blockList().iterator();
         while (it.hasNext()) {
             Block block = it.next();
-            ClaimInfo claim = claimManager.getClaimAt(block.getChunk());
+            if (claimChestManager.isClaimChest(block.getLocation())) {
+                it.remove();
+                continue;
+            }
 
+            ClaimInfo claim = claimManager.getClaimAt(block.getChunk());
             if (claim != null) {
                 if (claim.isTeamClaim() && claim.getTeamId() != null &&
                         offlineShieldManager != null && offlineShieldManager.isShieldActive(claim.getTeamId())) {

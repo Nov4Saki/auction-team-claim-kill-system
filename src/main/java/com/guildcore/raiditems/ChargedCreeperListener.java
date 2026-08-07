@@ -1,3 +1,4 @@
+// FILE: src/main/java/com/guildcore/raiditems/ChargedCreeperListener.java
 package com.guildcore.raiditems;
 
 import com.guildcore.claims.ClaimInfo;
@@ -15,9 +16,7 @@ import com.guildcore.teams.TeamManager;
 import com.guildcore.util.TextUtil;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import org.bukkit.Chunk;
-import org.bukkit.Location;
-import org.bukkit.Material;
+import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Creeper;
 import org.bukkit.entity.Entity;
@@ -47,9 +46,12 @@ public class ChargedCreeperListener implements Listener {
     private TeamManager teamManager;
 
     private final Set<UUID> trackedCreeperUuids = ConcurrentHashMap.newKeySet();
-    private static final org.bukkit.NamespacedKey CREEPER_MARKER = new org.bukkit.NamespacedKey("guildcore", "raid_creeper");
+    private static final NamespacedKey CREEPER_MARKER = new NamespacedKey("guildcore", "raid_creeper");
+    private static final NamespacedKey CREEPER_TEAM_KEY = new NamespacedKey("guildcore", "creeper_team_id");
 
-    public ChargedCreeperListener(RaidItemManager raidItemManager, ClaimManager claimManager, OfflineShieldManager offlineShieldManager, SettingsManager settingsManager, SchedulerWrapper scheduler) {
+    public ChargedCreeperListener(RaidItemManager raidItemManager, ClaimManager claimManager,
+                                  OfflineShieldManager offlineShieldManager, SettingsManager settingsManager,
+                                  SchedulerWrapper scheduler) {
         this.raidItemManager = raidItemManager;
         this.claimManager = claimManager;
         this.offlineShieldManager = offlineShieldManager;
@@ -57,19 +59,11 @@ public class ChargedCreeperListener implements Listener {
         this.scheduler = scheduler;
     }
 
-    public void setRaidTagManager(RaidTagManager raidTagManager) {
-        this.raidTagManager = raidTagManager;
-    }
+    public void setRaidTagManager(RaidTagManager raidTagManager) { this.raidTagManager = raidTagManager; }
+    public void setGuildCoreManager(GuildCoreManager guildCoreManager) { this.guildCoreManager = guildCoreManager; }
+    public void setTeamManager(TeamManager teamManager) { this.teamManager = teamManager; }
 
-    public void setGuildCoreManager(GuildCoreManager guildCoreManager) {
-        this.guildCoreManager = guildCoreManager;
-    }
-
-    public void setTeamManager(TeamManager teamManager) {
-        this.teamManager = teamManager;
-    }
-
-    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPlayerInteract(PlayerInteractEvent event) {
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
         if (event.getClickedBlock() == null) return;
@@ -79,60 +73,71 @@ public class ChargedCreeperListener implements Listener {
         RaidItemManager.RaidItemType type = raidItemManager.getRaidItemType(item);
         if (type != RaidItemManager.RaidItemType.CHARGED_CREEPER_EGG) return;
 
+        // ALWAYS cancel
+        event.setCancelled(true);
+
         Block clicked = event.getClickedBlock();
         Chunk chunk = clicked.getChunk();
         ClaimInfo claim = claimManager.getClaimAt(chunk);
 
-        if (claim == null || !claim.isTeamClaim()) {
-            player.sendActionBar(Component.text("⚡ Creeper eggs only work in claimed territory!", NamedTextColor.RED));
-            return;
-        }
+        int defendingTeamId = -1;
 
-        // Check not own team
-        if (teamManager != null) {
-            Team playerTeam = teamManager.getPlayerTeam(player.getUniqueId());
-            if (playerTeam != null && playerTeam.getId() == claim.getTeamId()) {
-                player.sendActionBar(Component.text("⚡ You can't use Creeper Eggs on your own territory!", NamedTextColor.RED));
+        if (claim != null && claim.isTeamClaim()) {
+            defendingTeamId = claim.getTeamId() != null ? claim.getTeamId() : -1;
+
+            // Check not own team
+            if (teamManager != null) {
+                Team playerTeam = teamManager.getPlayerTeam(player.getUniqueId());
+                if (playerTeam != null && playerTeam.getId() == defendingTeamId) {
+                    player.sendActionBar(Component.text("⚡ You can't use Creeper Eggs on your own territory!", NamedTextColor.RED));
+                    return;
+                }
+            }
+
+            if (offlineShieldManager.isShieldActive(defendingTeamId)) {
+                player.sendActionBar(Component.text("🛡 This territory is protected by an Offline Shield!", NamedTextColor.AQUA));
                 return;
             }
         }
 
-        if (offlineShieldManager.isShieldActive(claim.getTeamId())) {
-            event.setCancelled(true);
-            player.sendActionBar(Component.text("🛡 This territory is protected by an Offline Shield!", NamedTextColor.AQUA));
-            return;
-        }
-
-        event.setCancelled(true);
-
         // Consume 1 item
         item.setAmount(item.getAmount() - 1);
 
-        // Spawn charged creeper
+        // Spawn charged creeper entity
         double fuseSeconds = settingsManager.getDouble("creeper.fuse_seconds", 3.0);
         Location spawnLoc = clicked.getLocation().add(0.5, 1.0, 0.5);
 
+        final int finalTeamId = defendingTeamId;
         Creeper creeper = clicked.getWorld().spawn(spawnLoc, Creeper.class, c -> {
             c.setPowered(true);
+            c.setFuseTicks((int) (fuseSeconds * 20));
             c.setMaxFuseTicks((int) (fuseSeconds * 20));
             c.setAI(false);
             c.setInvulnerable(true);
+            c.setSilent(true);
             c.getPersistentDataContainer().set(CREEPER_MARKER, PersistentDataType.BOOLEAN, true);
+            c.getPersistentDataContainer().set(CREEPER_TEAM_KEY, PersistentDataType.INTEGER, finalTeamId);
         });
 
         trackedCreeperUuids.add(creeper.getUniqueId());
 
-        // Ignite after 1 tick
-        scheduler.runLater(spawnLoc, creeper::ignite, 1L);
+        // Ignite after a short delay to allow spawn
+        scheduler.runLater(spawnLoc, () -> {
+            if (creeper.isValid() && !creeper.isDead()) {
+                creeper.ignite();
+            }
+        }, 5L);
 
-        player.sendActionBar(TextUtil.format("<green>⚡ Charged Creeper deployed! Detonation in " + String.format("%.1f", fuseSeconds) + "s</green>"));
+        player.sendActionBar(TextUtil.format("<green>⚡ Charged Creeper deployed! Detonation in " +
+                String.format("%.1f", fuseSeconds) + "s</green>"));
 
-        // Apply raid tag
-        if (raidTagManager != null) {
-            raidTagManager.applyRaidTag(player, claim.getTeamId(), chunk);
+        // Apply raid tag only if in enemy claim
+        if (raidTagManager != null && defendingTeamId > 0) {
+            raidTagManager.applyRaidTag(player, defendingTeamId, chunk);
         }
 
-        DebugManager.log(DebugFlag.RAID_ITEMS, player.getName() + " deployed Charged Creeper at " + spawnLoc + " in team " + claim.getTeamId() + " territory");
+        DebugManager.log(DebugFlag.RAID_ITEMS, player.getName() + " deployed Charged Creeper at " +
+                spawnLoc + " (team: " + defendingTeamId + ")");
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
@@ -140,15 +145,20 @@ public class ChargedCreeperListener implements Listener {
         Entity entity = event.getEntity();
         if (!trackedCreeperUuids.remove(entity.getUniqueId())) return;
 
-        // No player damage
         event.setYield(0);
 
-        // Hard blocks survive, soft blocks destroyed
-        Iterator<Block> it = event.blockList().iterator();
-        int defendingTeamId = -1;
+        int defendingTeamId = entity.getPersistentDataContainer()
+                .getOrDefault(CREEPER_TEAM_KEY, PersistentDataType.INTEGER, -1);
 
+        Iterator<Block> it = event.blockList().iterator();
         while (it.hasNext()) {
             Block block = it.next();
+
+            // Protect claim chests
+            if (isClaimChest(block)) {
+                it.remove();
+                continue;
+            }
 
             // Protect core blocks
             if (guildCoreManager != null) {
@@ -160,32 +170,43 @@ public class ChargedCreeperListener implements Listener {
                 }
             }
 
-            ClaimInfo claim = claimManager.getClaimAt(block.getChunk());
-            if (claim != null && claim.isTeamClaim() && defendingTeamId < 0) {
-                defendingTeamId = claim.getTeamId();
-            }
-
-            // Hard blocks survive
+            // Hard blocks survive, soft blocks destroyed
             if (isHardBlock(block.getType())) {
                 it.remove();
             }
-            // Soft blocks get destroyed normally (stay in the list)
         }
 
-        // Apply core damage if nearby
+        // Apply core damage if in enemy claim
         if (defendingTeamId > 0 && guildCoreManager != null) {
             int coreDamage = settingsManager.getInt("core.creeper_damage", 0);
             if (coreDamage > 0) {
                 GuildCoreBlock core = guildCoreManager.getCoreForTeam(defendingTeamId);
                 if (core != null) {
-                    Location coreLoc = new Location(event.getLocation().getWorld(), core.getX(), core.getY(), core.getZ());
+                    Location coreLoc = new Location(event.getLocation().getWorld(),
+                            core.getX(), core.getY(), core.getZ());
                     if (coreLoc.distance(event.getLocation()) <= 10.0) {
                         guildCoreManager.damageCore(defendingTeamId, coreDamage, null);
-                        DebugManager.log(DebugFlag.RAID_ITEMS, "Charged Creeper dealt " + coreDamage + " damage to core of team " + defendingTeamId);
+                        DebugManager.log(DebugFlag.RAID_ITEMS,
+                                "Charged Creeper dealt " + coreDamage + " damage to core of team " + defendingTeamId);
                     }
                 }
             }
         }
+    }
+
+    private boolean isClaimChest(Block block) {
+        try {
+            Object plugin = com.guildcore.GuildCorePlugin.getInstance();
+            if (plugin != null) {
+                java.lang.reflect.Method m = plugin.getClass().getMethod("getClaimChestManager");
+                Object ccm = m.invoke(plugin);
+                if (ccm != null) {
+                    java.lang.reflect.Method isCc = ccm.getClass().getMethod("isClaimChest", Location.class);
+                    return (boolean) isCc.invoke(ccm, block.getLocation());
+                }
+            }
+        } catch (Exception ignored) {}
+        return false;
     }
 
     private boolean isHardBlock(Material type) {

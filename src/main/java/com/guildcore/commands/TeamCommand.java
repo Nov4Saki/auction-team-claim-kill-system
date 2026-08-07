@@ -1,5 +1,7 @@
+// FILE: src/main/java/com/guildcore/commands/TeamCommand.java
 package com.guildcore.commands;
 
+import com.guildcore.claims.ClaimChestManager;
 import com.guildcore.claims.ClaimManager;
 import com.guildcore.config.SettingsManager;
 import com.guildcore.gui.GUIItemBuilder;
@@ -39,15 +41,20 @@ public class TeamCommand implements TabExecutor {
     private final GuildCoreManager guildCoreManager;
     private final SettingsManager settingsManager;
     private final GUIManager guiManager;
+    private final ClaimChestManager claimChestManager;
     private final Map<UUID, Long> guildHomeCooldowns = new ConcurrentHashMap<>();
 
     private static final List<String> SUBCOMMANDS = Arrays.asList(
             "create", "invite", "add", "join", "deny", "leave", "kick", "promote", "demote",
-            "info", "list", "bank", "vault", "deposit", "withdraw", "claim", "unclaim", "map", "members", "roster",
-            "home", "sethome", "placecore", "permissions", "upgrade", "disband", "rename", "transferleader", "leader"
+            "info", "list", "bank", "vault", "deposit", "withdraw", "claim", "unclaim", "map",
+            "members", "roster", "home", "sethome", "getcore", "permissions", "upgrade",
+            "disband", "rename", "transferleader", "leader"
     );
 
-    public TeamCommand(TeamManager teamManager, TeamBankManager bankManager, TeamVaultManager vaultManager, ClaimManager claimManager, GuildCoreManager guildCoreManager, SettingsManager settingsManager, GUIManager guiManager) {
+    public TeamCommand(TeamManager teamManager, TeamBankManager bankManager,
+                       TeamVaultManager vaultManager, ClaimManager claimManager,
+                       GuildCoreManager guildCoreManager, SettingsManager settingsManager,
+                       GUIManager guiManager, ClaimChestManager claimChestManager) {
         this.teamManager = teamManager;
         this.bankManager = bankManager;
         this.vaultManager = vaultManager;
@@ -55,6 +62,7 @@ public class TeamCommand implements TabExecutor {
         this.guildCoreManager = guildCoreManager;
         this.settingsManager = settingsManager;
         this.guiManager = guiManager;
+        this.claimChestManager = claimChestManager;
     }
 
     @Override
@@ -70,7 +78,8 @@ public class TeamCommand implements TabExecutor {
 
         if (args.length == 2) {
             String sub = args[0].toLowerCase();
-            if (sub.equals("invite") || sub.equals("add") || sub.equals("kick") || sub.equals("promote") || sub.equals("demote")) {
+            if (sub.equals("invite") || sub.equals("add") || sub.equals("kick") ||
+                    sub.equals("promote") || sub.equals("demote")) {
                 String input = args[1].toLowerCase();
                 for (Player player : Bukkit.getOnlinePlayers()) {
                     if (player.getName().toLowerCase().startsWith(input)) completions.add(player.getName());
@@ -95,6 +104,8 @@ public class TeamCommand implements TabExecutor {
         }
 
         String cmd = label.toLowerCase();
+
+        // Team chat
         if (cmd.equals("tc") || cmd.equals("teamchat") || cmd.equals("gc") || cmd.equals("guildchat")) {
             Team team = teamManager.getPlayerTeam(player.getUniqueId());
             if (team == null) {
@@ -120,6 +131,7 @@ public class TeamCommand implements TabExecutor {
             return true;
         }
 
+        // No args - open team menu or show help
         if (args.length == 0) {
             Team team = teamManager.getPlayerTeam(player.getUniqueId());
             if (team == null) {
@@ -134,6 +146,7 @@ public class TeamCommand implements TabExecutor {
 
         String sub = args[0].toLowerCase();
 
+        // info
         if (sub.equals("info")) {
             Team team = null;
             if (args.length >= 2) {
@@ -160,18 +173,19 @@ public class TeamCommand implements TabExecutor {
             return true;
         }
 
+        // upgrade
         if (sub.equals("upgrade")) {
             Team team = teamManager.getPlayerTeam(player.getUniqueId());
             if (team == null) {
                 player.sendMessage(TextUtil.format("<red>You must be in a team to upgrade features.</red>"));
                 return true;
             }
-            // Inform player to use the physical guild core for upgrades
-            player.sendMessage(TextUtil.format("<yellow>⚡ To upgrade your Guild, interact with your Guild Core directly!</yellow>"));
-            player.sendMessage(TextUtil.format("<yellow>Use the armor stand above your core chest to access the upgrade menu.</yellow>"));
+            player.sendMessage(TextUtil.format("<yellow>⚡ To upgrade your Guild, interact with your Claim Chest directly!</yellow>"));
+            player.sendMessage(TextUtil.format("<yellow>Right-click your placed Claim Chest to access the management menu.</yellow>"));
             return true;
         }
 
+        // rename
         if (sub.equals("rename")) {
             if (args.length < 2) {
                 player.sendMessage(TextUtil.format("<red>Usage: /team rename <new_name></red>"));
@@ -181,6 +195,7 @@ public class TeamCommand implements TabExecutor {
             return true;
         }
 
+        // create
         if (sub.equals("create")) {
             if (args.length < 2) {
                 player.sendMessage(TextUtil.format("<red>Usage: /team create <name></red>"));
@@ -197,12 +212,14 @@ public class TeamCommand implements TabExecutor {
             int baseCap = settingsManager.getInt("teams.base_max_members", 3);
             if (teamManager.createTeam(player, args[1], baseCap)) {
                 player.sendMessage(TextUtil.format("<green>Created team '" + args[1] + "' with max " + baseCap + " members!</green>"));
+                player.sendMessage(TextUtil.format("<yellow>Use /guild getcore to receive your Claim Chest and establish territory!</yellow>"));
             } else {
                 player.sendMessage(TextUtil.format("<red>Could not create team.</red>"));
             }
             return true;
         }
 
+        // invite / add
         if (sub.equals("invite") || sub.equals("add")) {
             if (args.length < 2) {
                 player.sendMessage(TextUtil.format("<red>Usage: /team invite <player></red>"));
@@ -225,6 +242,7 @@ public class TeamCommand implements TabExecutor {
             return true;
         }
 
+        // kick
         if (sub.equals("kick")) {
             if (args.length < 2) {
                 player.sendMessage(TextUtil.format("<red>Usage: /team kick <player></red>"));
@@ -241,6 +259,7 @@ public class TeamCommand implements TabExecutor {
             return true;
         }
 
+        // promote
         if (sub.equals("promote")) {
             if (args.length < 2) {
                 player.sendMessage(TextUtil.format("<red>Usage: /team promote <player></red>"));
@@ -250,6 +269,7 @@ public class TeamCommand implements TabExecutor {
             return true;
         }
 
+        // demote
         if (sub.equals("demote")) {
             if (args.length < 2) {
                 player.sendMessage(TextUtil.format("<red>Usage: /team demote <player></red>"));
@@ -259,6 +279,7 @@ public class TeamCommand implements TabExecutor {
             return true;
         }
 
+        // leave
         if (sub.equals("leave")) {
             if (teamManager.leaveTeam(player)) {
                 player.sendMessage(TextUtil.format("<yellow>⚠️ You left your team. Note: You have lost access to team vault, bank, and claims.</yellow>"));
@@ -266,6 +287,7 @@ public class TeamCommand implements TabExecutor {
             return true;
         }
 
+        // disband
         if (sub.equals("disband")) {
             Team team = teamManager.getPlayerTeam(player.getUniqueId());
             if (team == null) {
@@ -281,6 +303,7 @@ public class TeamCommand implements TabExecutor {
             return true;
         }
 
+        // permissions / perms
         if (sub.equals("permissions") || sub.equals("perms")) {
             Team team = teamManager.getPlayerTeam(player.getUniqueId());
             if (team == null) {
@@ -291,6 +314,7 @@ public class TeamCommand implements TabExecutor {
             return true;
         }
 
+        // list
         if (sub.equals("list")) {
             var teams = teamManager.getAllTeams();
             if (teams.isEmpty()) {
@@ -304,6 +328,7 @@ public class TeamCommand implements TabExecutor {
             return true;
         }
 
+        // join
         if (sub.equals("join")) {
             if (!teamManager.hasPendingInvite(player)) {
                 player.sendMessage(TextUtil.format("<red>You have no pending team invite!</red>"));
@@ -317,6 +342,7 @@ public class TeamCommand implements TabExecutor {
             return true;
         }
 
+        // vault
         if (sub.equals("vault") || sub.equals("vual")) {
             Team team = teamManager.getPlayerTeam(player.getUniqueId());
             if (team == null) {
@@ -331,6 +357,7 @@ public class TeamCommand implements TabExecutor {
             return true;
         }
 
+        // transferleader / leader
         if (sub.equals("transferleader") || sub.equals("leader")) {
             Team team = teamManager.getPlayerTeam(player.getUniqueId());
             if (team == null || !team.getLeaderUuid().equals(player.getUniqueId())) {
@@ -375,6 +402,7 @@ public class TeamCommand implements TabExecutor {
             return true;
         }
 
+        // bank
         if (sub.equals("bank")) {
             Team team = teamManager.getPlayerTeam(player.getUniqueId());
             if (team == null) {
@@ -399,41 +427,26 @@ public class TeamCommand implements TabExecutor {
             return true;
         }
 
+        // claim - now gives claim chest info
         if (sub.equals("claim")) {
-            guiManager.openTeamMapGUI(player);
+            player.sendMessage(TextUtil.format("<yellow>Use /claim to receive a Claim Chest, or /claim map to view territory.</yellow>"));
+            claimChestManager.giveClaimChest(player);
             return true;
         }
 
+        // unclaim
         if (sub.equals("unclaim")) {
-            Team team = teamManager.getPlayerTeam(player.getUniqueId());
-            if (team == null) {
-                player.sendMessage(TextUtil.format("<red>✖ You must belong to a Guild to unclaim land.</red>"));
-                return true;
-            }
-            String role = teamManager.getPlayerRole(player.getUniqueId());
-            if (!guiManager.getPermissionManager().hasPermission(team.getId(), role, "CLAIM")) {
-                player.sendMessage(TextUtil.format("<red>✖ You do not have team permission to unclaim land!</red>"));
-                return true;
-            }
-            Chunk chunk = player.getLocation().getChunk();
-            com.guildcore.claims.ClaimInfo claim = claimManager.getClaimAt(chunk);
-            if (claim == null || !claim.isTeamClaim() || claim.getTeamId() == null || claim.getTeamId() != team.getId()) {
-                player.sendMessage(TextUtil.format("<red>✖ This chunk is not claimed by your Guild!</red>"));
-                return true;
-            }
-            if (claimManager.unclaim(chunk)) {
-                player.sendMessage(TextUtil.format("<green>✔ Unclaimed chunk (" + chunk.getX() + ", " + chunk.getZ() + ") for your Guild.</green>"));
-            } else {
-                player.sendMessage(TextUtil.format("<red>✖ Failed to unclaim chunk.</red>"));
-            }
+            player.sendMessage(TextUtil.format("<yellow>To manage claims, right-click your Claim Chest or use /claim map to view territory.</yellow>"));
             return true;
         }
 
+        // map
         if (sub.equals("map")) {
             guiManager.openTeamMapGUI(player);
             return true;
         }
 
+        // members / roster
         if (sub.equals("members") || sub.equals("roster")) {
             Team team = teamManager.getPlayerTeam(player.getUniqueId());
             if (team == null) {
@@ -444,30 +457,29 @@ public class TeamCommand implements TabExecutor {
             return true;
         }
 
-        if (sub.equals("placecore")) {
+        // getcore - gives claim chest
+        if (sub.equals("getcore") || sub.equals("claimcore") || sub.equals("chest")) {
             Team team = teamManager.getPlayerTeam(player.getUniqueId());
             if (team == null) {
-                player.sendMessage(TextUtil.format("<red>You must be in a Guild to place a core.</red>"));
+                player.sendMessage(TextUtil.format("<red>You must be in a Guild to get a Claim Chest.</red>"));
                 return true;
             }
-            if (!team.getLeaderUuid().equals(player.getUniqueId())) {
-                player.sendMessage(TextUtil.format("<red>Only the Guild Leader can place the Guild Core!</red>"));
+            if (!team.getLeaderUuid().equals(player.getUniqueId()) && !player.hasPermission("guildcore.admin")) {
+                player.sendMessage(TextUtil.format("<red>Only the Guild Leader can request a Claim Chest!</red>"));
                 return true;
             }
-            Block target = player.getTargetBlockExact(5);
-            if (target == null) {
-                player.sendMessage(TextUtil.format("<red>Look at a valid block to place the Guild Core on top of.</red>"));
-                return true;
-            }
-            Location coreLoc = target.getLocation().add(0, 1, 0);
-            if (guildCoreManager != null) {
-                guildCoreManager.placeCore(player, coreLoc);
-            } else {
-                player.sendMessage(TextUtil.format("<red>Guild Core system is not available.</red>"));
-            }
+            claimChestManager.giveClaimChest(player);
             return true;
         }
 
+        // placecore - redirect to getcore
+        if (sub.equals("placecore")) {
+            player.sendMessage(TextUtil.format("<yellow>Use /guild getcore to receive a Claim Chest item, then place it anywhere!</yellow>"));
+            claimChestManager.giveClaimChest(player);
+            return true;
+        }
+
+        // deny
         if (sub.equals("deny")) {
             if (teamManager.denyInvite(player)) {
                 player.sendMessage(TextUtil.format("<yellow>Declined Guild invitation.</yellow>"));
@@ -477,6 +489,7 @@ public class TeamCommand implements TabExecutor {
             return true;
         }
 
+        // sethome
         if (sub.equals("sethome")) {
             Team team = teamManager.getPlayerTeam(player.getUniqueId());
             if (team == null) {
@@ -499,6 +512,7 @@ public class TeamCommand implements TabExecutor {
             return true;
         }
 
+        // home
         if (sub.equals("home")) {
             Team team = teamManager.getPlayerTeam(player.getUniqueId());
             if (team == null || team.getHomeLocation() == null) {
@@ -506,7 +520,9 @@ public class TeamCommand implements TabExecutor {
                 return true;
             }
 
-            boolean isBypass = player.hasPermission("guildcore.home.bypasscooldown") || player.hasPermission("guildcore.admin.bypasscooldown") || player.hasPermission("guildcore.admin.bypass") || player.isOp();
+            boolean isBypass = player.hasPermission("guildcore.home.bypasscooldown") ||
+                    player.hasPermission("guildcore.admin.bypasscooldown") ||
+                    player.hasPermission("guildcore.admin.bypass") || player.isOp();
             int cooldownSec = settingsManager.getInt("guild-home.cooldown-seconds", 60);
             if (!isBypass && cooldownSec > 0) {
                 long lastUse = guildHomeCooldowns.getOrDefault(player.getUniqueId(), 0L);
@@ -585,7 +601,8 @@ public class TeamCommand implements TabExecutor {
             for (int y = -2; y <= 2; y++) {
                 for (int z = -2; z <= 2; z++) {
                     Material mat = world.getBlockAt(bx + x, by + y, bz + z).getType();
-                    if (mat == Material.LAVA || mat == Material.WATER || mat == Material.FIRE || mat == Material.SOUL_FIRE || mat == Material.CACTUS || mat == Material.POWDER_SNOW) {
+                    if (mat == Material.LAVA || mat == Material.WATER || mat == Material.FIRE ||
+                            mat == Material.SOUL_FIRE || mat == Material.CACTUS || mat == Material.POWDER_SNOW) {
                         return "Location is unsafe: hazardous block (" + mat.name() + ") nearby!";
                     }
                 }
