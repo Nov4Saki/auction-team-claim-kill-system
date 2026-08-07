@@ -13,24 +13,23 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class TeamManager {
     private final DatabaseManager dbManager;
     private com.guildcore.claims.ClaimManager claimManager;
     private com.guildcore.config.SettingsManager settingsManager;
+    private com.guildcore.core.GuildCoreManager guildCoreManager;
+    private com.guildcore.scheduler.SchedulerWrapper scheduler;
+    private com.guildcore.economy.EconomyManager economyManager;
     private final Map<Integer, Team> teamsById = new ConcurrentHashMap<>();
     private final Map<String, Integer> teamIdByName = new ConcurrentHashMap<>();
     private final Map<UUID, Integer> playerTeamMap = new ConcurrentHashMap<>();
     private final Map<UUID, String> playerRoleMap = new ConcurrentHashMap<>();
     private final Map<UUID, Integer> pendingInvites = new ConcurrentHashMap<>();
-
-    private com.guildcore.scheduler.SchedulerWrapper scheduler;
-    private com.guildcore.economy.EconomyManager economyManager;
-    private com.guildcore.core.GuildCoreManager guildCoreManager;
+    private final Map<UUID, String> pendingInvitesWithInviter = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> pendingInviteTimestamps = new ConcurrentHashMap<>();
 
     public TeamManager(DatabaseManager dbManager) {
         this.dbManager = dbManager;
@@ -46,6 +45,14 @@ public class TeamManager {
 
     public void setGuildCoreManager(com.guildcore.core.GuildCoreManager guildCoreManager) {
         this.guildCoreManager = guildCoreManager;
+    }
+
+    public void setClaimManager(com.guildcore.claims.ClaimManager claimManager) {
+        this.claimManager = claimManager;
+    }
+
+    public void setSettingsManager(com.guildcore.config.SettingsManager settingsManager) {
+        this.settingsManager = settingsManager;
     }
 
     public void saveTeamBankBalance(Team team) {
@@ -102,15 +109,6 @@ public class TeamManager {
                             team.setHomeLocation(new Location(w, x, y, z, yaw, pitch));
                         }
 
-                        String nWorld = rs.getString("nexus_world");
-                        if (nWorld != null && Bukkit.getWorld(nWorld) != null) {
-                            World w = Bukkit.getWorld(nWorld);
-                            int nx = rs.getInt("nexus_x");
-                            int ny = rs.getInt("nexus_y");
-                            int nz = rs.getInt("nexus_z");
-                            team.setNexusLocation(new Location(w, nx, ny, nz));
-                        }
-
                         teamsById.put(id, team);
                         teamIdByName.put(name.toLowerCase(), id);
                     }
@@ -161,6 +159,19 @@ public class TeamManager {
         return t1 != null && t1.equals(t2);
     }
 
+    public List<UUID> getOnlineMembers(int teamId) {
+        List<UUID> online = new ArrayList<>();
+        for (Map.Entry<UUID, Integer> entry : playerTeamMap.entrySet()) {
+            if (entry.getValue() == teamId) {
+                Player player = Bukkit.getPlayer(entry.getKey());
+                if (player != null && player.isOnline()) {
+                    online.add(entry.getKey());
+                }
+            }
+        }
+        return online;
+    }
+
     public boolean hasPendingInvite(Player player) {
         if (player == null) return false;
         Long expiry = pendingInviteTimestamps.get(player.getUniqueId());
@@ -176,23 +187,35 @@ public class TeamManager {
         if (playerTeamMap.containsKey(leaderUuid)) return false;
         if (teamIdByName.containsKey(cleanName.toLowerCase())) return false;
 
+        // Check and deduct team creation cost
+        if (settingsManager != null && economyManager != null) {
+            long creationCost = settingsManager.getLong("teams.creation_cost", 1000);
+            if (economyManager.getBalance(leader.getUniqueId()) < creationCost) {
+                leader.sendMessage(com.guildcore.util.TextUtil.format(
+                        "<red>✖ Insufficient funds! Team creation costs $" +
+                                String.format("%,d", creationCost) + " Gold. Your balance: $" +
+                                String.format("%,d", economyManager.getBalance(leader.getUniqueId())) + "</red>"));
+                return false;
+            }
+            economyManager.withdraw(leader.getUniqueId(), creationCost, "team_creation");
+            leader.sendMessage(com.guildcore.util.TextUtil.format(
+                    "<green>✔ Charged $" + String.format("%,d", creationCost) + " Gold for team creation.</green>"));
+        }
+
         try (Connection conn = dbManager.getConnection()) {
-            // Self-healing: purge stale team_members records for non-existent teams
             try (PreparedStatement purgePs = conn.prepareStatement(
                     "DELETE FROM team_members WHERE player_uuid = ? AND team_id NOT IN (SELECT id FROM teams)")) {
                 purgePs.setString(1, leaderUuid.toString());
                 purgePs.executeUpdate();
             }
 
-            // DB check for duplicate name
             try (PreparedStatement checkNamePs = conn.prepareStatement("SELECT 1 FROM teams WHERE LOWER(name) = LOWER(?)")) {
                 checkNamePs.setString(1, cleanName);
                 try (ResultSet rs = checkNamePs.executeQuery()) {
-                    if (rs.next()) return false; // Name taken
+                    if (rs.next()) return false;
                 }
             }
 
-            // DB check if player has an active team membership in DB
             try (PreparedStatement checkMemPs = conn.prepareStatement("SELECT team_id FROM team_members WHERE player_uuid = ?")) {
                 checkMemPs.setString(1, leaderUuid.toString());
                 try (ResultSet rs = checkMemPs.executeQuery()) {
@@ -256,9 +279,6 @@ public class TeamManager {
         }
         return false;
     }
-
-    private final Map<UUID, String> pendingInvitesWithInviter = new ConcurrentHashMap<>();
-    private final Map<UUID, Long> pendingInviteTimestamps = new ConcurrentHashMap<>();
 
     public boolean invitePlayer(Player inviter, Player target) {
         Team team = getPlayerTeam(inviter.getUniqueId());
@@ -452,10 +472,6 @@ public class TeamManager {
         return bestRecruit;
     }
 
-    public void setSettingsManager(com.guildcore.config.SettingsManager settingsManager) {
-        this.settingsManager = settingsManager;
-    }
-
     public boolean leaveTeam(Player player) {
         Team team = getPlayerTeam(player.getUniqueId());
         if (team == null) return false;
@@ -468,7 +484,7 @@ public class TeamManager {
             if (successorUuid != null && autoTransfer) {
                 org.bukkit.OfflinePlayer successorOp = Bukkit.getOfflinePlayer(successorUuid);
                 String successorName = successorOp.getName() != null ? successorOp.getName() : "Citizen";
-                
+
                 team.setLeaderUuid(successorUuid);
                 playerRoleMap.put(successorUuid, "LEADER");
 
@@ -767,7 +783,10 @@ public class TeamManager {
             claimManager.removeAllTeamClaims(teamId);
         }
 
-        // Force close all guild-related GUIs for all online players
+        if (guildCoreManager != null) {
+            guildCoreManager.removeCore(teamId, false);
+        }
+
         for (Player online : Bukkit.getOnlinePlayers()) {
             if (online != null && online.isOnline() && online.getOpenInventory() != null && online.getOpenInventory().getTopInventory() != null) {
                 org.bukkit.inventory.InventoryHolder holder = online.getOpenInventory().getTopInventory().getHolder();
@@ -790,10 +809,6 @@ public class TeamManager {
         return true;
     }
 
-    public void setClaimManager(com.guildcore.claims.ClaimManager claimManager) {
-        this.claimManager = claimManager;
-    }
-
     public java.util.List<UUID> getTeamMembers(int teamId) {
         java.util.List<UUID> members = new java.util.ArrayList<>();
         for (Map.Entry<UUID, Integer> entry : playerTeamMap.entrySet()) {
@@ -806,6 +821,12 @@ public class TeamManager {
 
     public int getMaxClaimsForTeam(Team team, com.guildcore.config.SettingsManager settingsManager) {
         if (team == null) return 5;
+        if (guildCoreManager != null) {
+            var core = guildCoreManager.getCoreForTeam(team.getId());
+            if (core != null) {
+                return guildCoreManager.getMaxClaimsForTier(core.getTier());
+            }
+        }
         int lvl = Math.min(Math.max(1, team.getLevel()), 5);
         int defaultMax = team.getMaxClaims();
         switch (lvl) {
@@ -871,21 +892,17 @@ public class TeamManager {
     public synchronized boolean purchaseVaultSlot(Team team, int targetGlobalSlot, long cost) {
         if (team == null || targetGlobalSlot <= 0 || cost < 0) return false;
 
-        // 1. Check if slot was already unlocked by a concurrent click
         if (team.getVaultSlots() >= targetGlobalSlot) {
             return false;
         }
 
-        // 2. Verify bank balance sufficiency
         if (team.getBankBalance() < cost) {
             return false;
         }
 
-        // 3. Atomically update team memory state
         team.setBankBalance(team.getBankBalance() - cost);
         team.setVaultSlots(targetGlobalSlot);
 
-        // 4. Save BOTH bank balance AND vault slots to database in one atomic update
         dbManager.executeAsync(() -> {
             try (Connection conn = dbManager.getConnection();
                  PreparedStatement ps = conn.prepareStatement("UPDATE teams SET bank_balance = ?, vault_slots = ? WHERE id = ?")) {

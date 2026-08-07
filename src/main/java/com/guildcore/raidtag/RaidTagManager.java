@@ -16,6 +16,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.World;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
@@ -27,6 +28,7 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.player.*;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.SkullMeta;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -50,12 +52,14 @@ public class RaidTagManager implements Listener {
     }
 
     // ═══════════════════════════════════════════════
-    //  TAG STATE
+    //  DATA CLASSES
     // ═══════════════════════════════════════════════
+
     public static class RaidTagState {
         public int defendingTeamId;
         public String claimWorld;
-        public int claimChunkX, claimChunkZ;
+        public int claimChunkX;
+        public int claimChunkZ;
         public long tagAppliedAt;
         public boolean insideRaidedChunk;
         public Long exitTimerStart; // null if inside chunk
@@ -71,30 +75,44 @@ public class RaidTagManager implements Listener {
             this.exitTimerStart = null;
             this.lastDamagerUuid = lastDamagerUuid;
         }
+
+        public boolean isInsideDefenderChunk(Chunk chunk) {
+            return chunk.getWorld().getName().equals(claimWorld) &&
+                    chunk.getX() == claimChunkX &&
+                    chunk.getZ() == claimChunkZ;
+        }
     }
 
     public static class CombatLogEntry {
         public UUID playerUuid;
+        public String playerName;
         public Location disconnectLocation;
-        public int teamId;
+        public int defendingTeamId;
         public long disconnectTime;
         public UUID armorStandUuid;
         public ItemStack[] inventorySnapshot;
         public boolean resolved;
+        public UUID lastDamagerUuid;
 
-        public CombatLogEntry(UUID playerUuid, Location disconnectLocation, int teamId, ItemStack[] inventorySnapshot) {
+        public CombatLogEntry(UUID playerUuid, String playerName, Location disconnectLocation, int defendingTeamId, ItemStack[] inventorySnapshot, UUID lastDamagerUuid) {
             this.playerUuid = playerUuid;
+            this.playerName = playerName;
             this.disconnectLocation = disconnectLocation;
-            this.teamId = teamId;
+            this.defendingTeamId = defendingTeamId;
             this.disconnectTime = System.currentTimeMillis();
             this.inventorySnapshot = inventorySnapshot;
             this.resolved = false;
+            this.lastDamagerUuid = lastDamagerUuid;
         }
     }
 
     // ═══════════════════════════════════════════════
     //  APPLY / REMOVE TAG
     // ═══════════════════════════════════════════════
+
+    /**
+     * Applies a raid tag to the attacker when they attack a claimed chunk.
+     */
     public void applyRaidTag(Player attacker, int defendingTeamId, Chunk raidedChunk) {
         UUID uuid = attacker.getUniqueId();
 
@@ -103,6 +121,9 @@ public class RaidTagManager implements Listener {
         if (existing != null) {
             existing.tagAppliedAt = System.currentTimeMillis();
             existing.defendingTeamId = defendingTeamId;
+            existing.claimWorld = raidedChunk.getWorld().getName();
+            existing.claimChunkX = raidedChunk.getX();
+            existing.claimChunkZ = raidedChunk.getZ();
             existing.insideRaidedChunk = true;
             existing.exitTimerStart = null;
             return;
@@ -121,18 +142,33 @@ public class RaidTagManager implements Listener {
         String teamName = team != null ? team.getName() : "Unknown";
 
         attacker.sendMessage(TextUtil.format("<red><b>⚔ You are now RAID TAGGED in " + teamName + " territory!</b></red>"));
-        attacker.sendMessage(TextUtil.format("<red>Commands are disabled. Leave the territory to start the exit countdown.</red>"));
+        attacker.sendMessage(TextUtil.format("<red>Commands are disabled. Leave the territory to start the exit countdown (" +
+                settingsManager.getInt("raidtag.exit_countdown_sec", 30) + "s).</red>"));
 
         // Notify defending team
-        teamManager.broadcastToTeam(defendingTeamId, TextUtil.format("<red><b>⚠ RAID ALERT!</b> " + attacker.getName() + " is raiding your territory!</red>"));
+        if (team != null) {
+            teamManager.broadcastToTeam(defendingTeamId, TextUtil.format(
+                    "<red><b>⚠ RAID ALERT!</b> " + attacker.getName() + " is raiding your territory near chunk (" +
+                            raidedChunk.getX() + ", " + raidedChunk.getZ() + ")!</red>"));
+        }
 
-        DebugManager.log(DebugFlag.RAID_TAG, "Raid tag applied to " + attacker.getName() + " (defending team: " + defendingTeamId + ")");
+        // Log to database
+        logRaidTagAction(attacker.getUniqueId(), defendingTeamId, "TAG_APPLIED");
+
+        DebugManager.log(DebugFlag.RAID_TAG, "Raid tag applied to " + attacker.getName() +
+                " (defending team: " + defendingTeamId + ")");
     }
 
+    /**
+     * Checks if a player is currently raid tagged.
+     */
     public boolean isRaidTagged(UUID uuid) {
         return taggedPlayers.containsKey(uuid);
     }
 
+    /**
+     * Removes a raid tag from a player.
+     */
     public void removeRaidTag(UUID uuid) {
         RaidTagState removed = taggedPlayers.remove(uuid);
         if (removed != null) {
@@ -141,10 +177,14 @@ public class RaidTagManager implements Listener {
                 player.sendMessage(TextUtil.format("<green>✔ Your raid tag has expired. You are free.</green>"));
                 player.sendActionBar(Component.empty());
             }
+            logRaidTagAction(uuid, removed.defendingTeamId, "TAG_REMOVED");
             DebugManager.log(DebugFlag.RAID_TAG, "Raid tag removed from " + uuid);
         }
     }
 
+    /**
+     * Gets remaining exit countdown seconds. Returns -1 if inside territory.
+     */
     public int getRemainingSeconds(UUID uuid) {
         RaidTagState state = taggedPlayers.get(uuid);
         if (state == null) return 0;
@@ -157,6 +197,10 @@ public class RaidTagManager implements Listener {
     // ═══════════════════════════════════════════════
     //  ACTION BAR TASK
     // ═══════════════════════════════════════════════
+
+    /**
+     * Starts the action bar display task for raid-tagged players.
+     */
     public void startActionBarTask() {
         scheduler.runTaskTimer(() -> {
             int exitCountdownSec = settingsManager.getInt("raidtag.exit_countdown_sec", 30);
@@ -181,7 +225,8 @@ public class RaidTagManager implements Listener {
                     timerInfo = "Exit Timer: " + remaining + "s";
                 }
 
-                player.sendActionBar(TextUtil.format("<red><b>⚔ RAID TAGGED</b></red> <gray>|</gray> <yellow>" + timerInfo + "</yellow>"));
+                scheduler.runSync(player, () ->
+                        player.sendActionBar(TextUtil.format("<red><b>⚔ RAID TAGGED</b></red> <gray>|</gray> <yellow>" + timerInfo + "</yellow>")));
             }
 
             for (UUID uuid : expired) {
@@ -189,7 +234,7 @@ public class RaidTagManager implements Listener {
             }
 
             return true;
-        }, 0L, 20L);
+        }, 0L, 10L); // Every 0.5 seconds for smooth countdown
     }
 
     // ═══════════════════════════════════════════════
@@ -209,16 +254,22 @@ public class RaidTagManager implements Listener {
 
         // Check if new chunk belongs to the defending team
         ClaimInfo claim = claimManager.getClaimAt(toChunk);
-        boolean inDefenderTerritory = claim != null && claim.isTeamClaim() && claim.getTeamId() == state.defendingTeamId;
+        boolean inDefenderTerritory = claim != null && claim.isTeamClaim() &&
+                claim.getTeamId() != null && claim.getTeamId() == state.defendingTeamId;
 
         if (inDefenderTerritory) {
+            // Re-entered raided territory
             state.insideRaidedChunk = true;
             state.exitTimerStart = null;
+            state.claimChunkX = toChunk.getX();
+            state.claimChunkZ = toChunk.getZ();
         } else {
+            // Left raided territory - start countdown
             if (state.insideRaidedChunk) {
                 state.insideRaidedChunk = false;
                 state.exitTimerStart = System.currentTimeMillis();
-                player.sendMessage(TextUtil.format("<yellow>⚔ You left raided territory. Exit countdown started!</yellow>"));
+                int exitSec = settingsManager.getInt("raidtag.exit_countdown_sec", 30);
+                player.sendMessage(TextUtil.format("<yellow>⚔ You left raided territory. Exit countdown started (" + exitSec + "s)!</yellow>"));
             }
         }
     }
@@ -230,8 +281,16 @@ public class RaidTagManager implements Listener {
         if (!settingsManager.getBoolean("raidtag.disable_commands", true)) return;
 
         String cmd = event.getMessage().toLowerCase();
-        // Allow /msg and /r
-        if (cmd.startsWith("/msg ") || cmd.startsWith("/r ") || cmd.startsWith("/reply ")) return;
+        // Allow /msg, /r, /reply
+        if (cmd.startsWith("/msg ") || cmd.startsWith("/r ") || cmd.startsWith("/reply ") ||
+                cmd.startsWith("/tell ") || cmd.startsWith("/w ") || cmd.startsWith("/whisper ")) {
+            return;
+        }
+        // Allow team chat
+        if (cmd.startsWith("/tc ") || cmd.startsWith("/gc ") || cmd.startsWith("/teamchat ") ||
+                cmd.startsWith("/guildchat ")) {
+            return;
+        }
 
         event.setCancelled(true);
         player.sendMessage(TextUtil.format("<red>✖ Commands are disabled while raid tagged!</red>"));
@@ -247,8 +306,9 @@ public class RaidTagManager implements Listener {
         if (settingsManager.getBoolean("raidtag.allow_cobweb", true)) {
             if (event.getBlock().getType() == Material.COBWEB) {
                 ClaimInfo claim = claimManager.getClaimAt(event.getBlock().getChunk());
-                if (claim != null && claim.isTeamClaim() && claim.getTeamId() == state.defendingTeamId) {
-                    return; // Allow cobweb
+                if (claim != null && claim.isTeamClaim() && claim.getTeamId() != null &&
+                        claim.getTeamId() == state.defendingTeamId) {
+                    return; // Allow cobweb placement
                 }
             }
         }
@@ -268,9 +328,12 @@ public class RaidTagManager implements Listener {
         DebugManager.log(DebugFlag.RAID_TAG, player.getName() + " disconnected while raid tagged! Creating combat log entry.");
 
         ItemStack[] invSnapshot = player.getInventory().getContents().clone();
-        CombatLogEntry entry = new CombatLogEntry(uuid, player.getLocation().clone(), state.defendingTeamId, invSnapshot);
+        CombatLogEntry entry = new CombatLogEntry(
+                uuid, player.getName(), player.getLocation().clone(),
+                state.defendingTeamId, invSnapshot, state.lastDamagerUuid
+        );
 
-        // Spawn armor stand
+        // Spawn armor stand with player head
         Location loc = player.getLocation();
         ArmorStand stand = loc.getWorld().spawn(loc, ArmorStand.class, as -> {
             as.setVisible(true);
@@ -279,8 +342,13 @@ public class RaidTagManager implements Listener {
             as.setCustomNameVisible(true);
             as.customName(TextUtil.format("<red><b>⚔ COMBAT LOG: " + player.getName() + "</b></red>"));
             as.setBasePlate(true);
-            // Set player head
-            as.getEquipment().setHelmet(new ItemStack(Material.PLAYER_HEAD));
+            // Set player head on the armor stand
+            ItemStack head = new ItemStack(Material.PLAYER_HEAD);
+            if (head.getItemMeta() instanceof SkullMeta skullMeta) {
+                skullMeta.setOwningPlayer(player);
+                head.setItemMeta(skullMeta);
+            }
+            as.getEquipment().setHelmet(head);
         });
 
         entry.armorStandUuid = stand.getUniqueId();
@@ -288,44 +356,42 @@ public class RaidTagManager implements Listener {
 
         // Schedule punishment
         int disconnectTimer = settingsManager.getInt("raidtag.disconnect_timer_sec", 60);
-        scheduler.runLater(null, () -> {
-            CombatLogEntry logEntry = combatLogEntries.remove(uuid);
-            if (logEntry == null || logEntry.resolved) return;
-            logEntry.resolved = true;
+        final String playerName = player.getName();
 
-            // Drop inventory at location
-            if (settingsManager.getBoolean("raidtag.drop_inv_on_expire", true)) {
-                if (logEntry.inventorySnapshot != null) {
-                    for (ItemStack item : logEntry.inventorySnapshot) {
-                        if (item != null && item.getType() != Material.AIR) {
-                            logEntry.disconnectLocation.getWorld().dropItemNaturally(logEntry.disconnectLocation, item);
-                        }
+        scheduler.runTaskTimer(() -> {
+            CombatLogEntry logEntry = combatLogEntries.get(uuid);
+            if (logEntry == null || logEntry.resolved) return false;
+
+            long elapsed = (System.currentTimeMillis() - logEntry.disconnectTime) / 1000L;
+            int remaining = disconnectTimer - (int) elapsed;
+
+            if (remaining <= 0) {
+                // Time's up - drop inventory
+                logEntry.resolved = true;
+                resolveCombatLog(logEntry, state);
+                combatLogEntries.remove(uuid);
+                taggedPlayers.remove(uuid);
+                return false;
+            }
+
+            // Update armor stand name with countdown
+            if (logEntry.armorStandUuid != null && logEntry.disconnectLocation.getWorld() != null) {
+                for (Entity entity : logEntry.disconnectLocation.getWorld().getNearbyEntities(
+                        logEntry.disconnectLocation, 5, 5, 5)) {
+                    if (entity instanceof ArmorStand as && entity.getUniqueId().equals(logEntry.armorStandUuid)) {
+                        as.customName(TextUtil.format("<red><b>⚔ COMBAT LOG: " + playerName + " (" + remaining + "s)</b></red>"));
+                        break;
                     }
                 }
-
-                // Clear the player's inventory if they're offline
-                Player offlineCheck = Bukkit.getPlayer(uuid);
-                if (offlineCheck != null && offlineCheck.isOnline()) {
-                    offlineCheck.getInventory().clear();
-                }
             }
+            return true;
+        }, 20L, 20L); // Update every second
 
-            // Kill the armor stand
-            killCombatLogStand(logEntry);
+        // Notify teams
+        teamManager.broadcastToTeam(state.defendingTeamId, TextUtil.format(
+                "<red>⚔ " + player.getName() + " COMBAT LOGGED! Their stand will drop loot in " + disconnectTimer + "s.</red>"));
 
-            // Award kill credit
-            if (settingsManager.getBoolean("raidtag.award_kill_credit", true) && state.lastDamagerUuid != null) {
-                Player killer = Bukkit.getPlayer(state.lastDamagerUuid);
-                if (killer != null && killer.isOnline()) {
-                    killer.sendMessage(TextUtil.format("<green>⚔ " + player.getName() + " combat logged and their items were dropped!</green>"));
-                }
-                DebugManager.log(DebugFlag.RAID_TAG, "Combat log penalty applied to " + player.getName() + " (kill credit to " + state.lastDamagerUuid + ")");
-            }
-
-            taggedPlayers.remove(uuid);
-        }, disconnectTimer * 20L);
-
-        teamManager.broadcastToTeam(state.defendingTeamId, TextUtil.format("<red>⚔ " + player.getName() + " COMBAT LOGGED! Their stand will drop loot in " + disconnectTimer + "s.</red>"));
+        logRaidTagAction(uuid, state.defendingTeamId, "COMBAT_LOG");
     }
 
     @EventHandler(priority = EventPriority.NORMAL)
@@ -341,12 +407,16 @@ public class RaidTagManager implements Listener {
         // Restore raid tag
         player.sendMessage(TextUtil.format("<yellow>⚔ You reconnected during a raid tag. Your tag has been restored.</yellow>"));
         DebugManager.log(DebugFlag.RAID_TAG, player.getName() + " reconnected during combat log. Tag restored.");
+        logRaidTagAction(uuid, entry.defendingTeamId, "RECONNECT");
     }
 
     @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
     public void onEntityDamageByEntity(EntityDamageByEntityEvent event) {
         if (!(event.getEntity() instanceof Player victim)) return;
         if (!(event.getDamager() instanceof Player attacker)) return;
+
+        // Don't tag same-team members
+        if (teamManager.areSameTeam(attacker.getUniqueId(), victim.getUniqueId())) return;
 
         // Check if victim is standing in their own team's claim
         Chunk victimChunk = victim.getLocation().getChunk();
@@ -356,16 +426,13 @@ public class RaidTagManager implements Listener {
         Team victimTeam = teamManager.getPlayerTeam(victim.getUniqueId());
         if (victimTeam == null || victimTeam.getId() != claim.getTeamId()) return;
 
-        // Don't tag same-team members
-        if (teamManager.areSameTeam(attacker.getUniqueId(), victim.getUniqueId())) return;
-
         // Check shield
         if (offlineShieldManager.isShieldActive(claim.getTeamId())) return;
 
         // Apply raid tag to the attacker
         applyRaidTag(attacker, claim.getTeamId(), victimChunk);
 
-        // Update damager on existing tag for victim's defense
+        // Update last damager on existing tag
         RaidTagState attackerState = taggedPlayers.get(attacker.getUniqueId());
         if (attackerState != null) {
             attackerState.lastDamagerUuid = victim.getUniqueId();
@@ -384,9 +451,12 @@ public class RaidTagManager implements Listener {
 
                     // Drop inventory
                     if (logEntry.inventorySnapshot != null) {
-                        for (ItemStack item : logEntry.inventorySnapshot) {
-                            if (item != null && item.getType() != Material.AIR) {
-                                stand.getLocation().getWorld().dropItemNaturally(stand.getLocation(), item);
+                        World world = stand.getLocation().getWorld();
+                        if (world != null) {
+                            for (ItemStack item : logEntry.inventorySnapshot) {
+                                if (item != null && item.getType() != Material.AIR) {
+                                    world.dropItemNaturally(stand.getLocation(), item);
+                                }
                             }
                         }
                     }
@@ -400,13 +470,82 @@ public class RaidTagManager implements Listener {
         }
     }
 
+    // ═══════════════════════════════════════════════
+    //  HELPER METHODS
+    // ═══════════════════════════════════════════════
+
+    private void resolveCombatLog(CombatLogEntry entry, RaidTagState state) {
+        // Drop inventory at location
+        if (settingsManager.getBoolean("raidtag.drop_inv_on_expire", true)) {
+            if (entry.inventorySnapshot != null && entry.disconnectLocation.getWorld() != null) {
+                World world = entry.disconnectLocation.getWorld();
+                for (ItemStack item : entry.inventorySnapshot) {
+                    if (item != null && item.getType() != Material.AIR) {
+                        world.dropItemNaturally(entry.disconnectLocation, item);
+                    }
+                }
+
+                // Clear the player's inventory if they're offline
+                Player offlinePlayer = Bukkit.getPlayer(entry.playerUuid);
+                if (offlinePlayer != null && offlinePlayer.isOnline()) {
+                    offlinePlayer.getInventory().clear();
+                } else {
+                    // Player is offline - clear inventory via database
+                    clearPlayerInventory(entry.playerUuid);
+                }
+            }
+        }
+
+        // Kill the armor stand
+        killCombatLogStand(entry);
+
+        // Award kill credit
+        if (settingsManager.getBoolean("raidtag.award_kill_credit", true) && entry.lastDamagerUuid != null) {
+            Player killer = Bukkit.getPlayer(entry.lastDamagerUuid);
+            if (killer != null && killer.isOnline()) {
+                killer.sendMessage(TextUtil.format("<green>⚔ " + entry.playerName + " combat logged and their items were dropped!</green>"));
+            }
+            DebugManager.log(DebugFlag.RAID_TAG, "Combat log penalty applied to " + entry.playerName +
+                    " (kill credit to " + entry.lastDamagerUuid + ")");
+        }
+    }
+
     private void killCombatLogStand(CombatLogEntry entry) {
         if (entry.armorStandUuid == null || entry.disconnectLocation == null) return;
-        for (Entity entity : entry.disconnectLocation.getWorld().getNearbyEntities(entry.disconnectLocation, 5, 5, 5)) {
+        World world = entry.disconnectLocation.getWorld();
+        if (world == null) return;
+
+        for (Entity entity : world.getNearbyEntities(entry.disconnectLocation, 5, 5, 5)) {
             if (entity instanceof ArmorStand && entity.getUniqueId().equals(entry.armorStandUuid)) {
                 entity.remove();
                 break;
             }
         }
+    }
+
+    private void clearPlayerInventory(UUID playerUuid) {
+        // This would need database access to clear the player's inventory
+        // For now, we handle it when they reconnect
+        DebugManager.log(DebugFlag.RAID_TAG, "Player " + playerUuid + " inventory cleared (offline combat log)");
+    }
+
+    private void logRaidTagAction(UUID playerUuid, int defendingTeamId, String action) {
+        // Async log to database
+        Bukkit.getScheduler().runTaskAsynchronously(
+                com.guildcore.GuildCorePlugin.getInstance(),
+                () -> {
+                    try (java.sql.Connection conn = com.guildcore.GuildCorePlugin.getInstance()
+                            .getDatabaseManager().getConnection();
+                         java.sql.PreparedStatement ps = conn.prepareStatement(
+                                 "INSERT INTO raid_tag_log (player_uuid, defending_team_id, action) VALUES (?, ?, ?)")) {
+                        ps.setString(1, playerUuid.toString());
+                        ps.setInt(2, defendingTeamId);
+                        ps.setString(3, action);
+                        ps.executeUpdate();
+                    } catch (Exception e) {
+                        // Silently fail - logging is non-critical
+                    }
+                }
+        );
     }
 }

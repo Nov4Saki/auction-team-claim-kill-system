@@ -29,6 +29,7 @@ import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.persistence.PersistentDataType;
 
 import java.util.Iterator;
 import java.util.Set;
@@ -46,6 +47,7 @@ public class ChargedCreeperListener implements Listener {
     private TeamManager teamManager;
 
     private final Set<UUID> trackedCreeperUuids = ConcurrentHashMap.newKeySet();
+    private static final org.bukkit.NamespacedKey CREEPER_MARKER = new org.bukkit.NamespacedKey("guildcore", "raid_creeper");
 
     public ChargedCreeperListener(RaidItemManager raidItemManager, ClaimManager claimManager, OfflineShieldManager offlineShieldManager, SettingsManager settingsManager, SchedulerWrapper scheduler) {
         this.raidItemManager = raidItemManager;
@@ -115,12 +117,13 @@ public class ChargedCreeperListener implements Listener {
             c.setMaxFuseTicks((int) (fuseSeconds * 20));
             c.setAI(false);
             c.setInvulnerable(true);
+            c.getPersistentDataContainer().set(CREEPER_MARKER, PersistentDataType.BOOLEAN, true);
         });
 
         trackedCreeperUuids.add(creeper.getUniqueId());
 
         // Ignite after 1 tick
-        scheduler.runLater(null, creeper::ignite, 1L);
+        scheduler.runLater(spawnLoc, creeper::ignite, 1L);
 
         player.sendActionBar(TextUtil.format("<green>⚡ Charged Creeper deployed! Detonation in " + String.format("%.1f", fuseSeconds) + "s</green>"));
 
@@ -187,11 +190,11 @@ public class ChargedCreeperListener implements Listener {
 
     private boolean isHardBlock(Material type) {
         return type == Material.OBSIDIAN ||
-               type == Material.CRYING_OBSIDIAN ||
-               type == Material.REINFORCED_DEEPSLATE ||
-               type == Material.BEDROCK ||
-               type == Material.END_PORTAL_FRAME ||
-               type == Material.BARRIER ||
-               type == Material.NETHERITE_BLOCK;
+                type == Material.CRYING_OBSIDIAN ||
+                type == Material.REINFORCED_DEEPSLATE ||
+                type == Material.BEDROCK ||
+                type == Material.END_PORTAL_FRAME ||
+                type == Material.BARRIER ||
+                type == Material.NETHERITE_BLOCK;
     }
 }

@@ -47,8 +47,11 @@ public class RaidItemManager {
         this.settingsManager = settingsManager;
     }
 
+    /**
+     * Creates a new raid item with the given type and amount.
+     */
     public ItemStack createItem(RaidItemType type, int amount) {
-        ItemStack item = new ItemStack(type.material, amount);
+        ItemStack item = new ItemStack(type.material, Math.max(1, amount));
         ItemMeta meta = item.getItemMeta();
         if (meta == null) return item;
 
@@ -61,10 +64,11 @@ public class RaidItemManager {
             meta.getPersistentDataContainer().set(RAID_DURABILITY_KEY, PersistentDataType.INTEGER, durability);
         }
 
-        // Glow effect
+        // Glow effect to distinguish raid items
         meta.addEnchant(Enchantment.UNBREAKING, 1, true);
         meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
 
+        // Build lore
         List<Component> lore = new ArrayList<>();
         lore.add(TextUtil.format("<dark_gray>Raid Item</dark_gray>"));
         lore.add(Component.empty());
@@ -74,22 +78,27 @@ public class RaidItemManager {
                 lore.add(TextUtil.format("<gray>A crude lock pick with low success rate</gray>"));
                 lore.add(TextUtil.format("<gray>Success: <yellow>" + settingsManager.getInt("lockpick.weak.chance", 10) + "%</yellow></gray>"));
                 lore.add(TextUtil.format("<gray>Durability: <yellow>" + getDurabilityForType(type) + " uses</yellow></gray>"));
+                lore.add(TextUtil.format("<gray>Breaks on fail</gray>"));
+                lore.add(TextUtil.format("<green>Stealth: No raid tag applied</green>"));
             }
             case LOCK_PICK_NORMAL -> {
                 lore.add(TextUtil.format("<gray>A standard lock pick for raiding</gray>"));
                 lore.add(TextUtil.format("<gray>Success: <yellow>" + settingsManager.getInt("lockpick.normal.chance", 20) + "%</yellow></gray>"));
                 lore.add(TextUtil.format("<gray>Durability: <yellow>" + getDurabilityForType(type) + " uses</yellow></gray>"));
+                lore.add(TextUtil.format("<green>Stealth: No raid tag applied</green>"));
             }
             case LOCK_PICK_FAST -> {
                 lore.add(TextUtil.format("<gray>A golden lock pick with very high success</gray>"));
                 lore.add(TextUtil.format("<gray>Success: <yellow>" + settingsManager.getInt("lockpick.fast.chance", 75) + "%</yellow></gray>"));
                 lore.add(TextUtil.format("<gray>Durability: <red>" + getDurabilityForType(type) + " use</red></gray>"));
+                lore.add(TextUtil.format("<green>Stealth: No raid tag applied</green>"));
             }
             case LOCK_PICK_REINFORCED -> {
                 lore.add(TextUtil.format("<gray>A durable lock pick with chance to save</gray>"));
                 lore.add(TextUtil.format("<gray>Success: <yellow>" + settingsManager.getInt("lockpick.reinforced.chance", 20) + "%</yellow></gray>"));
                 lore.add(TextUtil.format("<gray>Durability: <yellow>" + getDurabilityForType(type) + " uses</yellow></gray>"));
                 lore.add(TextUtil.format("<gray>Save Chance: <light_purple>" + settingsManager.getInt("lockpick.reinforced.save_chance", 15) + "%</light_purple></gray>"));
+                lore.add(TextUtil.format("<green>Stealth: No raid tag applied</green>"));
             }
             case SLEDGE_HAMMER -> {
                 lore.add(TextUtil.format("<gray>Deals damage to Guild Cores on hit</gray>"));
@@ -99,6 +108,7 @@ public class RaidItemManager {
             }
             case RAID_TNT -> {
                 lore.add(TextUtil.format("<gray>Explosive that transforms blocks in claims</gray>"));
+                lore.add(TextUtil.format("<gray>Chain: Reinforced Deepslate → Obsidian → Crying Obsidian → Cobblestone</gray>"));
                 lore.add(TextUtil.format("<gray>Core Damage: <red>" + settingsManager.getInt("core.raid_tnt_damage", 10) + " HP</red></gray>"));
                 lore.add(TextUtil.format("<red>⚠ Applies Raid Tag on use!</red>"));
                 lore.add(TextUtil.format("<green>✔ No player damage</green>"));
@@ -116,6 +126,9 @@ public class RaidItemManager {
         return item;
     }
 
+    /**
+     * Gets the RaidItemType from an item's persistent data.
+     */
     public RaidItemType getRaidItemType(ItemStack item) {
         if (item == null || !item.hasItemMeta()) return null;
         PersistentDataContainer pdc = item.getItemMeta().getPersistentDataContainer();
@@ -128,16 +141,25 @@ public class RaidItemManager {
         }
     }
 
+    /**
+     * Quick check if an item is any raid item.
+     */
     public boolean isRaidItem(ItemStack item) {
         return getRaidItemType(item) != null;
     }
 
+    /**
+     * Gets the current durability from an item's persistent data.
+     */
     public int getDurability(ItemStack item) {
         if (item == null || !item.hasItemMeta()) return 0;
         Integer val = item.getItemMeta().getPersistentDataContainer().get(RAID_DURABILITY_KEY, PersistentDataType.INTEGER);
         return val != null ? val : 0;
     }
 
+    /**
+     * Consumes one durability from the item. Returns true if item still exists, false if destroyed.
+     */
     public boolean consumeDurability(ItemStack item, Player player) {
         if (item == null || !item.hasItemMeta()) return false;
         RaidItemType type = getRaidItemType(item);
@@ -153,6 +175,8 @@ public class RaidItemManager {
         }
 
         ItemMeta meta = item.getItemMeta();
+        if (meta == null) return false;
+
         PersistentDataContainer pdc = meta.getPersistentDataContainer();
         int current = pdc.getOrDefault(RAID_DURABILITY_KEY, PersistentDataType.INTEGER, 1);
         current--;
@@ -160,7 +184,7 @@ public class RaidItemManager {
         if (current <= 0) {
             player.getInventory().setItemInMainHand(null);
             player.playSound(player.getLocation(), Sound.ENTITY_ITEM_BREAK, 1.0f, 1.0f);
-            player.sendActionBar(TextUtil.format("<red>Your " + type.displayName + " <red>broke!</red>"));
+            player.sendActionBar(TextUtil.format("<red>Your " + getDisplayName(type) + " broke!</red>"));
             return false;
         }
 
@@ -169,6 +193,9 @@ public class RaidItemManager {
         return true;
     }
 
+    /**
+     * Gets the configurable durability for a raid item type.
+     */
     private int getDurabilityForType(RaidItemType type) {
         return switch (type) {
             case LOCK_PICK_WEAK -> settingsManager.getInt("lockpick.weak.durability", 5);
@@ -177,6 +204,18 @@ public class RaidItemManager {
             case LOCK_PICK_REINFORCED -> settingsManager.getInt("lockpick.reinforced.durability", 45);
             case SLEDGE_HAMMER -> settingsManager.getInt("core.sledgehammer_durability", 50);
             default -> -1;
+        };
+    }
+
+    private String getDisplayName(RaidItemType type) {
+        return switch (type) {
+            case LOCK_PICK_WEAK -> "Weak Lock Pick";
+            case LOCK_PICK_NORMAL -> "Lock Pick";
+            case LOCK_PICK_FAST -> "Fast Lock Pick";
+            case LOCK_PICK_REINFORCED -> "Reinforced Lock Pick";
+            case SLEDGE_HAMMER -> "Sledge Hammer";
+            case RAID_TNT -> "Raid TNT";
+            case CHARGED_CREEPER_EGG -> "Charged Creeper Egg";
         };
     }
 }

@@ -4,7 +4,6 @@ import com.guildcore.auction.AuctionManager;
 import com.guildcore.claims.ClaimManager;
 import com.guildcore.claims.ClaimProtectionListener;
 import com.guildcore.claims.ClaimVisualizer;
-import com.guildcore.combat.CombatTagManager;
 import com.guildcore.combat.ItemControlManager;
 import com.guildcore.commands.*;
 import com.guildcore.config.SettingsManager;
@@ -50,7 +49,6 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
     private EconomyManager economyManager;
     private StatsManager statsManager;
     private BountyManager bountyManager;
-    private CombatTagManager combatTagManager;
     private ItemControlManager itemControlManager;
     private ClaimManager claimManager;
     private ClaimVisualizer claimVisualizer;
@@ -75,10 +73,33 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
         return instance;
     }
 
+    public DatabaseManager getDatabaseManager() {
+        return databaseManager;
+    }
+    public SettingsManager getSettingsManager() {
+        return settingsManager;
+    }
+
+    public TeamManager getTeamManager() {
+        return teamManager;
+    }
+
+    public GuildCoreManager getGuildCoreManager() {
+        return guildCoreManager;
+    }
+
+    public OfflineShieldManager getOfflineShieldManager() {
+        return offlineShieldManager;
+    }
+
+    public RaidTagManager getRaidTagManager() {
+        return raidTagManager;
+    }
+
     @Override
     public void onEnable() {
         instance = this;
-        getLogger().info("Initializing GuildCore v5 (Modular Crates & Server Shop Engine)...");
+        getLogger().info("Initializing GuildCore v6 (Guild Core Raid Overhaul)...");
 
         // 1. Scheduler Wrapper
         this.scheduler = new SchedulerWrapper(this);
@@ -103,10 +124,8 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
         this.bountyManager.loadBounties();
 
         // 4. Combat & Items
-        this.combatTagManager = new CombatTagManager(settingsManager, scheduler);
-        this.itemControlManager = new ItemControlManager(combatTagManager, settingsManager, scheduler);
-
-        // 5. Full-Chunk Claims
+        this.itemControlManager = new ItemControlManager(raidTagManager, settingsManager, scheduler);        // 5. Full-Chunk Claims
+        this.itemControlManager.setTeamManager(teamManager);
         this.claimManager = new ClaimManager(databaseManager);
         this.claimManager.loadClaims();
         this.claimVisualizer = new ClaimVisualizer(claimManager, scheduler);
@@ -120,6 +139,7 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
             if (!this.isEnabled()) return false;
             if (this.teamVaultManager != null) {
                 this.teamVaultManager.saveAllVaultsSync();
+
             }
             return true;
         }, 1200L, 1200L);
@@ -132,23 +152,29 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
         this.guildCoreManager = new GuildCoreManager(databaseManager, claimManager, teamManager, settingsManager, scheduler);
         this.guildCoreManager.setEconomyManager(economyManager);
         this.guildCoreManager.loadAllCores();
+
         this.offlineShieldManager = new OfflineShieldManager(databaseManager, teamManager, settingsManager, scheduler);
         this.offlineShieldManager.loadAllShields();
         this.offlineShieldManager.startChargeTask();
         this.offlineShieldManager.startDrainTask();
+
         this.raidTagManager = new RaidTagManager(teamManager, claimManager, offlineShieldManager, settingsManager, scheduler);
         this.raidTagManager.startActionBarTask();
+
         this.raidItemManager = new RaidItemManager(settingsManager);
 
+        // Cross-wire dependencies
         this.teamManager.setClaimManager(claimManager);
         this.teamManager.setSettingsManager(settingsManager);
         this.teamManager.setEconomyManager(economyManager);
         this.teamManager.setGuildCoreManager(guildCoreManager);
+        this.teamManager.setScheduler(scheduler);
+
         this.claimManager.setTeamManager(teamManager);
         this.claimManager.setPermissionManager(teamPermissionManager);
         this.claimManager.setGuildCoreManager(guildCoreManager);
-        this.combatTagManager.setTeamManager(teamManager);
-        this.combatTagManager.setRaidTagManager(raidTagManager);
+        this.claimManager.setSettingsManager(settingsManager);
+
         this.tradeManager = new TradeManager(settingsManager, scheduler);
         this.crateManager = new CrateManager(databaseManager, scheduler);
         this.crateManager.loadCrates();
@@ -163,9 +189,7 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
         this.prohibitedItemManager.loadProhibitedItems();
 
         // 9. Scoreboard & GUIs
-        this.scoreboardManager = new ScoreboardManager(economyManager, statsManager, bountyManager, teamManager, claimManager, combatTagManager, settingsManager, scheduler);
-        this.scoreboardManager.startUpdateTask();
-
+        this.scoreboardManager = new ScoreboardManager(economyManager, statsManager, bountyManager, teamManager, claimManager, raidTagManager, settingsManager, scheduler);        this.scoreboardManager.startUpdateTask();
         this.guiManager = new GUIManager(settingsManager, teamManager, claimManager, auctionManager, statsManager, teamPermissionManager);
         this.guiManager.setProhibitedItemManager(prohibitedItemManager);
         this.guiManager.setShopManager(shopManager);
@@ -174,40 +198,46 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
         this.guiManager.setTeamVaultManager(teamVaultManager);
         this.guiManager.setScheduler(scheduler);
         this.teamVaultManager.setGuiManager(guiManager);
-        this.teamManager.setScheduler(scheduler);
 
         // Register Event Listeners
         PluginManager pm = getServer().getPluginManager();
         pm.registerEvents(this, this);
         pm.registerEvents(new EconomyListener(economyManager, settingsManager), this);
-        pm.registerEvents(combatTagManager, this);
         pm.registerEvents(itemControlManager, this);
+
         ClaimProtectionListener claimProtectionListener = new ClaimProtectionListener(claimManager, settingsManager);
         claimProtectionListener.setTeamManager(teamManager);
         claimProtectionListener.setOfflineShieldManager(offlineShieldManager);
         claimProtectionListener.setGuildCoreManager(guildCoreManager);
         pm.registerEvents(claimProtectionListener, this);
+
         pm.registerEvents(new GuildCoreListener(guildCoreManager, claimManager, teamManager), this);
         pm.registerEvents(raidTagManager, this);
+
         LockPickListener lockPickListener = new LockPickListener(raidItemManager, claimManager, offlineShieldManager, settingsManager, scheduler);
         lockPickListener.setTeamManager(teamManager);
         pm.registerEvents(lockPickListener, this);
+
         SledgeHammerListener sledgeHammerListener = new SledgeHammerListener(raidItemManager, guildCoreManager, offlineShieldManager, settingsManager);
         sledgeHammerListener.setRaidTagManager(raidTagManager);
         pm.registerEvents(sledgeHammerListener, this);
+
         RaidTNTListener raidTNTListener = new RaidTNTListener(raidItemManager, claimManager, guildCoreManager, offlineShieldManager, settingsManager, scheduler);
         raidTNTListener.setRaidTagManager(raidTagManager);
         raidTNTListener.setTeamManager(teamManager);
         pm.registerEvents(raidTNTListener, this);
+
         ChargedCreeperListener chargedCreeperListener = new ChargedCreeperListener(raidItemManager, claimManager, offlineShieldManager, settingsManager, scheduler);
         chargedCreeperListener.setRaidTagManager(raidTagManager);
         chargedCreeperListener.setGuildCoreManager(guildCoreManager);
         chargedCreeperListener.setTeamManager(teamManager);
         pm.registerEvents(chargedCreeperListener, this);
+
         GUIClickListener guiClickListener = new GUIClickListener(guiManager, auctionManager, teamManager, teamUpgradeManager, teamVaultManager, economyManager, settingsManager, scoreboardManager, crateManager, shopManager, scheduler);
         guiClickListener.setProhibitedItemManager(prohibitedItemManager);
         guiClickListener.setTradeManager(tradeManager);
         pm.registerEvents(guiClickListener, this);
+
         pm.registerEvents(new ChatInputListener(settingsManager, scheduler), this);
         pm.registerEvents(new ProhibitedItemListener(prohibitedItemManager), this);
 
@@ -234,7 +264,7 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
         registerCmd("leaderboard", statsCmd);
         registerCmd("bounty", statsCmd);
 
-        DebugCommand debugCmd = new DebugCommand(raidItemManager, guildCoreManager, offlineShieldManager);
+        DebugCommand debugCmd = new DebugCommand();
         registerCmd("guildcore", debugCmd);
 
         SettingsCommand settingsCmd = new SettingsCommand(guiManager);
@@ -260,7 +290,7 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
         ShopCommand shopCmd = new ShopCommand(shopManager, guiManager);
         registerCmd("shop", shopCmd);
 
-        getLogger().info("GuildCore v5 loaded successfully with Prohibited Items Engine, RTP World Selector, and Shop Admin Forge!");
+        getLogger().info("GuildCore v6 loaded successfully with Guild Core Raid Overhaul System!");
     }
 
     private void registerCmd(String name, org.bukkit.command.TabExecutor executor) {

@@ -17,11 +17,6 @@ import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.block.Block;
 import org.bukkit.block.Container;
-import org.bukkit.block.data.type.Door;
-import org.bukkit.block.data.type.Fence;
-import org.bukkit.block.data.type.Gate;
-import org.bukkit.block.data.type.TrapDoor;
-import org.bukkit.block.data.Openable;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -63,9 +58,9 @@ public class LockPickListener implements Listener {
 
         // Only lock picks
         if (type != RaidItemManager.RaidItemType.LOCK_PICK_WEAK &&
-            type != RaidItemManager.RaidItemType.LOCK_PICK_NORMAL &&
-            type != RaidItemManager.RaidItemType.LOCK_PICK_FAST &&
-            type != RaidItemManager.RaidItemType.LOCK_PICK_REINFORCED) return;
+                type != RaidItemManager.RaidItemType.LOCK_PICK_NORMAL &&
+                type != RaidItemManager.RaidItemType.LOCK_PICK_FAST &&
+                type != RaidItemManager.RaidItemType.LOCK_PICK_REINFORCED) return;
 
         Block clicked = event.getClickedBlock();
         Chunk chunk = clicked.getChunk();
@@ -121,7 +116,7 @@ public class LockPickListener implements Listener {
             if (success) {
                 player.playSound(player.getLocation(), Sound.BLOCK_IRON_DOOR_OPEN, 1.0f, 1.2f);
 
-                if (clicked.getBlockData() instanceof Openable openable) {
+                if (clicked.getBlockData() instanceof org.bukkit.block.data.Openable openable) {
                     openable.setOpen(!openable.isOpen());
                     clicked.setBlockData(openable);
                     String state = openable.isOpen() ? "opened" : "closed";
@@ -151,10 +146,10 @@ public class LockPickListener implements Listener {
 
     private boolean isContainer(Material type) {
         return type == Material.CHEST || type == Material.TRAPPED_CHEST ||
-               type == Material.BARREL || type == Material.HOPPER ||
-               type == Material.DROPPER || type == Material.DISPENSER ||
-               type == Material.FURNACE || type == Material.BLAST_FURNACE ||
-               type == Material.SMOKER || type.name().contains("SHULKER_BOX");
+                type == Material.BARREL || type == Material.HOPPER ||
+                type == Material.DROPPER || type == Material.DISPENSER ||
+                type == Material.FURNACE || type == Material.BLAST_FURNACE ||
+                type == Material.SMOKER || type.name().contains("SHULKER_BOX");
     }
 
     private boolean isOpenable(Material type) {

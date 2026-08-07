@@ -30,6 +30,7 @@ import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.persistence.PersistentDataType;
 
 import java.util.Iterator;
 import java.util.Set;
@@ -47,6 +48,7 @@ public class RaidTNTListener implements Listener {
     private TeamManager teamManager;
 
     private final Set<UUID> trackedTntUuids = ConcurrentHashMap.newKeySet();
+    private static final org.bukkit.NamespacedKey TNT_MARKER = new org.bukkit.NamespacedKey("guildcore", "raid_tnt");
 
     public RaidTNTListener(RaidItemManager raidItemManager, ClaimManager claimManager, GuildCoreManager guildCoreManager, OfflineShieldManager offlineShieldManager, SettingsManager settingsManager, SchedulerWrapper scheduler) {
         this.raidItemManager = raidItemManager;
@@ -110,6 +112,8 @@ public class RaidTNTListener implements Listener {
         TNTPrimed tnt = clicked.getWorld().spawn(spawnLoc, TNTPrimed.class, t -> {
             t.setFuseTicks((int) (fuseSeconds * 20));
             t.setSource(player);
+            // Mark the TNT entity
+            t.getPersistentDataContainer().set(TNT_MARKER, PersistentDataType.BOOLEAN, true);
         });
 
         trackedTntUuids.add(tnt.getUniqueId());
@@ -161,7 +165,7 @@ public class RaidTNTListener implements Listener {
             if (transformed != null) {
                 final Block targetBlock = block;
                 final Material targetMat = transformed;
-                scheduler.runSync(null, () -> targetBlock.setType(targetMat));
+                scheduler.runSync(block.getLocation(), () -> targetBlock.setType(targetMat));
             }
         }
 

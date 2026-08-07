@@ -546,7 +546,18 @@ public class GUIClickListener implements Listener {
             if (slot == 5) { guiManager.openAuctionHouse(player, 1, "POTIONS", ""); return; }
             if (slot == 6) { guiManager.openAuctionHouse(player, 1, "SHULKERS", ""); return; }
 
+            // In the SettingsGUIHolder section, add:
+            if (slot == 16) { guiManager.openAdminGuildCoreSettings(player); return; }
+            if (slot == 30) { guiManager.openAdminShieldSettings(player); return; }
+            if (slot == 31) { guiManager.openAdminRaidTagSettings(player); return; }
+            if (slot == 32) { guiManager.openAdminRaidToolSettings(player); return; }
             if (slot == 45) { guiManager.openMyListings(player, 1); return; }
+
+            // In the SettingsGUIHolder section, add these:
+            if (slot == 16) { guiManager.openAdminGuildCoreSettings(player); return; }
+            if (slot == 30) { guiManager.openAdminShieldSettings(player); return; }
+            if (slot == 31) { guiManager.openAdminRaidTagSettings(player); return; }
+            if (slot == 32) { guiManager.openAdminRaidToolSettings(player); return; }
 
             if (slot == 48 && ahHolder.getPage() > 1) {
                 guiManager.openAuctionHouse(player, ahHolder.getPage() - 1, ahHolder.getCategory(), ahHolder.getSearchQuery());
@@ -676,6 +687,116 @@ public class GUIClickListener implements Listener {
                     return;
                 }
             }
+            return;
+        }
+
+        // Guild Core & Raid Settings handler
+        if (holder instanceof AdminClaimHolder && event.getView().getTitle().contains("Guild Core & Raid")) {
+            event.setCancelled(true);
+            SoundUtil.playClick(player);
+            int slot = event.getSlot();
+
+            if (slot == 10) { ChatInputListener.requestInput(player, "core.place_cost", p -> guiManager.openAdminGuildCoreSettings(p)); }
+            else if (slot == 11) { ChatInputListener.requestInput(player, "core.max_hp", p -> guiManager.openAdminGuildCoreSettings(p)); }
+            else if (slot == 12) { ChatInputListener.requestInput(player, "core.break_cooldown_ticks", p -> guiManager.openAdminGuildCoreSettings(p)); }
+            else if (slot == 13) { ChatInputListener.requestInput(player, "core.tier.max", p -> guiManager.openAdminGuildCoreSettings(p)); }
+            else if (slot == 19) { ChatInputListener.requestInput(player, "core.sledgehammer_damage", p -> guiManager.openAdminGuildCoreSettings(p)); }
+            else if (slot == 20) { ChatInputListener.requestInput(player, "core.sledgehammer_durability", p -> guiManager.openAdminGuildCoreSettings(p)); }
+            else if (slot == 21) { ChatInputListener.requestInput(player, "core.raid_tnt_damage", p -> guiManager.openAdminGuildCoreSettings(p)); }
+            else if (slot == 22) { ChatInputListener.requestInput(player, "core.creeper_damage", p -> guiManager.openAdminGuildCoreSettings(p)); }
+            else if (slot == 49) { guiManager.openAdminSettings(player); }
+            // Tier upgrade money cost clicks (slots 28-32)
+            else if (slot >= 28 && slot <= 32) {
+                int tier = slot - 27;
+                if (event.isRightClick()) {
+                    ChatInputListener.requestStringInput(player, "core.tier." + tier + ".item_cost", p -> guiManager.openAdminGuildCoreSettings(p));
+                } else {
+                    ChatInputListener.requestInput(player, "core.tier." + tier + ".money_cost", p -> guiManager.openAdminGuildCoreSettings(p));
+                }
+            }
+            return;
+        }
+
+// Offline Shield Settings handler
+        if (holder instanceof AdminClaimHolder && event.getView().getTitle().contains("Offline Shield")) {
+            event.setCancelled(true);
+            SoundUtil.playClick(player);
+            int slot = event.getSlot();
+
+            if (slot == 10) { ChatInputListener.requestInput(player, "shield.charge_rate", p -> guiManager.openAdminShieldSettings(p)); }
+            else if (slot == 11) { ChatInputListener.requestInput(player, "shield.max_minutes", p -> guiManager.openAdminShieldSettings(p)); }
+            else if (slot == 12) { ChatInputListener.requestInput(player, "shield.drain_multiplier", p -> guiManager.openAdminShieldSettings(p)); }
+            else if (slot == 13) { ChatInputListener.requestInput(player, "shield.activation_delay_sec", p -> guiManager.openAdminShieldSettings(p)); }
+            else if (slot == 31) { guiManager.openAdminSettings(player); }
+            return;
+        }
+
+// Raid Tag Settings handler
+        if (holder instanceof AdminClaimHolder && event.getView().getTitle().contains("Raid Tag & Combat Log")) {
+            event.setCancelled(true);
+            SoundUtil.playClick(player);
+            int slot = event.getSlot();
+
+            if (slot == 10) { ChatInputListener.requestInput(player, "raidtag.exit_countdown_sec", p -> guiManager.openAdminRaidTagSettings(p)); }
+            else if (slot == 11) { ChatInputListener.requestInput(player, "raidtag.disconnect_timer_sec", p -> guiManager.openAdminRaidTagSettings(p)); }
+            else if (slot == 12) {
+                settingsManager.set("raidtag.disable_commands", String.valueOf(!settingsManager.getBoolean("raidtag.disable_commands", true)));
+                guiManager.openAdminRaidTagSettings(player);
+            }
+            else if (slot == 13) {
+                settingsManager.set("raidtag.allow_cobweb", String.valueOf(!settingsManager.getBoolean("raidtag.allow_cobweb", true)));
+                guiManager.openAdminRaidTagSettings(player);
+            }
+            else if (slot == 14) {
+                settingsManager.set("raidtag.drop_inv_on_expire", String.valueOf(!settingsManager.getBoolean("raidtag.drop_inv_on_expire", true)));
+                guiManager.openAdminRaidTagSettings(player);
+            }
+            else if (slot == 15) {
+                settingsManager.set("raidtag.award_kill_credit", String.valueOf(!settingsManager.getBoolean("raidtag.award_kill_credit", true)));
+                guiManager.openAdminRaidTagSettings(player);
+            }
+            else if (slot == 31) { guiManager.openAdminSettings(player); }
+            return;
+        }
+
+// Raid Tool Config handler
+        if (holder instanceof AdminClaimHolder && event.getView().getTitle().contains("Raid Tool Configuration")) {
+            event.setCancelled(true);
+            SoundUtil.playClick(player);
+            int slot = event.getSlot();
+
+            // Weak Lock Pick
+            if (slot == 10) {
+                if (event.isRightClick()) { ChatInputListener.requestInput(player, "lockpick.weak.durability", p -> guiManager.openAdminRaidToolSettings(p)); }
+                else { ChatInputListener.requestInput(player, "lockpick.weak.chance", p -> guiManager.openAdminRaidToolSettings(p)); }
+            }
+            // Normal Lock Pick
+            else if (slot == 11) {
+                if (event.isRightClick()) { ChatInputListener.requestInput(player, "lockpick.normal.durability", p -> guiManager.openAdminRaidToolSettings(p)); }
+                else { ChatInputListener.requestInput(player, "lockpick.normal.chance", p -> guiManager.openAdminRaidToolSettings(p)); }
+            }
+            // Fast Lock Pick
+            else if (slot == 12) {
+                if (event.isRightClick()) { ChatInputListener.requestInput(player, "lockpick.fast.durability", p -> guiManager.openAdminRaidToolSettings(p)); }
+                else { ChatInputListener.requestInput(player, "lockpick.fast.chance", p -> guiManager.openAdminRaidToolSettings(p)); }
+            }
+            // Reinforced Lock Pick
+            else if (slot == 13) {
+                if (event.isShiftClick()) { ChatInputListener.requestInput(player, "lockpick.reinforced.save_chance", p -> guiManager.openAdminRaidToolSettings(p)); }
+                else if (event.isRightClick()) { ChatInputListener.requestInput(player, "lockpick.reinforced.durability", p -> guiManager.openAdminRaidToolSettings(p)); }
+                else { ChatInputListener.requestInput(player, "lockpick.reinforced.chance", p -> guiManager.openAdminRaidToolSettings(p)); }
+            }
+            // Raid TNT
+            else if (slot == 19) {
+                if (event.isRightClick()) { ChatInputListener.requestInput(player, "raidtnt.explosion_power", p -> guiManager.openAdminRaidToolSettings(p)); }
+                else { ChatInputListener.requestInput(player, "raidtnt.fuse_seconds", p -> guiManager.openAdminRaidToolSettings(p)); }
+            }
+            // Charged Creeper
+            else if (slot == 20) {
+                if (event.isRightClick()) { ChatInputListener.requestInput(player, "creeper.explosion_power", p -> guiManager.openAdminRaidToolSettings(p)); }
+                else { ChatInputListener.requestInput(player, "creeper.fuse_seconds", p -> guiManager.openAdminRaidToolSettings(p)); }
+            }
+            else if (slot == 49) { guiManager.openAdminSettings(player); }
             return;
         }
 

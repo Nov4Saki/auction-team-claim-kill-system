@@ -6,11 +6,11 @@
 
     <groupId>com.guildcore</groupId>
     <artifactId>GuildCore</artifactId>
-    <version>1.0.0</version>
+    <version>1.1</version>
     <packaging>jar</packaging>
 
     <name>GuildCore</name>
-    <description>Dual-compatible, combat-hardened all-in-one team &amp; economy plugin for Paper/Folia 1.21.11</description>
+    <description>Dual-compatible, combat-hardened all-in-one team &amp; economy plugin for Paper/Folia 1.21+</description>
 
     <properties>
         <java.version>21</java.version>
@@ -52,7 +52,11 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.11.0</version>
                 <configuration>
-                    <release>21</release>
+                    <source>21</source>
+                    <target>21</target>
+                    <fork>true</fork>
+                    <meminitial>512m</meminitial>
+                    <maxmem>1024m</maxmem>
                 </configuration>
             </plugin>
             <plugin>

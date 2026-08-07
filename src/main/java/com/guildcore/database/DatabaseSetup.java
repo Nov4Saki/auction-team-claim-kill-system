@@ -67,7 +67,6 @@ public class DatabaseSetup {
                     "claimed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
                     "PRIMARY KEY (world, chunk_x, chunk_z));");
 
-
             // Teams
             stmt.execute("CREATE TABLE IF NOT EXISTS teams (" +
                     "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
@@ -83,8 +82,6 @@ public class DatabaseSetup {
                     "home_world VARCHAR(64), " +
                     "home_x DOUBLE, home_y DOUBLE, home_z DOUBLE, " +
                     "home_yaw FLOAT, home_pitch FLOAT, " +
-                    "nexus_world VARCHAR(64), " +
-                    "nexus_x INT, nexus_y INT, nexus_z INT, " +
                     "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);");
 
             // Team Members
@@ -102,7 +99,6 @@ public class DatabaseSetup {
                     "permission_node VARCHAR(32), " +
                     "allowed BOOLEAN DEFAULT 1, " +
                     "PRIMARY KEY (team_id, role, permission_node));");
-
 
             // Server Warps
             stmt.execute("CREATE TABLE IF NOT EXISTS warps (" +
@@ -193,10 +189,9 @@ public class DatabaseSetup {
                     "added_by VARCHAR(36) DEFAULT 'ADMIN', " +
                     "added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);");
 
-            // Raid Shields
-            stmt.execute("CREATE TABLE IF NOT EXISTS raid_shields (" +
-                    "team_id INT PRIMARY KEY, " +
-                    "expires_at TIMESTAMP NOT NULL);");
+            // ==========================================
+            // NEW TABLES FOR GUILD CORE RAID OVERHAUL
+            // ==========================================
 
             // Guild Core Physical Blocks
             stmt.execute("CREATE TABLE IF NOT EXISTS guild_cores (" +
@@ -218,13 +213,12 @@ public class DatabaseSetup {
                     "shield_active BOOLEAN DEFAULT 0, " +
                     "FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE);");
 
-            // Raid Log
-            stmt.execute("CREATE TABLE IF NOT EXISTS raid_log (" +
+            // Raid Tag Activity Log (for audit trail)
+            stmt.execute("CREATE TABLE IF NOT EXISTS raid_tag_log (" +
                     "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
-                    "attacker_team INT NOT NULL, " +
-                    "defender_team INT NOT NULL, " +
-                    "result VARCHAR(16) NOT NULL, " +
-                    "coins_stolen BIGINT DEFAULT 0, " +
+                    "player_uuid VARCHAR(36) NOT NULL, " +
+                    "defending_team_id INT NOT NULL, " +
+                    "action VARCHAR(16) NOT NULL, " +
                     "timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP);");
 
             // Admin Settings
@@ -232,184 +226,125 @@ public class DatabaseSetup {
                     "key VARCHAR(64) PRIMARY KEY, " +
                     "value TEXT NOT NULL);");
 
-            // Auction Items Schema Migration Check
-            int currentVersion = 1;
-            try (java.sql.ResultSet rs = stmt.executeQuery("SELECT MAX(version) FROM schema_version")) {
-                if (rs.next()) currentVersion = rs.getInt(1);
-            } catch (Exception ignored) {}
-
-            if (currentVersion < 2) {
-                boolean hasPurchasableAt = false;
-                boolean hasSellerName = false;
-                try (java.sql.ResultSet rs = stmt.executeQuery("PRAGMA table_info(auction_items);")) {
-                    while (rs.next()) {
-                        String col = rs.getString("name");
-                        if ("purchasable_at".equalsIgnoreCase(col)) hasPurchasableAt = true;
-                        if ("seller_name".equalsIgnoreCase(col)) hasSellerName = true;
-                    }
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-
-                if (!hasSellerName) {
-                    try {
-                        stmt.execute("ALTER TABLE auction_items ADD COLUMN seller_name VARCHAR(36) DEFAULT 'Unknown';");
-                        System.out.println("[GuildCore DB] Added missing seller_name column to auction_items.");
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
-                }
-
-                if (!hasPurchasableAt) {
-                    try {
-                        stmt.execute("ALTER TABLE auction_items ADD COLUMN purchasable_at TIMESTAMP;");
-                        System.out.println("[GuildCore DB] Added missing purchasable_at column to auction_items.");
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
-                }
-
-                boolean hasVaultSlots = false;
-                boolean hasVaultPages = false;
-                try (java.sql.ResultSet rs = stmt.executeQuery("PRAGMA table_info(teams);")) {
-                    while (rs.next()) {
-                        String colName = rs.getString("name");
-                        if ("vault_slots".equalsIgnoreCase(colName)) hasVaultSlots = true;
-                        if ("vault_pages".equalsIgnoreCase(colName)) hasVaultPages = true;
-                    }
-                } catch (Exception ignored) {}
-
-                if (!hasVaultSlots) {
-                    try {
-                        stmt.execute("ALTER TABLE teams ADD COLUMN vault_slots INT DEFAULT 9;");
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
-                }
-
-                if (!hasVaultPages) {
-                    try {
-                        stmt.execute("ALTER TABLE teams ADD COLUMN vault_pages INT DEFAULT 1;");
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
-                }
-
-                stmt.execute("INSERT OR REPLACE INTO schema_version (version) VALUES (2);");
-            }
-
             // Default Settings Inserts
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('economy.starting_balance', '100');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('economy.pvp_kill_reward', '50');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('economy.sales_tax_percent', '5');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('combat.tag_duration', '15');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('combat.enderpearl_cooldown', '15');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('combat.windcharge_cooldown', '10');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('combat.riptide_enabled', 'false');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('combat.mace_cooldown', '12');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('combat.crystal_enabled', 'false');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('combat.anchor_enabled', 'false');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('claims.blocks_per_hour', '50');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('teams.creation_cost', '1000');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('teams.base_max_members', '3');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('teams.vault.base_slot_cost', '500');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('teams.vault.slot_cost_step', '250');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('teams.vault.base_page_cost', '5000');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('teams.vault.page_cost_step', '2500');");
-
-            // Self-Healing Cleanup: Purge orphaned teams without members
-            try {
-                stmt.execute("DELETE FROM teams WHERE id NOT IN (SELECT DISTINCT team_id FROM team_members);");
-            } catch (Exception ignored) {}
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('raids.warmup_minutes', '5');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('raids.duration_minutes', '15');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('raids.declaration_cost', '2000');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('raids.nexus_max_hp', '100');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('auction.listing_fee', '50');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('auction.duration_hours_default', '48');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('auction.duration_hours.tier1', '24');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('auction.duration_hours.tier2', '48');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('auction.duration_hours.tier3', '72');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('auction.duration_hours.tier4', '96');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('auction.duration_hours.tier5', '120');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('auction.duration_hours.op', '168');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('auction.max_listing_price', '1000000000');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('auction.max_listings_default', '3');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('auction.listing_cooldown_sec', '0');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('requests.tpa-expire-seconds', '60');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('requests.team-invite-expire-seconds', '120');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('guild-home.warmup-seconds', '5');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('guild-home.cooldown-seconds', '60');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('guild-home.require-claim', 'true');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('guild-home.safety-check-radius', '3');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('spawn.warmup-seconds', '3');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('spawn.cooldown-seconds', '60');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('warp.warmup-seconds', '3');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('warp.cooldown-seconds', '60');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('tpa.warmup-seconds', '3');");
-
-            // Guild Core System Settings
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.place_cost', '5000');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.max_hp', '100');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.break_cooldown_ticks', '5');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.max', '5');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.1.money_cost', '1000');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.1.item_cost', 'DIAMOND:10');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.1.claims_granted', '5');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.2.money_cost', '2000');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.2.item_cost', 'DIAMOND:20');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.2.claims_granted', '10');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.3.money_cost', '3000');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.3.item_cost', 'DIAMOND:30');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.3.claims_granted', '15');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.4.money_cost', '4000');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.4.item_cost', 'DIAMOND:40');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.4.claims_granted', '20');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.5.money_cost', '5000');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.5.item_cost', 'DIAMOND:50');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.5.claims_granted', '25');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.raid_tnt_damage', '10');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.creeper_damage', '0');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.sledgehammer_damage', '5');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.sledgehammer_durability', '50');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('claims.max_per_team', '32');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('claims.require_contiguous', 'true');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('claims.cost_per_chunk', '500');");
-
-            // Offline Shield Settings
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('shield.charge_rate', '2.0');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('shield.max_minutes', '1080');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('shield.drain_multiplier', '1.0');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('shield.activation_delay_sec', '10');");
-
-            // Raid Tag Settings
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('raidtag.exit_countdown_sec', '30');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('raidtag.disconnect_timer_sec', '60');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('raidtag.disable_commands', 'true');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('raidtag.allow_cobweb', 'true');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('raidtag.drop_inv_on_expire', 'true');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('raidtag.award_kill_credit', 'true');");
-
-            // Lock Pick Settings
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('lockpick.weak.chance', '10');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('lockpick.weak.durability', '5');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('lockpick.normal.chance', '20');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('lockpick.normal.durability', '10');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('lockpick.fast.chance', '75');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('lockpick.fast.durability', '1');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('lockpick.reinforced.chance', '20');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('lockpick.reinforced.durability', '45');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('lockpick.reinforced.save_chance', '15');");
-
-            // Raid TNT Settings
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('raidtnt.fuse_seconds', '3.0');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('raidtnt.explosion_power', '2.0');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('raidtnt.player_damage', '0.0');");
-
-            // Charged Creeper Settings
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('creeper.fuse_seconds', '3.0');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('creeper.explosion_power', '3.0');");
-            stmt.execute("INSERT OR IGNORE INTO settings VALUES ('creeper.player_damage', '0.0');");
+            insertDefaultSettings(stmt);
         }
+    }
+
+    private static void insertDefaultSettings(Statement stmt) throws Exception {
+        // Economy & Basic Settings
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('economy.starting_balance', '100');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('economy.pvp_kill_reward', '50');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('economy.sales_tax_percent', '5');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('combat.tag_duration', '15');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('combat.enderpearl_cooldown', '15');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('combat.windcharge_cooldown', '10');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('combat.mace_cooldown', '12');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('combat.riptide_enabled', 'false');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('combat.crystal_enabled', 'false');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('combat.anchor_enabled', 'false');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('combat.disable_commands', 'true');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('claims.blocks_per_hour', '50');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('teams.creation_cost', '1000');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('teams.base_max_members', '3');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('teams.vault.base_slot_cost', '500');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('teams.vault.slot_cost_step', '250');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('teams.vault.base_page_cost', '5000');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('teams.vault.page_cost_step', '2500');");
+
+        // Guild Core System Settings
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.place_cost', '5000');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.max_hp', '100');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.break_cooldown_ticks', '5');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.max', '5');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.1.money_cost', '1000');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.1.item_cost', 'DIAMOND:10');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.1.claims_granted', '5');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.2.money_cost', '2000');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.2.item_cost', 'DIAMOND:20');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.2.claims_granted', '10');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.3.money_cost', '3000');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.3.item_cost', 'DIAMOND:30');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.3.claims_granted', '15');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.4.money_cost', '4000');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.4.item_cost', 'DIAMOND:40');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.4.claims_granted', '20');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.5.money_cost', '5000');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.5.item_cost', 'DIAMOND:50');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.tier.5.claims_granted', '25');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.raid_tnt_damage', '10');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.creeper_damage', '0');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.sledgehammer_damage', '5');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('core.sledgehammer_durability', '50');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('claims.max_per_team', '32');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('claims.require_contiguous', 'true');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('claims.cost_per_chunk', '500');");
+
+        // Offline Shield Settings
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('shield.charge_rate', '2.0');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('shield.max_minutes', '1080');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('shield.drain_multiplier', '1.0');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('shield.activation_delay_sec', '10');");
+
+        // Raid Tag Settings
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('raidtag.exit_countdown_sec', '30');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('raidtag.disconnect_timer_sec', '60');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('raidtag.disable_commands', 'true');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('raidtag.allow_cobweb', 'true');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('raidtag.drop_inv_on_expire', 'true');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('raidtag.award_kill_credit', 'true');");
+
+        // Lock Pick Settings
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('lockpick.weak.chance', '10');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('lockpick.weak.durability', '5');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('lockpick.normal.chance', '20');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('lockpick.normal.durability', '10');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('lockpick.fast.chance', '75');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('lockpick.fast.durability', '1');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('lockpick.reinforced.chance', '20');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('lockpick.reinforced.durability', '45');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('lockpick.reinforced.save_chance', '15');");
+
+        // Raid TNT Settings
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('raidtnt.fuse_seconds', '3.0');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('raidtnt.explosion_power', '2.0');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('raidtnt.player_damage', '0.0');");
+
+        // Charged Creeper Settings
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('creeper.fuse_seconds', '3.0');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('creeper.explosion_power', '3.0');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('creeper.player_damage', '0.0');");
+
+        // Miscellaneous Settings
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('auction.listing_fee', '50');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('auction.duration_hours_default', '48');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('auction.max_listing_price', '1000000000');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('auction.listing_cooldown_sec', '0');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('auction.max_listings_default', '3');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('requests.tpa-expire-seconds', '60');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('requests.team-invite-expire-seconds', '120');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('requests.trade-expire-seconds', '60');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('guild-home.warmup-seconds', '5');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('guild-home.cooldown-seconds', '60');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('guild-home.require-claim', 'true');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('guild-home.safety-check-radius', '3');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('spawn.warmup-seconds', '3');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('spawn.cooldown-seconds', '60');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('warp.warmup-seconds', '3');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('warp.cooldown-seconds', '60');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('tpa.warmup-seconds', '3');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('rtp.cooldown_sec', '60');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('rtp.warmup_sec', '3');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('rtp.range.min_x', '-3000');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('rtp.range.max_x', '3000');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('rtp.range.min_z', '-3000');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('rtp.range.max_z', '3000');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('scoreboard.update_ticks', '20');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('scoreboard.title', '⚡ GUILDCORE');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('world.disable_explosions', 'false');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('claims.pvp_enabled', 'true');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('teams.friendly_fire', 'false');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('teams.auto_transfer_leader_on_leave', 'true');");
+        stmt.execute("INSERT OR IGNORE INTO settings VALUES ('teams.transfer_leader_allow_offline', 'true');");
     }
 }

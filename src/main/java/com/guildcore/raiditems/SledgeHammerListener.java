@@ -10,6 +10,7 @@ import com.guildcore.shield.OfflineShieldManager;
 import com.guildcore.util.TextUtil;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import org.bukkit.Sound;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -36,7 +37,7 @@ public class SledgeHammerListener implements Listener {
         this.raidTagManager = raidTagManager;
     }
 
-    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = false)
     public void onEntityDamage(EntityDamageByEntityEvent event) {
         if (!(event.getDamager() instanceof Player player)) return;
         if (!(event.getEntity() instanceof ArmorStand stand)) return;
@@ -55,6 +56,8 @@ public class SledgeHammerListener implements Listener {
         }
 
         if (targetCore == null) return;
+
+        // Cancel the vanilla damage event since we're handling it ourselves
         event.setCancelled(true);
 
         // Check shield
@@ -71,6 +74,9 @@ public class SledgeHammerListener implements Listener {
         if (raidTagManager != null) {
             raidTagManager.applyRaidTag(player, targetCore.getTeamId(), player.getLocation().getChunk());
         }
+
+        // Sound effect
+        player.playSound(player.getLocation(), Sound.BLOCK_ANVIL_LAND, 1.0f, 0.8f);
 
         DebugManager.log(DebugFlag.RAID_ITEMS, player.getName() + " sledge-hammered core of team " + targetCore.getTeamId() + " for " + damage + " damage");
     }

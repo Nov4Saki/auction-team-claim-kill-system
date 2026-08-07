@@ -2,12 +2,11 @@ package com.guildcore.scoreboard;
 
 import com.guildcore.claims.ClaimInfo;
 import com.guildcore.claims.ClaimManager;
-import com.guildcore.combat.CombatTagManager;
 import com.guildcore.config.SettingsManager;
 import com.guildcore.debug.DebugFlag;
 import com.guildcore.debug.DebugManager;
 import com.guildcore.economy.EconomyManager;
-import com.guildcore.config.SettingsManager;
+import com.guildcore.raidtag.RaidTagManager;
 import com.guildcore.scheduler.SchedulerWrapper;
 import com.guildcore.stats.BountyManager;
 import com.guildcore.stats.StatsManager;
@@ -34,19 +33,21 @@ public class ScoreboardManager {
     private final BountyManager bountyManager;
     private final TeamManager teamManager;
     private final ClaimManager claimManager;
-    private final CombatTagManager combatTagManager;
+    private final RaidTagManager raidTagManager;
     private final SettingsManager settingsManager;
     private final SchedulerWrapper scheduler;
 
     private boolean scoreboardsDisabled = false;
 
-    public ScoreboardManager(EconomyManager economyManager, StatsManager statsManager, BountyManager bountyManager, TeamManager teamManager, ClaimManager claimManager, CombatTagManager combatTagManager, SettingsManager settingsManager, SchedulerWrapper scheduler) {
+    public ScoreboardManager(EconomyManager economyManager, StatsManager statsManager, BountyManager bountyManager,
+                             TeamManager teamManager, ClaimManager claimManager, RaidTagManager raidTagManager,
+                             SettingsManager settingsManager, SchedulerWrapper scheduler) {
         this.economyManager = economyManager;
         this.statsManager = statsManager;
         this.bountyManager = bountyManager;
         this.teamManager = teamManager;
         this.claimManager = claimManager;
-        this.combatTagManager = combatTagManager;
+        this.raidTagManager = raidTagManager;
         this.settingsManager = settingsManager;
         this.scheduler = scheduler;
     }
@@ -110,8 +111,9 @@ public class ScoreboardManager {
                     try { oldObj.unregister(); } catch (Exception ignored) {}
                 }
 
-                String titleText = settingsManager.getString("scoreboard.title", "⚡ MY SERVER");
-                Objective obj = board.registerNewObjective(objName, Criteria.DUMMY, Component.text(titleText, NamedTextColor.YELLOW, TextDecoration.BOLD));
+                String titleText = settingsManager.getString("scoreboard.title", "⚡ GUILDCORE");
+                Objective obj = board.registerNewObjective(objName, Criteria.DUMMY,
+                        Component.text(titleText, NamedTextColor.YELLOW, TextDecoration.BOLD));
                 obj.setDisplaySlot(DisplaySlot.SIDEBAR);
 
                 List<String> lines = buildLines(player);
@@ -133,30 +135,61 @@ public class ScoreboardManager {
         List<String> lines = new ArrayList<>();
         lines.add(ChatColor.GRAY + "━━━━━━━━━━━━━━━");
 
-        if (combatTagManager.isTagged(player)) {
-            lines.add(ChatColor.RED + "" + ChatColor.BOLD + "⚔ COMBAT TAGGED");
-            lines.add(ChatColor.WHITE + "Tag Timer: " + ChatColor.YELLOW + combatTagManager.getRemainingSeconds(player) + "s");
-            lines.add(ChatColor.RED + "Restricted Items Locked!");
+        // Check if player is raid tagged
+        if (raidTagManager != null && raidTagManager.isRaidTagged(player.getUniqueId())) {
+            lines.add(ChatColor.RED + "" + ChatColor.BOLD + "⚔ RAID TAGGED");
+            int remaining = raidTagManager.getRemainingSeconds(player.getUniqueId());
+            if (remaining < 0) {
+                lines.add(ChatColor.WHITE + "Status: " + ChatColor.YELLOW + "Inside Enemy Territory");
+            } else {
+                lines.add(ChatColor.WHITE + "Exit Timer: " + ChatColor.YELLOW + remaining + "s");
+            }
+            lines.add(ChatColor.RED + "Commands Locked!");
+            lines.add(ChatColor.WHITE + "Leave territory to escape!");
         } else {
+            // Normal stats display
             long coins = economyManager.getBalance(player.getUniqueId());
-            lines.add(ChatColor.WHITE + "💰 Coins: " + ChatColor.GREEN + "$" + coins);
+            lines.add(ChatColor.WHITE + "💰 Coins: " + ChatColor.GREEN + "$" + String.format("%,d", coins));
 
             StatsManager.PlayerStats stats = statsManager.getStats(player.getUniqueId());
-            lines.add(ChatColor.WHITE + "⚔ Kills: " + ChatColor.RED + stats.kills() + ChatColor.GRAY + " | " + ChatColor.WHITE + "☠ Deaths: " + ChatColor.RED + stats.deaths());
+            double kd = stats.deaths() == 0 ? stats.kills() : (double) stats.kills() / stats.deaths();
+            lines.add(ChatColor.WHITE + "⚔ K/D: " + ChatColor.RED + String.format("%.1f", kd) +
+                    ChatColor.GRAY + " (" + stats.kills() + "/" + stats.deaths() + ")");
 
             long bounty = bountyManager.getBounty(player.getUniqueId());
             if (bounty > 0) {
-                lines.add(ChatColor.RED + "⚠ BOUNTY: " + ChatColor.YELLOW + "$" + bounty);
+                lines.add(ChatColor.RED + "⚠ BOUNTY: " + ChatColor.YELLOW + "$" + String.format("%,d", bounty));
             }
 
             Team team = teamManager.getPlayerTeam(player.getUniqueId());
-            lines.add(ChatColor.WHITE + "🏰 Team: " + (team != null ? ChatColor.AQUA + "[" + team.getName() + "]" : ChatColor.GRAY + "None"));
+            if (team != null) {
+                lines.add(ChatColor.WHITE + "🏰 Guild: " + ChatColor.AQUA + team.getName());
+
+                // Show core status if exists
+                if (claimManager != null) {
+                    var core = getGuildCoreManager() != null ? getGuildCoreManager().getCoreForTeam(team.getId()) : null;
+                    if (core != null) {
+                        float hpPercent = core.getHpPercentage();
+                        String hpColor = hpPercent > 0.66f ? ChatColor.GREEN.toString() :
+                                hpPercent > 0.33f ? ChatColor.YELLOW.toString() : ChatColor.RED.toString();
+                        lines.add(ChatColor.WHITE + "❤ Core: " + hpColor + core.getCurrentHp() + "/" + core.getMaxHp());
+                    }
+                }
+            } else {
+                lines.add(ChatColor.WHITE + "🏰 Guild: " + ChatColor.GRAY + "None");
+            }
 
             ClaimInfo claim = claimManager.getClaimAt(player.getLocation().getChunk());
             if (claim != null) {
-                lines.add(ChatColor.WHITE + "📍 Claim: " + (claim.isTeamClaim() ? ChatColor.LIGHT_PURPLE + "Team Territory" : ChatColor.GREEN + "Claimed"));
+                if (claim.isTeamClaim()) {
+                    Team claimTeam = teamManager.getTeam(claim.getTeamId());
+                    String claimName = claimTeam != null ? claimTeam.getName() : "Unknown";
+                    lines.add(ChatColor.WHITE + "📍 Location: " + ChatColor.LIGHT_PURPLE + claimName + " Territory");
+                } else {
+                    lines.add(ChatColor.WHITE + "📍 Location: " + ChatColor.GREEN + "Claimed");
+                }
             } else {
-                lines.add(ChatColor.WHITE + "📍 Claim: " + ChatColor.GRAY + "Wilderness");
+                lines.add(ChatColor.WHITE + "📍 Location: " + ChatColor.GRAY + "Wilderness");
             }
         }
 
@@ -189,5 +222,10 @@ public class ScoreboardManager {
                 updateBoard(player);
             }
         }
+    }
+
+    private com.guildcore.core.GuildCoreManager getGuildCoreManager() {
+        com.guildcore.GuildCorePlugin plugin = com.guildcore.GuildCorePlugin.getInstance();
+        return plugin != null ? plugin.getGuildCoreManager() : null;
     }
 }

@@ -16,9 +16,6 @@ import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.Location;
 import org.bukkit.World;
-import org.bukkit.Chunk;
-import org.bukkit.Material;
-import org.bukkit.block.Block;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabExecutor;
@@ -81,8 +78,6 @@ public class TeamCommand implements TabExecutor {
             } else if (sub.equals("bank")) {
                 completions.add("deposit");
                 completions.add("withdraw");
-            } else if (sub.equals("raid")) {
-                completions.add("declare");
             } else if (sub.equals("vault")) {
                 completions.add("1");
                 completions.add("2");
@@ -171,7 +166,9 @@ public class TeamCommand implements TabExecutor {
                 player.sendMessage(TextUtil.format("<red>You must be in a team to upgrade features.</red>"));
                 return true;
             }
-            guiManager.openTeamUpgrades(player, team);
+            // Inform player to use the physical guild core for upgrades
+            player.sendMessage(TextUtil.format("<yellow>⚡ To upgrade your Guild, interact with your Guild Core directly!</yellow>"));
+            player.sendMessage(TextUtil.format("<yellow>Use the armor stand above your core chest to access the upgrade menu.</yellow>"));
             return true;
         }
 
@@ -463,7 +460,11 @@ public class TeamCommand implements TabExecutor {
                 return true;
             }
             Location coreLoc = target.getLocation().add(0, 1, 0);
-            guildCoreManager.placeCore(player, coreLoc);
+            if (guildCoreManager != null) {
+                guildCoreManager.placeCore(player, coreLoc);
+            } else {
+                player.sendMessage(TextUtil.format("<red>Guild Core system is not available.</red>"));
+            }
             return true;
         }
 
@@ -550,8 +551,6 @@ public class TeamCommand implements TabExecutor {
             return true;
         }
 
-        // Raid declare removed — raids are now emergent through raid tools and guild cores
-
         return true;
     }
 
@@ -564,8 +563,6 @@ public class TeamCommand implements TabExecutor {
                 return "Location is not inside a Guild claim owned by your Guild!";
             }
         }
-
-        // Removed: old raid active check. Shield protection is handled by ClaimProtectionListener.
 
         Location below = loc.clone().subtract(0, 1, 0);
         if (!below.getBlock().getType().isSolid()) {

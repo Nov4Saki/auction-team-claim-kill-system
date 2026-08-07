@@ -103,12 +103,14 @@ public class GUIManager {
     }
 
     public void openAdminSettings(Player player) {
-        Inventory inv = Bukkit.createInventory(new SettingsGUIHolder(), 54, TextUtil.format("<gradient:#FFD700:#FFA500:#DAA520><b>👑 HIGH SOVEREIGN CONTROL PANEL</b></gradient>"));
+        Inventory inv = Bukkit.createInventory(new SettingsGUIHolder(), 54,
+                TextUtil.format("<gradient:#FFD700:#FFA500:#DAA520><b>👑 HIGH SOVEREIGN CONTROL PANEL</b></gradient>"));
 
         // Mythic Dark & Gold Frame
         for (int i = 0; i < 54; i++) {
             if (i == 0 || i == 8 || i == 45 || i == 53) {
-                inv.setItem(i, new GUIItemBuilder(Material.PURPLE_STAINED_GLASS_PANE).name("<gradient:#9D50BB:#6E48AA><b>✦ Sovereign Seal</b></gradient>").build());
+                inv.setItem(i, new GUIItemBuilder(Material.PURPLE_STAINED_GLASS_PANE)
+                        .name("<gradient:#9D50BB:#6E48AA><b>✦ Sovereign Seal</b></gradient>").build());
             } else if (i < 9 || i >= 45 || i % 9 == 0 || i % 9 == 8) {
                 inv.setItem(i, new GUIItemBuilder(Material.BLACK_STAINED_GLASS_PANE).name("<gray> </gray>").build());
             } else {
@@ -116,53 +118,350 @@ public class GUIManager {
             }
         }
 
-        // Row 1: Primary Module Archives (Slots 10 - 15)
-        inv.setItem(10, new GUIItemBuilder(Material.GOLD_INGOT).name("<gradient:#FFD700:#FFA500><b>💰 Economy Treasury Archive</b></gradient>")
+        // Row 1: Primary Module Archives (Slots 10 - 16)
+        inv.setItem(10, new GUIItemBuilder(Material.GOLD_INGOT)
+                .name("<gradient:#FFD700:#FFA500><b>💰 Economy Treasury Archive</b></gradient>")
                 .lore("<gray>▪ Manage kingdom starting funds, PvP bounties, and royal sales tax</gray>", "", "<yellow>▶ Click to inspect Treasury Archive</yellow>").build());
 
-        inv.setItem(11, new GUIItemBuilder(Material.NETHERITE_SWORD).name("<gradient:#800000:#DC143C><b>⚔ Blood & Valor Kill Archive</b></gradient>")
+        inv.setItem(11, new GUIItemBuilder(Material.NETHERITE_SWORD)
+                .name("<gradient:#800000:#DC143C><b>⚔ Blood & Valor Kill Archive</b></gradient>")
                 .lore("<gray>▪ Manage kill streak bonuses and mob slayer coin rewards</gray>", "", "<yellow>▶ Click to inspect Kill Archive</yellow>").build());
 
-        inv.setItem(12, new GUIItemBuilder(Material.GRASS_BLOCK).name("<gradient:#11998e:#38ef7d><b>🏠 Domain & Realm Claims Archive</b></gradient>")
+        inv.setItem(12, new GUIItemBuilder(Material.GRASS_BLOCK)
+                .name("<gradient:#11998e:#38ef7d><b>🏠 Domain & Realm Claims Archive</b></gradient>")
                 .lore("<gray>▪ Manage claim block accrual rates and explosion protection</gray>", "", "<yellow>▶ Click to inspect Domain Archive</yellow>").build());
 
-        inv.setItem(13, new GUIItemBuilder(Material.SHIELD).name("<gradient:#00c6ff:#0072ff><b>🏰 Guild Citadel Archive</b></gradient>")
+        inv.setItem(13, new GUIItemBuilder(Material.SHIELD)
+                .name("<gradient:#00c6ff:#0072ff><b>🏰 Guild Citadel Archive</b></gradient>")
                 .lore("<gray>▪ Manage guild charter creation fees and roster size caps</gray>", "", "<yellow>▶ Click to inspect Guild Archive</yellow>").build());
 
-        inv.setItem(14, new GUIItemBuilder(Material.ENCHANTED_GOLDEN_APPLE).name("<gradient:#9D50BB:#6E48AA><b>⚔ Arcane Combat & Relic Rules</b></gradient>")
+        inv.setItem(14, new GUIItemBuilder(Material.ENCHANTED_GOLDEN_APPLE)
+                .name("<gradient:#9D50BB:#6E48AA><b>⚔ Arcane Combat & Relic Rules</b></gradient>")
                 .lore("<gray>▪ Manage combat tag timers, restricted relics, and cooldowns</gray>", "", "<yellow>▶ Click to inspect Combat Archive</yellow>").build());
 
-        inv.setItem(15, new GUIItemBuilder(Material.WRITABLE_BOOK).name("<gradient:#8E9EAB:#EEF2F3><b>📜 Scoreboard Scrolls Archive</b></gradient>")
+        inv.setItem(15, new GUIItemBuilder(Material.WRITABLE_BOOK)
+                .name("<gradient:#8E9EAB:#EEF2F3><b>📜 Scoreboard Scrolls Archive</b></gradient>")
                 .lore("<gray>▪ Manage scroll refresh tick-rates and server-wide objective wipes</gray>", "", "<yellow>▶ Click to inspect Scoreboard Archive</yellow>").build());
 
-        // Row 2: Secondary & Administrative Hubs (Slots 19 - 24)
-        inv.setItem(19, new GUIItemBuilder(Material.CHEST).name("<gradient:#FFD700:#FFA500><b>📜 Grand Bazaar Settings Archive</b></gradient>")
+        inv.setItem(16, new GUIItemBuilder(Material.BEACON)
+                .name("<gradient:#FF4500:#DC143C><b>⚔ Guild Core & Raid Archive</b></gradient>")
+                .lore("<gray>▪ Manage core placement costs, HP, tier upgrades, and raid item damage</gray>", "", "<yellow>▶ Click to inspect Raid Archive</yellow>").build());
+
+        // Row 2: Secondary & Administrative Hubs (Slots 19 - 25)
+        inv.setItem(19, new GUIItemBuilder(Material.CHEST)
+                .name("<gradient:#FFD700:#FFA500><b>📜 Grand Bazaar Settings Archive</b></gradient>")
                 .lore("<gray>▪ Manage listing taxes, default expiration timers, and delays</gray>", "", "<yellow>▶ Click to inspect Bazaar Archive</yellow>").build());
 
-        inv.setItem(20, new GUIItemBuilder(Material.COMPASS).name("<gradient:#FFD700:#FFA500><b>🎲 RTP & Teleportation Archive</b></gradient>")
+        inv.setItem(20, new GUIItemBuilder(Material.COMPASS)
+                .name("<gradient:#FFD700:#FFA500><b>🎲 RTP & Teleportation Archive</b></gradient>")
                 .lore("<gray>▪ Manage RTP cooldowns, standstill timers, and coordinate bounds</gray>", "", "<yellow>▶ Click to inspect RTP Archive</yellow>").build());
 
-        inv.setItem(21, new GUIItemBuilder(Material.ANVIL).name("<gradient:#800000:#DC143C><b>🚫 Prohibited Items Archive</b></gradient>")
+        inv.setItem(21, new GUIItemBuilder(Material.ANVIL)
+                .name("<gradient:#800000:#DC143C><b>🚫 Prohibited Items Archive</b></gradient>")
                 .lore("<gray>▪ Manage server item bans, crafting blocks, and inventory purges</gray>", "", "<yellow>▶ Click to inspect Prohibited Archive</yellow>").build());
 
-        inv.setItem(22, new GUIItemBuilder(Material.EMERALD).name("<gradient:#00FF87:#60EFFF><b>🛒 Server Admin Shop Hub</b></gradient>")
+        inv.setItem(22, new GUIItemBuilder(Material.EMERALD)
+                .name("<gradient:#00FF87:#60EFFF><b>🛒 Server Admin Shop Hub</b></gradient>")
                 .lore("<gray>▪ Manage shop categories, buy/sell items, and pricing</gray>", "", "<yellow>▶ Click to inspect Admin Shop Hub</yellow>").build());
 
-        inv.setItem(23, new GUIItemBuilder(Material.LEVER).name("<gradient:#FF416C:#FF4B2B><b>⚡ Sovereign Debug Forge (18 Flags)</b></gradient>")
+        inv.setItem(23, new GUIItemBuilder(Material.LEVER)
+                .name("<gradient:#FF416C:#FF4B2B><b>⚡ Sovereign Debug Forge (18 Flags)</b></gradient>")
                 .lore("<gray>▪ Toggle 18 surgical realm diagnostic flags in real-time</gray>", "", "<yellow>▶ Click to open Debug Forge</yellow>").build());
 
-        inv.setItem(24, new GUIItemBuilder(Material.TRIPWIRE_HOOK).name("<gradient:#9D50BB:#6E48AA><b>🎁 Modular Choice Crates Hub</b></gradient>")
+        inv.setItem(24, new GUIItemBuilder(Material.TRIPWIRE_HOOK)
+                .name("<gradient:#9D50BB:#6E48AA><b>🎁 Modular Choice Crates Hub</b></gradient>")
                 .lore("<gray>▪ Manage key crates, reward tables, and choice menu configurations</gray>", "", "<yellow>▶ Click to inspect Crates Hub</yellow>").build());
 
-        inv.setItem(25, new GUIItemBuilder(Material.CLOCK).name("<gradient:#FFD700:#FFA500><b>⌛ Request & Trade Timers Archive</b></gradient>")
+        inv.setItem(25, new GUIItemBuilder(Material.CLOCK)
+                .name("<gradient:#FFD700:#FFA500><b>⌛ Request & Trade Timers Archive</b></gradient>")
                 .lore("<gray>▪ Manage expiration timers for TPA, Guild Invites, and Trade Requests</gray>", "", "<yellow>▶ Click to inspect Timers Archive</yellow>").build());
+
+        // Row 3: Shield & Raid Tag Settings
+        inv.setItem(30, new GUIItemBuilder(Material.END_CRYSTAL)
+                .name("<gradient:#00c6ff:#0072ff><b>🛡 Offline Shield Archive</b></gradient>")
+                .lore("<gray>▪ Manage shield charge rates, drain speed, and max capacity</gray>", "", "<yellow>▶ Click to inspect Shield Archive</yellow>").build());
+
+        inv.setItem(31, new GUIItemBuilder(Material.NAME_TAG)
+                .name("<gradient:#FF416C:#FF4B2B><b>🏷 Raid Tag & Combat Log Archive</b></gradient>")
+                .lore("<gray>▪ Manage raid tag exit timers, combat log penalties, and command blocking</gray>", "", "<yellow>▶ Click to inspect Raid Tag Archive</yellow>").build());
+
+        inv.setItem(32, new GUIItemBuilder(Material.IRON_INGOT)
+                .name("<gradient:#C0C0C0:#E0E0E0><b>🔑 Raid Tool Config Archive</b></gradient>")
+                .lore("<gray>▪ Manage lock pick success rates, durability, and TNT/Creeper fuse times</gray>", "", "<yellow>▶ Click to inspect Tool Archive</yellow>").build());
 
         inv.setItem(49, new GUIItemBuilder(Material.BARRIER).name("<red><b>✖ Close Sovereign Control Panel</b></red>").build());
 
         player.openInventory(inv);
         DebugManager.log(DebugFlag.GUI_CLICKS, "Opened admin settings GUI for " + player.getName());
     }
+    /**
+     * Opens the Guild Core & Raid admin settings page.
+     */
+    public void openAdminGuildCoreSettings(Player player) {
+        Inventory inv = Bukkit.createInventory(new AdminClaimHolder(), 54,
+                TextUtil.format("<gradient:#FF4500:#DC143C><b>⚔ Guild Core & Raid Settings</b></gradient>"));
 
+        long placeCost = settingsManager.getLong("core.place_cost", 5000);
+        int maxHp = settingsManager.getInt("core.max_hp", 100);
+        int cooldownTicks = settingsManager.getInt("core.break_cooldown_ticks", 5);
+        int maxTier = settingsManager.getInt("core.tier.max", 5);
+        int sledgeDamage = settingsManager.getInt("core.sledgehammer_damage", 5);
+        int sledgeDurability = settingsManager.getInt("core.sledgehammer_durability", 50);
+        int tntDamage = settingsManager.getInt("core.raid_tnt_damage", 10);
+        int creeperDamage = settingsManager.getInt("core.creeper_damage", 0);
+
+        fillBorder54(inv, Material.RED_STAINED_GLASS_PANE);
+
+        inv.setItem(10, new GUIItemBuilder(Material.GOLD_BLOCK)
+                .name("<yellow><b>Core Placement Cost: $" + String.format("%,d", placeCost) + " Gold</b></yellow>")
+                .lore("<gray>▪ Gold required to place a Guild Core</gray>", "", "<yellow>▶ Click to edit value in chat</yellow>").build());
+
+        inv.setItem(11, new GUIItemBuilder(Material.REDSTONE_BLOCK)
+                .name("<red><b>Core Max HP: " + maxHp + "</b></red>")
+                .lore("<gray>▪ Base health of a Guild Core (Tier 1)</gray>", "", "<yellow>▶ Click to edit value in chat</yellow>").build());
+
+        inv.setItem(12, new GUIItemBuilder(Material.CLOCK)
+                .name("<yellow><b>Damage Cooldown: " + cooldownTicks + " ticks</b></yellow>")
+                .lore("<gray>▪ Minimum ticks between core damage instances</gray>", "", "<yellow>▶ Click to edit value in chat</yellow>").build());
+
+        inv.setItem(13, new GUIItemBuilder(Material.BEACON)
+                .name("<gold><b>Max Core Tier: " + maxTier + "</b></gold>")
+                .lore("<gray>▪ Maximum upgradeable tier for cores</gray>", "", "<yellow>▶ Click to edit value in chat</yellow>").build());
+
+        inv.setItem(19, new GUIItemBuilder(Material.NETHERITE_AXE)
+                .name("<red><b>Sledge Hammer Damage: " + sledgeDamage + " HP</b></red>")
+                .lore("<gray>▪ Damage dealt to cores per sledge hammer hit</gray>", "", "<yellow>▶ Click to edit value in chat</yellow>").build());
+
+        inv.setItem(20, new GUIItemBuilder(Material.NETHERITE_INGOT)
+                .name("<yellow><b>Sledge Hammer Durability: " + sledgeDurability + " hits</b></yellow>")
+                .lore("<gray>▪ Number of uses before breaking</gray>", "", "<yellow>▶ Click to edit value in chat</yellow>").build());
+
+        inv.setItem(21, new GUIItemBuilder(Material.TNT)
+                .name("<red><b>Raid TNT Core Damage: " + tntDamage + " HP</b></red>")
+                .lore("<gray>▪ Damage dealt to nearby cores from Raid TNT</gray>", "", "<yellow>▶ Click to edit value in chat</yellow>").build());
+
+        inv.setItem(22, new GUIItemBuilder(Material.CREEPER_SPAWN_EGG)
+                .name("<green><b>Charged Creeper Core Damage: " + creeperDamage + " HP</b></green>")
+                .lore("<gray>▪ Damage dealt to nearby cores from charged creepers</gray>", "<gray>▪ Set to 0 to disable core damage from creepers</gray>", "", "<yellow>▶ Click to edit value in chat</yellow>").build());
+
+        // Tier upgrade buttons
+        for (int tier = 1; tier <= Math.min(maxTier, 5); tier++) {
+            int slot = 28 + (tier - 1);
+            long tierCost = settingsManager.getLong("core.tier." + tier + ".money_cost", tier * 1000L);
+            String tierItemCost = settingsManager.getString("core.tier." + tier + ".item_cost", "DIAMOND:" + (tier * 10));
+            int tierClaims = settingsManager.getInt("core.tier." + tier + ".claims_granted", tier * 5);
+
+            inv.setItem(slot, new GUIItemBuilder(Material.EMERALD_BLOCK)
+                    .name("<gradient:#00FF87:#60EFFF><b>Tier " + tier + " Upgrade</b></gradient>")
+                    .lore(
+                            "<gray>▪ Cost: <gold>$" + String.format("%,d", tierCost) + " Gold</gold></gray>",
+                            "<gray>▪ Items: <white>" + tierItemCost + "</white></gray>",
+                            "<gray>▪ Claims Granted: <yellow>" + tierClaims + " chunks</yellow></gray>",
+                            "",
+                            "<yellow>▶ Click to edit money cost</yellow>",
+                            "<yellow>▶ Right-Click to edit item cost</yellow>"
+                    ).build());
+        }
+
+        inv.setItem(49, new GUIItemBuilder(Material.BARRIER).name("<red><b>◀ Return to High Sovereign Panel</b></red>").build());
+        player.openInventory(inv);
+    }
+
+    /**
+     * Opens the Offline Shield admin settings page.
+     */
+    public void openAdminShieldSettings(Player player) {
+        Inventory inv = Bukkit.createInventory(new AdminClaimHolder(), 36,
+                TextUtil.format("<gradient:#00c6ff:#0072ff><b>🛡 Offline Shield Settings</b></gradient>"));
+
+        double chargeRate = settingsManager.getDouble("shield.charge_rate", 2.0);
+        double maxMinutes = settingsManager.getDouble("shield.max_minutes", 1080.0);
+        double drainMultiplier = settingsManager.getDouble("shield.drain_multiplier", 1.0);
+        int activationDelay = settingsManager.getInt("shield.activation_delay_sec", 10);
+
+        fillBorder36(inv, Material.CYAN_STAINED_GLASS_PANE);
+
+        inv.setItem(10, new GUIItemBuilder(Material.CLOCK)
+                .name("<yellow><b>Charge Rate: " + String.format("%.1f", chargeRate) + " min per member</b></yellow>")
+                .lore("<gray>▪ Shield minutes earned per online member per minute</gray>", "", "<yellow>▶ Click to edit value in chat</yellow>").build());
+
+        inv.setItem(11, new GUIItemBuilder(Material.END_CRYSTAL)
+                .name("<gold><b>Max Shield: " + String.format("%.0f", maxMinutes) + " minutes (" + String.format("%.1f", maxMinutes / 60) + "h)</b></gold>")
+                .lore("<gray>▪ Maximum shield charge storage capacity</gray>", "", "<yellow>▶ Click to edit value in chat</yellow>").build());
+
+        inv.setItem(12, new GUIItemBuilder(Material.HOPPER)
+                .name("<red><b>Drain Speed: " + String.format("%.1f", drainMultiplier) + "x</b></red>")
+                .lore("<gray>▪ Multiplier for shield drain speed while active</gray>", "", "<yellow>▶ Click to edit value in chat</yellow>").build());
+
+        inv.setItem(13, new GUIItemBuilder(Material.REPEATER)
+                .name("<yellow><b>Activation Delay: " + activationDelay + " seconds</b></yellow>")
+                .lore("<gray>▪ Delay after last member logs off before shield activates</gray>", "", "<yellow>▶ Click to edit value in chat</yellow>").build());
+
+        inv.setItem(16, new GUIItemBuilder(Material.PAPER)
+                .name("<gray><b>Shield Info</b></gray>")
+                .lore(
+                        "<gray>▪ Shield accumulates while members are ONLINE</gray>",
+                        "<gray>▪ Activates when ALL members go OFFLINE</gray>",
+                        "<gray>▪ Drains in real-time while active</gray>",
+                        "<gray>▪ When depleted, territory becomes raidable</gray>"
+                ).build());
+
+        inv.setItem(31, new GUIItemBuilder(Material.BARRIER).name("<red><b>◀ Return to High Sovereign Panel</b></red>").build());
+        player.openInventory(inv);
+    }
+
+    /**
+     * Opens the Raid Tag & Combat Log admin settings page.
+     */
+    public void openAdminRaidTagSettings(Player player) {
+        Inventory inv = Bukkit.createInventory(new AdminClaimHolder(), 36,
+                TextUtil.format("<gradient:#FF416C:#FF4B2B><b>🏷 Raid Tag & Combat Log Settings</b></gradient>"));
+
+        int exitCountdown = settingsManager.getInt("raidtag.exit_countdown_sec", 30);
+        int disconnectTimer = settingsManager.getInt("raidtag.disconnect_timer_sec", 60);
+        boolean disableCommands = settingsManager.getBoolean("raidtag.disable_commands", true);
+        boolean allowCobweb = settingsManager.getBoolean("raidtag.allow_cobweb", true);
+        boolean dropInventory = settingsManager.getBoolean("raidtag.drop_inv_on_expire", true);
+        boolean awardKillCredit = settingsManager.getBoolean("raidtag.award_kill_credit", true);
+
+        fillBorder36(inv, Material.RED_STAINED_GLASS_PANE);
+
+        inv.setItem(10, new GUIItemBuilder(Material.CLOCK)
+                .name("<yellow><b>Exit Countdown: " + exitCountdown + " seconds</b></yellow>")
+                .lore("<gray>▪ Time to escape territory before tag expires</gray>", "", "<yellow>▶ Click to edit value in chat</yellow>").build());
+
+        inv.setItem(11, new GUIItemBuilder(Material.SKELETON_SKULL)
+                .name("<red><b>Combat Log Timer: " + disconnectTimer + " seconds</b></red>")
+                .lore("<gray>▪ Time before combat log penalty triggers</gray>", "", "<yellow>▶ Click to edit value in chat</yellow>").build());
+
+        inv.setItem(12, new GUIItemBuilder(Material.COMMAND_BLOCK)
+                .name("<yellow><b>Disable Commands: " + (disableCommands ? "<gradient:#FF416C:#FF4B2B>[✖ BLOCKED]</gradient>" : "<gradient:#00FF87:#60EFFF>[✔ ALLOWED]</gradient>") + "</b></yellow>")
+                .lore("<gray>▪ Block non-whitelisted commands while raid tagged</gray>", "", "<yellow>▶ Click to toggle setting</yellow>").build());
+
+        inv.setItem(13, new GUIItemBuilder(Material.COBWEB)
+                .name("<yellow><b>Allow Cobweb: " + (allowCobweb ? "<gradient:#00FF87:#60EFFF>[✔ ALLOWED]</gradient>" : "<gradient:#FF416C:#FF4B2B>[✖ BLOCKED]</gradient>") + "</b></yellow>")
+                .lore("<gray>▪ Allow raid-tagged players to place cobwebs</gray>", "", "<yellow>▶ Click to toggle setting</yellow>").build());
+
+        inv.setItem(14, new GUIItemBuilder(Material.CHEST)
+                .name("<yellow><b>Drop Inventory: " + (dropInventory ? "<gradient:#00FF87:#60EFFF>[✔ ENABLED]</gradient>" : "<gradient:#FF416C:#FF4B2B>[✖ DISABLED]</gradient>") + "</b></yellow>")
+                .lore("<gray>▪ Drop player inventory on combat log expiry</gray>", "", "<yellow>▶ Click to toggle setting</yellow>").build());
+
+        inv.setItem(15, new GUIItemBuilder(Material.DIAMOND_SWORD)
+                .name("<yellow><b>Award Kill Credit: " + (awardKillCredit ? "<gradient:#00FF87:#60EFFF>[✔ ENABLED]</gradient>" : "<gradient:#FF416C:#FF4B2B>[✖ DISABLED]</gradient>") + "</b></yellow>")
+                .lore("<gray>▪ Award kill credit to last damager on combat log</gray>", "", "<yellow>▶ Click to toggle setting</yellow>").build());
+
+        inv.setItem(31, new GUIItemBuilder(Material.BARRIER).name("<red><b>◀ Return to High Sovereign Panel</b></red>").build());
+        player.openInventory(inv);
+    }
+
+    /**
+     * Opens the Raid Tool Config admin settings page.
+     */
+    public void openAdminRaidToolSettings(Player player) {
+        Inventory inv = Bukkit.createInventory(new AdminClaimHolder(), 54,
+                TextUtil.format("<gradient:#C0C0C0:#E0E0E0><b>🔑 Raid Tool Configuration</b></gradient>"));
+
+        fillBorder54(inv, Material.LIGHT_GRAY_STAINED_GLASS_PANE);
+
+        // Lock Pick Settings
+        int weakChance = settingsManager.getInt("lockpick.weak.chance", 10);
+        int weakDurability = settingsManager.getInt("lockpick.weak.durability", 5);
+        int normalChance = settingsManager.getInt("lockpick.normal.chance", 20);
+        int normalDurability = settingsManager.getInt("lockpick.normal.durability", 10);
+        int fastChance = settingsManager.getInt("lockpick.fast.chance", 75);
+        int fastDurability = settingsManager.getInt("lockpick.fast.durability", 1);
+        int reinforcedChance = settingsManager.getInt("lockpick.reinforced.chance", 20);
+        int reinforcedDurability = settingsManager.getInt("lockpick.reinforced.durability", 45);
+        int reinforcedSaveChance = settingsManager.getInt("lockpick.reinforced.save_chance", 15);
+
+        inv.setItem(10, new GUIItemBuilder(Material.IRON_NUGGET)
+                .name("<gray><b>Weak Lock Pick</b></gray>")
+                .lore(
+                        "<gray>▪ Success: <yellow>" + weakChance + "%</yellow></gray>",
+                        "<gray>▪ Durability: <white>" + weakDurability + " uses</white></gray>",
+                        "",
+                        "<yellow>▶ Left-Click to edit success %</yellow>",
+                        "<yellow>▶ Right-Click to edit durability</yellow>"
+                ).build());
+
+        inv.setItem(11, new GUIItemBuilder(Material.IRON_INGOT)
+                .name("<white><b>Normal Lock Pick</b></white>")
+                .lore(
+                        "<gray>▪ Success: <yellow>" + normalChance + "%</yellow></gray>",
+                        "<gray>▪ Durability: <white>" + normalDurability + " uses</white></gray>",
+                        "",
+                        "<yellow>▶ Left-Click to edit success %</yellow>",
+                        "<yellow>▶ Right-Click to edit durability</yellow>"
+                ).build());
+
+        inv.setItem(12, new GUIItemBuilder(Material.GOLD_INGOT)
+                .name("<gold><b>Fast Lock Pick</b></gold>")
+                .lore(
+                        "<gray>▪ Success: <yellow>" + fastChance + "%</yellow></gray>",
+                        "<gray>▪ Durability: <white>" + fastDurability + " use</white></gray>",
+                        "",
+                        "<yellow>▶ Left-Click to edit success %</yellow>",
+                        "<yellow>▶ Right-Click to edit durability</yellow>"
+                ).build());
+
+        inv.setItem(13, new GUIItemBuilder(Material.NETHERITE_INGOT)
+                .name("<light_purple><b>Reinforced Lock Pick</b></light_purple>")
+                .lore(
+                        "<gray>▪ Success: <yellow>" + reinforcedChance + "%</yellow></gray>",
+                        "<gray>▪ Durability: <white>" + reinforcedDurability + " uses</white></gray>",
+                        "<gray>▪ Save Chance: <light_purple>" + reinforcedSaveChance + "%</light_purple></gray>",
+                        "",
+                        "<yellow>▶ Left-Click to edit success %</yellow>",
+                        "<yellow>▶ Right-Click to edit durability</yellow>",
+                        "<yellow>▶ Shift-Click to edit save chance</yellow>"
+                ).build());
+
+        // Raid TNT Settings
+        double tntFuse = settingsManager.getDouble("raidtnt.fuse_seconds", 3.0);
+        double tntPower = settingsManager.getDouble("raidtnt.explosion_power", 2.0);
+        double tntPlayerDamage = settingsManager.getDouble("raidtnt.player_damage", 0.0);
+
+        inv.setItem(19, new GUIItemBuilder(Material.TNT)
+                .name("<red><b>Raid TNT</b></red>")
+                .lore(
+                        "<gray>▪ Fuse: <yellow>" + String.format("%.1f", tntFuse) + "s</yellow></gray>",
+                        "<gray>▪ Explosion Power: <yellow>" + String.format("%.1f", tntPower) + "</yellow></gray>",
+                        "<gray>▪ Player Damage: <yellow>" + String.format("%.1f", tntPlayerDamage) + "x</yellow></gray>",
+                        "",
+                        "<yellow>▶ Left-Click to edit fuse</yellow>",
+                        "<yellow>▶ Right-Click to edit power</yellow>"
+                ).build());
+
+        // Charged Creeper Settings
+        double creeperFuse = settingsManager.getDouble("creeper.fuse_seconds", 3.0);
+        double creeperPower = settingsManager.getDouble("creeper.explosion_power", 3.0);
+        double creeperPlayerDamage = settingsManager.getDouble("creeper.player_damage", 0.0);
+
+        inv.setItem(20, new GUIItemBuilder(Material.CREEPER_SPAWN_EGG)
+                .name("<green><b>Charged Creeper Egg</b></green>")
+                .lore(
+                        "<gray>▪ Fuse: <yellow>" + String.format("%.1f", creeperFuse) + "s</yellow></gray>",
+                        "<gray>▪ Explosion Power: <yellow>" + String.format("%.1f", creeperPower) + "</yellow></gray>",
+                        "<gray>▪ Player Damage: <yellow>" + String.format("%.1f", creeperPlayerDamage) + "x</yellow></gray>",
+                        "",
+                        "<yellow>▶ Left-Click to edit fuse</yellow>",
+                        "<yellow>▶ Right-Click to edit power</yellow>"
+                ).build());
+
+        inv.setItem(49, new GUIItemBuilder(Material.BARRIER).name("<red><b>◀ Return to High Sovereign Panel</b></red>").build());
+        player.openInventory(inv);
+    }
+
+    /**
+     * Fills a 36-slot inventory border.
+     */
+    private void fillBorder36(Inventory inv, Material borderPane) {
+        for (int i = 0; i < 36; i++) {
+            if (i < 9 || i >= 27 || i % 9 == 0 || i % 9 == 8) {
+                inv.setItem(i, new GUIItemBuilder(borderPane).name("<gray> </gray>").build());
+            }
+        }
+    }
     public void openAdminRequestSettings(Player player) {
         Inventory inv = Bukkit.createInventory(new com.guildcore.gui.holders.AdminRequestHolder(), 27, TextUtil.format("<gradient:#FFD700:#FFA500><b>⌛ Request & Trade Timers</b></gradient>"));
         int tpaExpire = settingsManager.getInt("requests.tpa-expire-seconds", 60);
@@ -283,7 +582,7 @@ public class GUIManager {
 
     public void openAdminClaimSettings(Player player) {
         Inventory inv = Bukkit.createInventory(new AdminClaimHolder(), 27, TextUtil.format("<gradient:#11998e:#38ef7d><b>🏠 Domain & Realm Settings</b></gradient>"));
-        
+
         String mode = settingsManager.getString("claims.cost.mode", "SCALER");
         long baseCoins = settingsManager.getLong("claims.map.cost_coins", 500);
         int baseLvl = settingsManager.getInt("claims.map.cost_xp_levels", 2);

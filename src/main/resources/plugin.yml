@@ -1,9 +1,9 @@
 name: GuildCore
-version: '1.0.0'
+version: '6.0.0'
 main: com.guildcore.GuildCorePlugin
 api-version: '1.21'
-author: Antigravity
-description: Dual-compatible, combat-hardened all-in-one team, teleportation, trade, crates, shop & economy plugin for Paper, Folia, Spigot, and Bukkit 1.21.11
+author: Nov4saki , _YSF
+description: Dual-compatible, combat-hardened all-in-one team, territory warfare, teleportation, trade, crates, shop & economy plugin for Paper, Folia, Spigot, and Bukkit 1.21+
 folia-supported: true
 
 commands:
@@ -23,7 +23,7 @@ commands:
   unclaim:
     description: Unclaim the current chunk
   guild:
-    description: Guild management system
+    description: Guild management system with core placement and territory warfare
     aliases: [team, g, t, teams]
   tc:
     description: Send guild chat message
@@ -97,4 +97,13 @@ permissions:
     default: true
   guildcore.home.bypasscooldown:
     description: Bypass cooldown for guild home teleports
+    default: op
+  guildcore.auction.limit.op:
+    description: Unlimited auction listings
+    default: op
+  guildcore.auction.duration.op:
+    description: Maximum auction listing duration
+    default: op
+  guildcore.shop.limit.op:
+    description: Unlimited shop transaction quantity
     default: op
