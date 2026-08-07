@@ -133,16 +133,21 @@ public class GuildCoreManager {
         if (world != null) {
             Location coreLoc = new Location(world, core.getX(), core.getY(), core.getZ());
 
+            // Break chest block
+            coreLoc.getBlock().setType(Material.AIR);
+
             // Remove armor stand
             if (core.getArmorStandUuid() != null) {
-                for (Entity entity : world.getNearbyEntities(
-                        coreLoc.clone().add(0.5, 0.5, 0.5), 2, 2, 2)) {
-                    if (entity instanceof ArmorStand &&
-                            entity.getUniqueId().equals(core.getArmorStandUuid())) {
-                        entity.remove();
-                        break;
+                try {
+                    for (Entity entity : world.getNearbyEntities(
+                            coreLoc.clone().add(0.5, 0.5, 0.5), 3, 3, 3)) {
+                        if (entity instanceof ArmorStand &&
+                                entity.getUniqueId().equals(core.getArmorStandUuid())) {
+                            entity.remove();
+                            break;
+                        }
                     }
-                }
+                } catch (Exception ignored) {}
             }
 
             if (destroyed) {
@@ -153,7 +158,9 @@ public class GuildCoreManager {
                         30, 0.5, 1.0, 0.5, 0.02);
                 world.strikeLightningEffect(coreLoc.clone().add(0.5, 0, 0.5));
 
-                claimManager.removeAllTeamClaims(teamId);
+                if (claimManager != null) {
+                    claimManager.removeAllTeamClaims(teamId);
+                }
 
                 if (team != null) {
                     teamManager.broadcastToTeam(teamId, TextUtil.format(
@@ -400,24 +407,34 @@ public class GuildCoreManager {
         World world = Bukkit.getWorld(core.getWorld());
         if (world == null) return;
 
-        Team team = teamManager.getTeam(core.getTeamId());
-        String teamName = team != null ? team.getName() : "Guild";
-
         Location loc = new Location(world, core.getX() + 0.5, core.getY() + 1.2, core.getZ() + 0.5);
-        for (Entity entity : world.getNearbyEntities(loc, 2, 2, 2)) {
-            if (entity instanceof ArmorStand stand && entity.getUniqueId().equals(core.getArmorStandUuid())) {
-                if (stand.getLocation().distanceSquared(loc) > 0.01) {
-                    stand.teleportAsync(loc);
-                }
-                stand.customName(TextUtil.format(
-                        "<gradient:#FFD700:#FFA500><b>⚔ " + teamName + " Guild Core</b></gradient> <gray>[" +
-                                getHpColor(core.getCurrentHp(), core.getMaxHp()) + core.getCurrentHp() + "/" + core.getMaxHp() + "</" +
-                                getHpColorTag(core.getCurrentHp(), core.getMaxHp()) + ">] (T" + core.getTier() + ")</gray>"
-                ));
-                stand.setCustomNameVisible(true);
-                break;
-            }
+        if (scheduler != null) {
+            scheduler.runSync(loc, () -> applyHologramUpdate(core, world, loc));
+        } else {
+            applyHologramUpdate(core, world, loc);
         }
+    }
+
+    private void applyHologramUpdate(GuildCoreBlock core, World world, Location loc) {
+        try {
+            Team team = teamManager.getTeam(core.getTeamId());
+            String teamName = team != null ? team.getName() : "Guild";
+
+            for (Entity entity : world.getNearbyEntities(loc, 3, 3, 3)) {
+                if (entity instanceof ArmorStand stand && entity.getUniqueId().equals(core.getArmorStandUuid())) {
+                    if (stand.getLocation().distanceSquared(loc) > 0.01) {
+                        stand.teleportAsync(loc);
+                    }
+                    stand.customName(TextUtil.format(
+                            "<gradient:#FFD700:#FFA500><b>⚔ " + teamName + " Guild Core</b></gradient> <gray>[" +
+                                    getHpColor(core.getCurrentHp(), core.getMaxHp()) + core.getCurrentHp() + "/" + core.getMaxHp() + "</" +
+                                    getHpColorTag(core.getCurrentHp(), core.getMaxHp()) + ">] (T" + core.getTier() + ")</gray>"
+                    ));
+                    stand.setCustomNameVisible(true);
+                    break;
+                }
+            }
+        } catch (Exception ignored) {}
     }
 
     public void refreshAllCoreDisplays() {

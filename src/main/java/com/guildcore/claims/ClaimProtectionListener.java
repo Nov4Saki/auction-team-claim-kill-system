@@ -51,6 +51,29 @@ public class ClaimProtectionListener implements Listener {
     public void setGuildCoreManager(GuildCoreManager guildCoreManager) { this.guildCoreManager = guildCoreManager; }
     public void setRaidItemManager(com.guildcore.raiditems.RaidItemManager raidItemManager) { this.raidItemManager = raidItemManager; }
 
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
+    public void onCobwebPlaceEarly(BlockPlaceEvent event) {
+        if (event.getBlock().getType() == Material.COBWEB || event.getItemInHand().getType() == Material.COBWEB) {
+            event.setCancelled(false);
+        }
+    }
+
+    private boolean isHoldingRaidItem(Player player, PlayerInteractEvent event) {
+        if (raidItemManager == null || player == null) return false;
+        if (raidItemManager.isRaidItem(player.getInventory().getItemInMainHand())) return true;
+        if (raidItemManager.isRaidItem(player.getInventory().getItemInOffHand())) return true;
+        if (event != null && raidItemManager.isRaidItem(event.getItem())) return true;
+        return false;
+    }
+
+    private boolean isHoldingRaidItemPlace(Player player, BlockPlaceEvent event) {
+        if (raidItemManager == null || player == null) return false;
+        if (raidItemManager.isRaidItem(player.getInventory().getItemInMainHand())) return true;
+        if (raidItemManager.isRaidItem(player.getInventory().getItemInOffHand())) return true;
+        if (event != null && raidItemManager.isRaidItem(event.getItemInHand())) return true;
+        return false;
+    }
+
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onBlockBreak(BlockBreakEvent event) {
         Player player = event.getPlayer();
@@ -100,7 +123,7 @@ public class ClaimProtectionListener implements Listener {
         }
 
         // Raid item bypass - placement & usage is handled by raid listeners
-        if (raidItemManager != null && raidItemManager.isRaidItem(player.getInventory().getItemInMainHand())) {
+        if (isHoldingRaidItemPlace(player, event)) {
             return;
         }
 
@@ -142,7 +165,7 @@ public class ClaimProtectionListener implements Listener {
         if (claimChestManager.isClaimChest(clicked.getLocation())) return;
 
         // Raid item bypass - lock picks, sledge hammers, charged creepers, raid tnt
-        if (raidItemManager != null && raidItemManager.isRaidItem(player.getInventory().getItemInMainHand())) {
+        if (isHoldingRaidItem(player, event)) {
             return;
         }
 

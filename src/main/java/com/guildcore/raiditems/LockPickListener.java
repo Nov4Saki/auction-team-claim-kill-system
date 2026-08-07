@@ -52,7 +52,13 @@ public class LockPickListener implements Listener {
         if (event.getClickedBlock() == null) return;
 
         Player player = event.getPlayer();
-        ItemStack item = player.getInventory().getItemInMainHand();
+        ItemStack item = event.getItem();
+        if (item == null || !raidItemManager.isRaidItem(item)) {
+            item = player.getInventory().getItemInMainHand();
+            if (!raidItemManager.isRaidItem(item)) {
+                item = player.getInventory().getItemInOffHand();
+            }
+        }
         RaidItemManager.RaidItemType type = raidItemManager.getRaidItemType(item);
         if (type == null) return;
 

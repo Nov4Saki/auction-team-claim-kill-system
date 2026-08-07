@@ -69,7 +69,13 @@ public class RaidTNTListener implements Listener {
         if (event.getClickedBlock() == null) return;
 
         Player player = event.getPlayer();
-        ItemStack item = player.getInventory().getItemInMainHand();
+        ItemStack item = event.getItem();
+        if (item == null || raidItemManager.getRaidItemType(item) != RaidItemManager.RaidItemType.RAID_TNT) {
+            item = player.getInventory().getItemInMainHand();
+            if (raidItemManager.getRaidItemType(item) != RaidItemManager.RaidItemType.RAID_TNT) {
+                item = player.getInventory().getItemInOffHand();
+            }
+        }
         RaidItemManager.RaidItemType type = raidItemManager.getRaidItemType(item);
         if (type != RaidItemManager.RaidItemType.RAID_TNT) return;
 
