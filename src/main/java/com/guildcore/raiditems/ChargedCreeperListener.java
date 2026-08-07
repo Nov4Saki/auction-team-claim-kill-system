@@ -110,8 +110,8 @@ public class ChargedCreeperListener implements Listener {
         final int finalTeamId = defendingTeamId;
         Creeper creeper = clicked.getWorld().spawn(spawnLoc, Creeper.class, c -> {
             c.setPowered(true);
-            c.setFuseTicks((int) (fuseSeconds * 20));
             c.setMaxFuseTicks((int) (fuseSeconds * 20));
+            c.setFuseTicks((int) (fuseSeconds * 20));
             c.setAI(false);
             c.setInvulnerable(true);
             c.setSilent(true);

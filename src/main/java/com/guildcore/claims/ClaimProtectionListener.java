@@ -23,6 +23,7 @@ import org.bukkit.event.block.BlockExplodeEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityChangeBlockEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 
@@ -187,6 +188,20 @@ public class ClaimProtectionListener implements Listener {
                 if (!globalClaimPvp || !claim.hasFlag("pvp")) {
                     event.setCancelled(true);
                     attacker.sendActionBar(Component.text("🛡 PvP is disabled in claimed territory!", NamedTextColor.RED));
+                }
+            }
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onExplosionDamage(EntityDamageEvent event) {
+        if (event.getEntity() instanceof Player) {
+            EntityDamageEvent.DamageCause cause = event.getCause();
+            if (cause == EntityDamageEvent.DamageCause.BLOCK_EXPLOSION ||
+                    cause == EntityDamageEvent.DamageCause.ENTITY_EXPLOSION) {
+                boolean allowDamage = settingsManager.getBoolean("explosions.damage_players", false);
+                if (!allowDamage) {
+                    event.setCancelled(true);
                 }
             }
         }

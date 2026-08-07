@@ -41,14 +41,8 @@ public class ClaimChestListener implements Listener {
         // Cancel vanilla placement immediately
         event.setCancelled(true);
 
-        // Get the block where the chest would be placed (the air block the player targeted)
+        // Get the block where the chest would be placed
         Block chestLocation = event.getBlock();
-
-        // Make sure it's air
-        if (!chestLocation.getType().isAir()) {
-            player.sendMessage(TextUtil.format("<red>✖ Cannot place Claim Chest here!</red>"));
-            return;
-        }
 
         if (claimChestManager.placeClaimChest(player, chestLocation)) {
             itemInHand.setAmount(itemInHand.getAmount() - 1);

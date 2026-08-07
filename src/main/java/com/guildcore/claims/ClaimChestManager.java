@@ -104,12 +104,12 @@ public class ClaimChestManager {
 
             // Hide all vanilla attributes
             meta.setAttributeModifiers(null);
+
+            // Tag the item with PDC before setItemMeta
+            meta.getPersistentDataContainer().set(CLAIM_CHEST_KEY, org.bukkit.persistence.PersistentDataType.BOOLEAN, true);
+
             item.setItemMeta(meta);
         }
-
-        // Tag the item
-        var container = item.getItemMeta().getPersistentDataContainer();
-        container.set(CLAIM_CHEST_KEY, org.bukkit.persistence.PersistentDataType.BOOLEAN, true);
 
         return item;
     }
@@ -188,19 +188,15 @@ public class ClaimChestManager {
             return false;
         }
 
-        // Check if block is suitable
-        Block above = block.getRelative(BlockFace.UP);
-        if (!block.getType().isSolid()) {
+        // Check if block underneath is solid
+        Block floor = block.getRelative(BlockFace.DOWN);
+        if (!floor.getType().isSolid()) {
             player.sendMessage(TextUtil.format("<red>✖ You must place the chest on top of a solid block!</red>"));
-            return false;
-        }
-        if (!above.getType().isAir()) {
-            player.sendMessage(TextUtil.format("<red>✖ There must be air above the placement location!</red>"));
             return false;
         }
 
         // Check distance from other claim chests
-        Location loc = above.getLocation();
+        Location loc = block.getLocation();
         for (String existingKey : placedChests.values()) {
             String[] parts = existingKey.split(":");
             if (parts.length == 4 && parts[0].equals(loc.getWorld().getName())) {
@@ -215,11 +211,11 @@ public class ClaimChestManager {
             }
         }
 
-        // Place the chest
-        above.setType(Material.CHEST);
+        // Place the chest at the targeted block
+        block.setType(Material.CHEST);
 
         // Spawn invisible armor stand inside chest for hitbox
-        Location standLoc = above.getLocation().clone().add(0.5, 0.5, 0.5);
+        Location standLoc = loc.clone().add(0.5, 0.5, 0.5);
         ArmorStand stand = (ArmorStand) loc.getWorld().spawnEntity(standLoc, EntityType.ARMOR_STAND);
         stand.setInvisible(true);
         stand.setInvulnerable(true);
@@ -241,11 +237,11 @@ public class ClaimChestManager {
         chestStands.put(locKey, stand.getUniqueId());
 
         // Create initial claim on this chunk
-        claimManager.createTeamClaim(player.getUniqueId(), team.getId(), above.getChunk());
+        claimManager.createTeamClaim(player.getUniqueId(), team.getId(), block.getChunk());
 
         // Register with guild core manager
         if (guildCoreManager != null) {
-            guildCoreManager.placeCoreForChest(team.getId(), above.getLocation());
+            guildCoreManager.placeCoreForChest(team.getId(), loc);
         }
 
         // Save to DB
