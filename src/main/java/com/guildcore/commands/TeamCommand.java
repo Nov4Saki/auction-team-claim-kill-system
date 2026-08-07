@@ -259,6 +259,16 @@ public class TeamCommand implements TabExecutor {
             return true;
         }
 
+        // lockpickconfig / lockpick
+        if (sub.equals("lockpickconfig") || sub.equals("lockpick")) {
+            if (!player.hasPermission("guildcore.admin") && !player.isOp()) {
+                player.sendMessage(TextUtil.format("<red>✖ Only administrators can configure lock pick container permissions!</red>"));
+                return true;
+            }
+            guiManager.openLockpickConfigGUI(player);
+            return true;
+        }
+
         // promote
         if (sub.equals("promote")) {
             if (args.length < 2) {

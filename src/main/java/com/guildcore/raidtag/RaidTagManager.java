@@ -17,6 +17,7 @@ import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
+import org.bukkit.block.Block;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
@@ -302,19 +303,24 @@ public class RaidTagManager implements Listener {
         RaidTagState state = taggedPlayers.get(player.getUniqueId());
         if (state == null) return;
 
-        // Allow cobweb in raided claim
+        Block block = event.getBlock();
+        Chunk chunk = block.getChunk();
+        ClaimInfo claim = claimManager.getClaimAt(chunk);
+
+        // Allow block placement if OUTSIDE of any team claim (in wilderness/unclaimed territory)
+        if (claim == null || !claim.isTeamClaim()) {
+            return;
+        }
+
+        // Allow cobweb placement
         if (settingsManager.getBoolean("raidtag.allow_cobweb", true)) {
-            if (event.getBlock().getType() == Material.COBWEB) {
-                ClaimInfo claim = claimManager.getClaimAt(event.getBlock().getChunk());
-                if (claim != null && claim.isTeamClaim() && claim.getTeamId() != null &&
-                        claim.getTeamId() == state.defendingTeamId) {
-                    return; // Allow cobweb placement
-                }
+            if (block.getType() == Material.COBWEB) {
+                return;
             }
         }
 
         event.setCancelled(true);
-        player.sendActionBar(TextUtil.format("<red>You cannot place blocks while raid tagged!</red>"));
+        player.sendActionBar(TextUtil.format("<red>You cannot place blocks in claimed territory while raid tagged!</red>"));
     }
 
     @EventHandler(priority = EventPriority.MONITOR)

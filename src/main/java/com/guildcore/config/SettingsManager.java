@@ -87,4 +87,31 @@ public class SettingsManager {
             }
         });
     }
+
+    public boolean isContainerLockpickProhibited(org.bukkit.Material mat) {
+        if (mat == null) return false;
+        String val = getString("lockpick.prohibited_containers", "");
+        if (val.isEmpty()) return false;
+        for (String s : val.split(",")) {
+            if (s.trim().equalsIgnoreCase(mat.name())) return true;
+        }
+        return false;
+    }
+
+    public void toggleLockpickProhibitedContainer(org.bukkit.Material mat) {
+        if (mat == null) return;
+        String val = getString("lockpick.prohibited_containers", "");
+        java.util.Set<String> set = new java.util.HashSet<>();
+        if (!val.isEmpty()) {
+            for (String s : val.split(",")) {
+                if (!s.trim().isEmpty()) set.add(s.trim().toUpperCase());
+            }
+        }
+        if (set.contains(mat.name())) {
+            set.remove(mat.name());
+        } else {
+            set.add(mat.name());
+        }
+        set("lockpick.prohibited_containers", String.join(",", set));
+    }
 }

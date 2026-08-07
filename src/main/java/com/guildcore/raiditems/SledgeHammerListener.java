@@ -24,13 +24,19 @@ import org.bukkit.inventory.ItemStack;
 // FILE: src/main/java/com/guildcore/raiditems/SledgeHammerListener.java
 // Only showing modified parts - add teamManager field and own team check
 
+import com.guildcore.claims.ClaimChestManager;
+import org.bukkit.block.Block;
+import org.bukkit.event.block.Action;
+import org.bukkit.event.player.PlayerInteractEvent;
+
 public class SledgeHammerListener implements Listener {
     private final RaidItemManager raidItemManager;
     private final GuildCoreManager guildCoreManager;
     private final OfflineShieldManager offlineShieldManager;
     private final SettingsManager settingsManager;
     private RaidTagManager raidTagManager;
-    private TeamManager teamManager; // ADD THIS
+    private TeamManager teamManager;
+    private ClaimChestManager claimChestManager;
 
     public SledgeHammerListener(RaidItemManager raidItemManager, GuildCoreManager guildCoreManager,
                                 OfflineShieldManager offlineShieldManager, SettingsManager settingsManager) {
@@ -41,7 +47,34 @@ public class SledgeHammerListener implements Listener {
     }
 
     public void setRaidTagManager(RaidTagManager raidTagManager) { this.raidTagManager = raidTagManager; }
-    public void setTeamManager(TeamManager teamManager) { this.teamManager = teamManager; } // ADD THIS
+    public void setTeamManager(TeamManager teamManager) { this.teamManager = teamManager; }
+    public void setClaimChestManager(ClaimChestManager claimChestManager) { this.claimChestManager = claimChestManager; }
+
+    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = false)
+    public void onPlayerInteract(PlayerInteractEvent event) {
+        if (event.getAction() != Action.LEFT_CLICK_BLOCK && event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
+        if (event.getClickedBlock() == null) return;
+
+        Player player = event.getPlayer();
+        ItemStack item = player.getInventory().getItemInMainHand();
+        RaidItemManager.RaidItemType type = raidItemManager.getRaidItemType(item);
+        if (type != RaidItemManager.RaidItemType.SLEDGE_HAMMER) return;
+
+        Block block = event.getClickedBlock();
+        GuildCoreBlock targetCore = guildCoreManager.getCoreAtLocation(block.getLocation());
+
+        if (targetCore == null && claimChestManager != null && claimChestManager.isClaimChest(block.getLocation())) {
+            int teamId = claimChestManager.getChestTeamId(block.getLocation());
+            if (teamId > 0) {
+                targetCore = guildCoreManager.getCoreForTeam(teamId);
+            }
+        }
+
+        if (targetCore == null) return;
+
+        event.setCancelled(true);
+        handleSledgeHammerHit(player, item, targetCore);
+    }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = false)
     public void onEntityDamage(EntityDamageByEntityEvent event) {
@@ -62,7 +95,10 @@ public class SledgeHammerListener implements Listener {
 
         if (targetCore == null) return;
         event.setCancelled(true);
+        handleSledgeHammerHit(player, item, targetCore);
+    }
 
+    private void handleSledgeHammerHit(Player player, ItemStack item, GuildCoreBlock targetCore) {
         // Check if own team
         if (teamManager != null) {
             Team playerTeam = teamManager.getPlayerTeam(player.getUniqueId());
@@ -87,6 +123,10 @@ public class SledgeHammerListener implements Listener {
         }
 
         player.playSound(player.getLocation(), Sound.BLOCK_ANVIL_LAND, 1.0f, 0.8f);
+        GuildCoreBlock updated = guildCoreManager.getCoreForTeam(targetCore.getTeamId());
+        int curHp = updated != null ? updated.getCurrentHp() : 0;
+        player.sendActionBar(TextUtil.format("<red>🔨 Sledge Hammer dealt " + damage + " damage to the Guild Core! [" +
+                curHp + "/" + targetCore.getMaxHp() + " HP]</red>"));
 
         DebugManager.log(DebugFlag.RAID_ITEMS, player.getName() + " sledge-hammered core of team " +
                 targetCore.getTeamId() + " for " + damage + " damage");

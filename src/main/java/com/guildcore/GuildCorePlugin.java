@@ -221,6 +221,7 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
         SledgeHammerListener sledgeHammerListener = new SledgeHammerListener(raidItemManager, guildCoreManager, offlineShieldManager, settingsManager);
         sledgeHammerListener.setRaidTagManager(raidTagManager);
         sledgeHammerListener.setTeamManager(teamManager);
+        sledgeHammerListener.setClaimChestManager(claimChestManager);
         pm.registerEvents(sledgeHammerListener, this);
 
         RaidTNTListener raidTNTListener = new RaidTNTListener(raidItemManager, claimManager, guildCoreManager, offlineShieldManager, settingsManager, scheduler);

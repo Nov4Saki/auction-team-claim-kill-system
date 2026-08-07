@@ -94,6 +94,12 @@ public class LockPickListener implements Listener {
 
         Material blockType = clicked.getType();
 
+        // Check if container type is prohibited by admin configuration
+        if (settingsManager.isContainerLockpickProhibited(blockType)) {
+            player.sendActionBar(TextUtil.format("<red>🚫 Lock picks are prohibited on " + blockType.name() + "!</red>"));
+            return;
+        }
+
         if (isContainer(blockType)) {
             if (success) {
                 player.playSound(player.getLocation(), Sound.BLOCK_IRON_DOOR_OPEN, 1.0f, 1.5f);

@@ -169,9 +169,15 @@ public class RaidTNTListener implements Listener {
             it.remove();
 
             if (transformed != null) {
-                final Block targetBlock = block;
-                final Material targetMat = transformed;
-                scheduler.runSync(block.getLocation(), () -> targetBlock.setType(targetMat));
+                block.setType(transformed);
+                World w = block.getWorld();
+                Location loc = block.getLocation();
+                if (transformed != Material.AIR) {
+                    w.spawnParticle(Particle.BLOCK_CRUMBLE, loc.clone().add(0.5, 0.5, 0.5), 12, 0.3, 0.3, 0.3, transformed.createBlockData());
+                    w.playSound(loc, Sound.BLOCK_STONE_BREAK, 0.8f, 0.9f);
+                } else {
+                    w.spawnParticle(Particle.BLOCK_CRUMBLE, loc.clone().add(0.5, 0.5, 0.5), 8, 0.3, 0.3, 0.3, blockType.createBlockData());
+                }
             }
         }
 
@@ -208,12 +214,17 @@ public class RaidTNTListener implements Listener {
     }
 
     private Material getTransformation(Material type) {
-        return switch (type) {
-            case REINFORCED_DEEPSLATE -> Material.OBSIDIAN;
-            case OBSIDIAN -> Material.CRYING_OBSIDIAN;
-            case CRYING_OBSIDIAN -> Material.COBBLESTONE;
-            case COBBLESTONE -> Material.AIR;
-            default -> Material.AIR;
-        };
+        if (type == null || type.isAir()) return null;
+        String name = type.name();
+
+        if (type == Material.REINFORCED_DEEPSLATE) return Material.OBSIDIAN;
+        if (type == Material.OBSIDIAN) return Material.CRYING_OBSIDIAN;
+        if (type == Material.CRYING_OBSIDIAN) return Material.COBBLESTONE;
+        if (name.contains("DEEPSLATE") && !name.contains("COBBLED")) return Material.COBBLED_DEEPSLATE;
+        if (type == Material.COBBLED_DEEPSLATE) return Material.AIR;
+        if (name.contains("STONE_BRICK") || name.contains("SMOOTH_STONE") || type == Material.STONE) return Material.COBBLESTONE;
+        if (type == Material.COBBLESTONE) return Material.AIR;
+
+        return Material.AIR;
     }
 }

@@ -146,6 +146,23 @@ public class GUIClickListener implements Listener {
         if (holder == null) return;
         if (!(event.getWhoClicked() instanceof Player player)) return;
 
+        // === LOCKPICK CONFIG GUI ===
+        if (holder instanceof LockpickConfigHolder) {
+            event.setCancelled(true);
+            ItemStack clickedItem = event.getCurrentItem();
+            if (clickedItem != null && !clickedItem.getType().isAir() && clickedItem.getType() != Material.BLACK_STAINED_GLASS_PANE) {
+                Material mat = clickedItem.getType();
+                settingsManager.toggleLockpickProhibitedContainer(mat);
+                SoundUtil.playClick(player);
+                boolean nowProhibited = settingsManager.isContainerLockpickProhibited(mat);
+                player.sendMessage(TextUtil.format(nowProhibited ?
+                        "<red>✖ Lock picks are now PROHIBITED on " + mat.name() + "</red>" :
+                        "<green>✔ Lock picks are now ALLOWED on " + mat.name() + "</green>"));
+                guiManager.openLockpickConfigGUI(player);
+            }
+            return;
+        }
+
         // === CLAIM CHEST MANAGEMENT GUI ===
         if (holder instanceof ClaimChestGUIHolder chestHolder) {
             event.setCancelled(true);

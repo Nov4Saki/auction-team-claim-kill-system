@@ -1862,6 +1862,51 @@ public class GUIManager {
         }
     }
 
+    public void openLockpickConfigGUI(Player player) {
+        if (player == null) return;
+        Inventory inv = Bukkit.createInventory(new LockpickConfigHolder(), 54,
+                TextUtil.format("<dark_red><b>🔑 Lockpick Container Config</b></dark_red>"));
+
+        List<Material> containers = List.of(
+                Material.CHEST, Material.TRAPPED_CHEST, Material.BARREL, Material.SHULKER_BOX,
+                Material.WHITE_SHULKER_BOX, Material.ORANGE_SHULKER_BOX, Material.MAGENTA_SHULKER_BOX,
+                Material.LIGHT_BLUE_SHULKER_BOX, Material.YELLOW_SHULKER_BOX, Material.LIME_SHULKER_BOX,
+                Material.PINK_SHULKER_BOX, Material.GRAY_SHULKER_BOX, Material.LIGHT_GRAY_SHULKER_BOX,
+                Material.CYAN_SHULKER_BOX, Material.PURPLE_SHULKER_BOX, Material.BLUE_SHULKER_BOX,
+                Material.BROWN_SHULKER_BOX, Material.GREEN_SHULKER_BOX, Material.RED_SHULKER_BOX,
+                Material.BLACK_SHULKER_BOX, Material.HOPPER, Material.DISPENSER, Material.DROPPER,
+                Material.FURNACE, Material.BLAST_FURNACE, Material.SMOKER, Material.BREWING_STAND,
+                Material.ANVIL, Material.JUKEBOX, Material.DECORATED_POT, Material.CHISELED_BOOKSHELF,
+                Material.CRAFTING_TABLE, Material.ENDER_CHEST, Material.OAK_DOOR, Material.IRON_DOOR,
+                Material.OAK_TRAPDOOR, Material.IRON_TRAPDOOR, Material.OAK_FENCE_GATE
+        );
+
+        int slot = 0;
+        for (Material mat : containers) {
+            if (slot >= 45) break;
+            boolean isProhibited = settingsManager.isContainerLockpickProhibited(mat);
+            ItemStack item = new ItemStack(mat);
+            ItemMeta meta = item.getItemMeta();
+            if (meta != null) {
+                meta.displayName(TextUtil.format((isProhibited ? "<red><b>✖ " : "<green><b>✔ ") + mat.name() + "</b>"));
+                List<Component> lore = new ArrayList<>();
+                lore.add(TextUtil.format("<gray>Lockpick Access: " + (isProhibited ? "<red>PROHIBITED (BLOCKED)</red>" : "<green>ALLOWED</green>") + "</gray>"));
+                lore.add(Component.empty());
+                lore.add(TextUtil.format("<yellow>Click to toggle lockpick permission for this container!</yellow>"));
+                meta.lore(lore);
+                item.setItemMeta(meta);
+            }
+            inv.setItem(slot++, item);
+        }
+
+        ItemStack border = new ItemStack(Material.BLACK_STAINED_GLASS_PANE);
+        ItemMeta bm = border.getItemMeta();
+        if (bm != null) { bm.displayName(Component.empty()); border.setItemMeta(bm); }
+        for (int i = 45; i < 54; i++) inv.setItem(i, border);
+
+        player.openInventory(inv);
+    }
+
     public SchedulerWrapper getScheduler() {
         return scheduler;
     }
