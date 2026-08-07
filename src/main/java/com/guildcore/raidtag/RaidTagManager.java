@@ -531,21 +531,18 @@ public class RaidTagManager implements Listener {
 
     private void logRaidTagAction(UUID playerUuid, int defendingTeamId, String action) {
         // Async log to database
-        Bukkit.getScheduler().runTaskAsynchronously(
-                com.guildcore.GuildCorePlugin.getInstance(),
-                () -> {
-                    try (java.sql.Connection conn = com.guildcore.GuildCorePlugin.getInstance()
-                            .getDatabaseManager().getConnection();
-                         java.sql.PreparedStatement ps = conn.prepareStatement(
-                                 "INSERT INTO raid_tag_log (player_uuid, defending_team_id, action) VALUES (?, ?, ?)")) {
-                        ps.setString(1, playerUuid.toString());
-                        ps.setInt(2, defendingTeamId);
-                        ps.setString(3, action);
-                        ps.executeUpdate();
-                    } catch (Exception e) {
-                        // Silently fail - logging is non-critical
-                    }
-                }
-        );
+        scheduler.runAsync(() -> {
+            try (java.sql.Connection conn = com.guildcore.GuildCorePlugin.getInstance()
+                    .getDatabaseManager().getConnection();
+                 java.sql.PreparedStatement ps = conn.prepareStatement(
+                         "INSERT INTO raid_tag_log (player_uuid, defending_team_id, action) VALUES (?, ?, ?)")) {
+                ps.setString(1, playerUuid.toString());
+                ps.setInt(2, defendingTeamId);
+                ps.setString(3, action);
+                ps.executeUpdate();
+            } catch (Exception e) {
+                // Silently fail - logging is non-critical
+            }
+        });
     }
 }

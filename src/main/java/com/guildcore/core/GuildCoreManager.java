@@ -406,7 +406,9 @@ public class GuildCoreManager {
         Location loc = new Location(world, core.getX() + 0.5, core.getY() + 1.2, core.getZ() + 0.5);
         for (Entity entity : world.getNearbyEntities(loc, 2, 2, 2)) {
             if (entity instanceof ArmorStand stand && entity.getUniqueId().equals(core.getArmorStandUuid())) {
-                stand.teleport(loc);
+                if (stand.getLocation().distanceSquared(loc) > 0.01) {
+                    stand.teleportAsync(loc);
+                }
                 stand.customName(TextUtil.format(
                         "<gradient:#FFD700:#FFA500><b>⚔ " + teamName + " Guild Core</b></gradient> <gray>[" +
                                 getHpColor(core.getCurrentHp(), core.getMaxHp()) + core.getCurrentHp() + "/" + core.getMaxHp() + "</" +
