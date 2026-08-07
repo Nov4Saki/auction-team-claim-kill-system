@@ -214,38 +214,31 @@ public class ClaimChestManager {
         // Place the chest at the targeted block
         block.setType(Material.CHEST);
 
-        // Spawn invisible armor stand inside chest for hitbox
-        Location standLoc = loc.clone().add(0.5, 0.5, 0.5);
-        ArmorStand stand = (ArmorStand) loc.getWorld().spawnEntity(standLoc, EntityType.ARMOR_STAND);
-        stand.setInvisible(true);
-        stand.setInvulnerable(true);
-        stand.setGravity(false);
-        stand.setMarker(false); // false so it has hitbox
-        stand.setSmall(false);
-        stand.setBasePlate(false);
-        stand.setArms(false);
-        stand.setCollidable(true);
-        stand.setCustomNameVisible(false);
-        stand.setRemoveWhenFarAway(false);
-        stand.setSilent(true);
-
         String locKey = loc.getWorld().getName() + ":" + loc.getBlockX() + ":" +
                 loc.getBlockY() + ":" + loc.getBlockZ();
 
         placedChests.put(team.getId(), locKey);
         chestLocations.put(locKey, team.getId());
-        chestStands.put(locKey, stand.getUniqueId());
 
-        // Create initial claim on this chunk
-        claimManager.createTeamClaim(player.getUniqueId(), team.getId(), block.getChunk());
-
-        // Register with guild core manager
+        // 1. Register core FIRST so hasCore(teamId) returns true for claim creation
+        UUID standUuid = null;
         if (guildCoreManager != null) {
             guildCoreManager.placeCoreForChest(team.getId(), loc);
+            var core = guildCoreManager.getCoreForTeam(team.getId());
+            if (core != null) {
+                standUuid = core.getArmorStandUuid();
+            }
         }
 
+        if (standUuid != null) {
+            chestStands.put(locKey, standUuid);
+        }
+
+        // 2. Create initial claim on this chunk now that guild core is registered
+        claimManager.createTeamClaim(player.getUniqueId(), team.getId(), block.getChunk());
+
         // Save to DB
-        saveChest(team.getId(), loc, stand.getUniqueId());
+        saveChest(team.getId(), loc, standUuid);
 
         player.sendMessage(TextUtil.format("<green>✔ Claim Chest placed! This chunk has been claimed.</green>"));
         player.sendMessage(TextUtil.format("<yellow>Right-click the chest to manage your Guild territory.</yellow>"));

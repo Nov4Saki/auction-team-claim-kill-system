@@ -75,18 +75,18 @@ public class GuildCoreManager {
         World world = chestLoc.getWorld();
         int baseMaxHp = settingsManager.getInt("core.max_hp", 100);
 
-        // Spawn invisible armor stand INSIDE the chest block for hitbox
+        // Spawn invisible armor stand INSIDE the chest block for hitbox/title
         Location standLoc = chestLoc.clone().add(0.5, 0.5, 0.5);
         ArmorStand stand = world.spawn(standLoc, ArmorStand.class, as -> {
             as.setVisible(false);
             as.setGravity(false);
             as.setInvulnerable(true);
             as.setSmall(false);
-            as.setMarker(false);
+            as.setMarker(true);
             as.setCustomNameVisible(false);
             as.setBasePlate(false);
             as.setArms(false);
-            as.setCollidable(true);
+            as.setCollidable(false);
             as.setSilent(true);
             as.setRemoveWhenFarAway(false);
         });
