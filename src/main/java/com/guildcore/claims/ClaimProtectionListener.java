@@ -37,6 +37,7 @@ public class ClaimProtectionListener implements Listener {
     private TeamManager teamManager;
     private OfflineShieldManager offlineShieldManager;
     private GuildCoreManager guildCoreManager;
+    private com.guildcore.raiditems.RaidItemManager raidItemManager;
 
     public ClaimProtectionListener(ClaimManager claimManager, SettingsManager settingsManager,
                                    ClaimChestManager claimChestManager) {
@@ -48,10 +49,16 @@ public class ClaimProtectionListener implements Listener {
     public void setTeamManager(TeamManager teamManager) { this.teamManager = teamManager; }
     public void setOfflineShieldManager(OfflineShieldManager offlineShieldManager) { this.offlineShieldManager = offlineShieldManager; }
     public void setGuildCoreManager(GuildCoreManager guildCoreManager) { this.guildCoreManager = guildCoreManager; }
+    public void setRaidItemManager(com.guildcore.raiditems.RaidItemManager raidItemManager) { this.raidItemManager = raidItemManager; }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onBlockBreak(BlockBreakEvent event) {
         Player player = event.getPlayer();
+
+        // Allow cobwebs to be broken anywhere
+        if (event.getBlock().getType() == Material.COBWEB) {
+            return;
+        }
 
         // Check claim chest first
         if (claimChestManager.isClaimChest(event.getBlock().getLocation())) {
@@ -86,6 +93,16 @@ public class ClaimProtectionListener implements Listener {
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onBlockPlace(BlockPlaceEvent event) {
         Player player = event.getPlayer();
+
+        // Cobweb bypass - allow placement anywhere
+        if (event.getBlock().getType() == Material.COBWEB || event.getItemInHand().getType() == Material.COBWEB) {
+            return;
+        }
+
+        // Raid item bypass - placement & usage is handled by raid listeners
+        if (raidItemManager != null && raidItemManager.isRaidItem(player.getInventory().getItemInMainHand())) {
+            return;
+        }
 
         if (claimChestManager.isClaimChest(event.getBlock().getLocation())) {
             event.setCancelled(true);
@@ -123,6 +140,11 @@ public class ClaimProtectionListener implements Listener {
 
         // Allow claim chest interaction
         if (claimChestManager.isClaimChest(clicked.getLocation())) return;
+
+        // Raid item bypass - lock picks, sledge hammers, charged creepers, raid tnt
+        if (raidItemManager != null && raidItemManager.isRaidItem(player.getInventory().getItemInMainHand())) {
+            return;
+        }
 
         Chunk chunk = clicked.getChunk();
         ClaimInfo claim = claimManager.getClaimAt(chunk);
@@ -219,19 +241,23 @@ public class ClaimProtectionListener implements Listener {
         while (it.hasNext()) {
             Block block = it.next();
             // Protect claim chests from explosions
-            if (claimChestManager.isClaimChest(block.getLocation())) {
+            if (claimChestManager != null && claimChestManager.isClaimChest(block.getLocation())) {
+                it.remove();
+                continue;
+            }
+
+            // Protect core blocks from direct explosion destruction
+            if (guildCoreManager != null && guildCoreManager.isCoreBlock(block.getLocation())) {
                 it.remove();
                 continue;
             }
 
             ClaimInfo claim = claimManager.getClaimAt(block.getChunk());
-            if (claim != null) {
-                if (claim.isTeamClaim() && claim.getTeamId() != null &&
-                        offlineShieldManager != null && offlineShieldManager.isShieldActive(claim.getTeamId())) {
+            if (claim != null && claim.isTeamClaim() && claim.getTeamId() != null) {
+                // Protect blocks ONLY if Offline Shield is active
+                if (offlineShieldManager != null && offlineShieldManager.isShieldActive(claim.getTeamId())) {
                     it.remove();
-                    continue;
                 }
-                it.remove();
             }
         }
     }
@@ -247,19 +273,21 @@ public class ClaimProtectionListener implements Listener {
         Iterator<Block> it = event.blockList().iterator();
         while (it.hasNext()) {
             Block block = it.next();
-            if (claimChestManager.isClaimChest(block.getLocation())) {
+            if (claimChestManager != null && claimChestManager.isClaimChest(block.getLocation())) {
+                it.remove();
+                continue;
+            }
+
+            if (guildCoreManager != null && guildCoreManager.isCoreBlock(block.getLocation())) {
                 it.remove();
                 continue;
             }
 
             ClaimInfo claim = claimManager.getClaimAt(block.getChunk());
-            if (claim != null) {
-                if (claim.isTeamClaim() && claim.getTeamId() != null &&
-                        offlineShieldManager != null && offlineShieldManager.isShieldActive(claim.getTeamId())) {
+            if (claim != null && claim.isTeamClaim() && claim.getTeamId() != null) {
+                if (offlineShieldManager != null && offlineShieldManager.isShieldActive(claim.getTeamId())) {
                     it.remove();
-                    continue;
                 }
-                it.remove();
             }
         }
     }

@@ -202,6 +202,7 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
         claimProtectionListener.setTeamManager(teamManager);
         claimProtectionListener.setOfflineShieldManager(offlineShieldManager);
         claimProtectionListener.setGuildCoreManager(guildCoreManager);
+        claimProtectionListener.setRaidItemManager(raidItemManager);
         pm.registerEvents(claimProtectionListener, this);
 
         // Claim Chest Listener

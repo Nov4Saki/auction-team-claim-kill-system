@@ -63,7 +63,7 @@ public class RaidTNTListener implements Listener {
     public void setRaidTagManager(RaidTagManager raidTagManager) { this.raidTagManager = raidTagManager; }
     public void setTeamManager(TeamManager teamManager) { this.teamManager = teamManager; }
 
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = false)
     public void onPlayerInteract(PlayerInteractEvent event) {
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
         if (event.getClickedBlock() == null) return;
