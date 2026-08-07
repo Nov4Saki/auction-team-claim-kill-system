@@ -19,6 +19,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class TeamManager {
     private final DatabaseManager dbManager;
     private com.guildcore.claims.ClaimManager claimManager;
+    private com.guildcore.claims.ClaimChestManager claimChestManager;
     private com.guildcore.config.SettingsManager settingsManager;
     private com.guildcore.core.GuildCoreManager guildCoreManager;
     private com.guildcore.scheduler.SchedulerWrapper scheduler;
@@ -53,6 +54,10 @@ public class TeamManager {
 
     public void setSettingsManager(com.guildcore.config.SettingsManager settingsManager) {
         this.settingsManager = settingsManager;
+    }
+
+    public void setClaimChestManager(com.guildcore.claims.ClaimChestManager claimChestManager) {
+        this.claimChestManager = claimChestManager;
     }
 
     public void saveTeamBankBalance(Team team) {
@@ -779,12 +784,15 @@ public class TeamManager {
             }
         }
 
-        if (claimManager != null) {
-            claimManager.removeAllTeamClaims(teamId);
-        }
-
-        if (guildCoreManager != null) {
-            guildCoreManager.removeCore(teamId, false);
+        if (claimChestManager != null) {
+            claimChestManager.removeClaimChest(teamId);
+        } else {
+            if (claimManager != null) {
+                claimManager.removeAllTeamClaims(teamId);
+            }
+            if (guildCoreManager != null) {
+                guildCoreManager.removeCore(teamId, false);
+            }
         }
 
         for (Player online : Bukkit.getOnlinePlayers()) {

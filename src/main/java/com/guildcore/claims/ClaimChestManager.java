@@ -255,53 +255,57 @@ public class ClaimChestManager {
 
     public void removeClaimChest(int teamId) {
         String locKey = placedChests.get(teamId);
-        if (locKey == null) return;
+        if (locKey != null) {
+            String[] parts = locKey.split(":");
+            if (parts.length == 4) {
+                String worldName = parts[0];
+                int x = Integer.parseInt(parts[1]);
+                int y = Integer.parseInt(parts[2]);
+                int z = Integer.parseInt(parts[3]);
 
-        String[] parts = locKey.split(":");
-        if (parts.length != 4) return;
+                World world = Bukkit.getWorld(worldName);
+                if (world != null) {
+                    Location loc = new Location(world, x, y, z);
 
-        String worldName = parts[0];
-        int x = Integer.parseInt(parts[1]);
-        int y = Integer.parseInt(parts[2]);
-        int z = Integer.parseInt(parts[3]);
-
-        World world = Bukkit.getWorld(worldName);
-        if (world != null) {
-            Location loc = new Location(world, x, y, z);
-
-            // Remove chest block
-            Block block = world.getBlockAt(loc);
-            if (block.getType() == Material.CHEST) {
-                block.setType(Material.AIR);
-            }
-
-            // Remove armor stand
-            UUID standUuid = chestStands.remove(locKey);
-            if (standUuid != null) {
-                for (Entity entity : world.getNearbyEntities(loc.clone().add(0.5, 0.5, 0.5), 2, 2, 2)) {
-                    if (entity.getUniqueId().equals(standUuid)) {
-                        entity.remove();
-                        break;
+                    // Remove chest block
+                    Block block = world.getBlockAt(loc);
+                    if (block.getType() == Material.CHEST) {
+                        block.setType(Material.AIR);
                     }
+
+                    // Remove armor stand
+                    UUID standUuid = chestStands.remove(locKey);
+                    if (standUuid != null) {
+                        for (Entity entity : world.getNearbyEntities(loc.clone().add(0.5, 0.5, 0.5), 2, 2, 2)) {
+                            if (entity.getUniqueId().equals(standUuid)) {
+                                entity.remove();
+                                break;
+                            }
+                        }
+                    }
+
+                    // Effects
+                    world.playSound(loc, Sound.BLOCK_BEACON_DEACTIVATE, 1.0f, 0.5f);
+                    world.spawnParticle(Particle.LARGE_SMOKE, loc.clone().add(0.5, 0.5, 0.5), 30, 0.5, 0.5, 0.5, 0.05);
                 }
             }
 
-            // Effects
-            world.playSound(loc, Sound.BLOCK_BEACON_DEACTIVATE, 1.0f, 0.5f);
-            world.spawnParticle(Particle.LARGE_SMOKE, loc.clone().add(0.5, 0.5, 0.5), 30, 0.5, 0.5, 0.5, 0.05);
+            placedChests.remove(teamId);
+            chestLocations.remove(locKey);
+
+            // Delete from DB
+            deleteChest(teamId);
         }
 
-        placedChests.remove(teamId);
-        chestLocations.remove(locKey);
+        // Always clean up all claims for the team
+        if (claimManager != null) {
+            claimManager.removeAllTeamClaims(teamId);
+        }
 
-        // Remove all claims
-        claimManager.removeAllTeamClaims(teamId);
-
-        // Remove guild core if exists
-        guildCoreManager.removeCore(teamId, false);
-
-        // Delete from DB
-        deleteChest(teamId);
+        // Always clean up guild core for the team
+        if (guildCoreManager != null) {
+            guildCoreManager.removeCore(teamId, false);
+        }
 
         DebugManager.log(DebugFlag.GUILD_CORE, "Claim chest removed for team " + teamId);
     }

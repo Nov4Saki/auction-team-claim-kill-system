@@ -156,6 +156,7 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
         this.teamManager.setSettingsManager(settingsManager);
         this.teamManager.setEconomyManager(economyManager);
         this.teamManager.setGuildCoreManager(guildCoreManager);
+        this.teamManager.setClaimChestManager(claimChestManager);
         this.teamManager.setScheduler(scheduler);
 
         this.claimManager.setTeamManager(teamManager);
@@ -207,7 +208,9 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
         ClaimChestListener claimChestListener = new ClaimChestListener(claimChestManager, teamManager, guiManager);
         pm.registerEvents(claimChestListener, this);
 
-        pm.registerEvents(new GuildCoreListener(guildCoreManager, claimManager, teamManager), this);
+        GuildCoreListener guildCoreListener = new GuildCoreListener(guildCoreManager, claimManager, teamManager);
+        guildCoreListener.setGuiManager(guiManager);
+        pm.registerEvents(guildCoreListener, this);
         pm.registerEvents(raidTagManager, this);
 
         LockPickListener lockPickListener = new LockPickListener(raidItemManager, claimManager, offlineShieldManager, settingsManager, scheduler);

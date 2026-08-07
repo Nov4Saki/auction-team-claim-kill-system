@@ -30,6 +30,7 @@ public class GuildCoreListener implements Listener {
     private final GuildCoreManager guildCoreManager;
     private final ClaimManager claimManager;
     private final TeamManager teamManager;
+    private com.guildcore.gui.GUIManager guiManager;
 
     // Track players who recently interacted to prevent spam
     private final Map<UUID, Long> lastCoreInteraction = new HashMap<>();
@@ -40,6 +41,10 @@ public class GuildCoreListener implements Listener {
         this.guildCoreManager = guildCoreManager;
         this.claimManager = claimManager;
         this.teamManager = teamManager;
+    }
+
+    public void setGuiManager(com.guildcore.gui.GUIManager guiManager) {
+        this.guiManager = guiManager;
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
@@ -65,17 +70,13 @@ public class GuildCoreListener implements Listener {
 
                 Team playerTeam = teamManager.getPlayerTeam(player.getUniqueId());
 
-                if (playerTeam != null && playerTeam.getId() == core.getTeamId()) {
-                    // Team member - show core management info
-                    player.sendMessage(TextUtil.format(
-                            "<gradient:#FFD700:#FFA500><b>⚔ " + playerTeam.getName() + " Guild Core</b></gradient>"));
-                    player.sendMessage(TextUtil.format(
-                            "<gray>Tier: <yellow>" + core.getTier() + "</yellow> | " +
-                                    "HP: " + getHpColor(core.getCurrentHp(), core.getMaxHp()) +
-                                    core.getCurrentHp() + "/" + core.getMaxHp() + "</" +
-                                    getHpColorTag(core.getCurrentHp(), core.getMaxHp()) + "></gray>"));
-                    player.sendMessage(TextUtil.format(
-                            "<gray>Use <gold>/team</gold> to manage your Guild or interact with core GUI.</gray>"));
+                if ((playerTeam != null && playerTeam.getId() == core.getTeamId()) || player.hasPermission("guildcore.admin")) {
+                    if (guiManager != null) {
+                        guiManager.openClaimChestManagement(player, core.getTeamId());
+                    } else {
+                        player.sendMessage(TextUtil.format(
+                                "<gradient:#FFD700:#FFA500><b>⚔ Guild Core</b></gradient>"));
+                    }
                 } else {
                     // Outsider - show basic info
                     Team ownerTeam = teamManager.getTeam(core.getTeamId());
@@ -111,10 +112,14 @@ public class GuildCoreListener implements Listener {
             Player player = event.getPlayer();
             Team playerTeam = teamManager.getPlayerTeam(player.getUniqueId());
 
-            if (playerTeam != null && playerTeam.getId() == core.getTeamId()) {
-                player.sendActionBar(Component.text(
-                        "🛡 This is your Guild Core! It cannot be opened directly.",
-                        NamedTextColor.GOLD));
+            if ((playerTeam != null && playerTeam.getId() == core.getTeamId()) || player.hasPermission("guildcore.admin")) {
+                if (guiManager != null) {
+                    guiManager.openClaimChestManagement(player, core.getTeamId());
+                } else {
+                    player.sendActionBar(Component.text(
+                            "🛡 This is your Guild Core!",
+                            NamedTextColor.GOLD));
+                }
             } else {
                 player.sendActionBar(Component.text(
                         "🛡 This is a Guild Core! Use raid tools to damage it.",
