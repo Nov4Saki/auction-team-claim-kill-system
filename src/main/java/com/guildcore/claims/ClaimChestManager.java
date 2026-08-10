@@ -259,6 +259,15 @@ public class ClaimChestManager {
         this.scheduler = scheduler;
     }
 
+    public void unregisterChestData(int teamId) {
+        String locKey = placedChests.remove(teamId);
+        if (locKey != null) {
+            chestLocations.remove(locKey);
+            chestStands.remove(locKey);
+        }
+        deleteChest(teamId);
+    }
+
     public void removeClaimChest(int teamId) {
         String locKey = placedChests.get(teamId);
         if (locKey != null) {

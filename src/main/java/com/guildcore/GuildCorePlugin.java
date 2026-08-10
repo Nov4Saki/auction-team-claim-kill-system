@@ -23,6 +23,7 @@ import com.guildcore.raidtag.RaidTagManager;
 import com.guildcore.scheduler.SchedulerWrapper;
 import com.guildcore.scoreboard.ScoreboardManager;
 import com.guildcore.shield.OfflineShieldManager;
+import org.bukkit.inventory.ItemStack;
 import com.guildcore.shop.ShopCommand;
 import com.guildcore.shop.ShopManager;
 import com.guildcore.stats.BountyManager;
@@ -163,6 +164,7 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
         this.claimManager.setTeamManager(teamManager);
         this.claimManager.setPermissionManager(teamPermissionManager);
         this.claimManager.setGuildCoreManager(guildCoreManager);
+        this.guildCoreManager.setClaimChestManager(claimChestManager);
         this.claimManager.setSettingsManager(settingsManager);
 
         this.tradeManager = new TradeManager(settingsManager, scheduler);
@@ -335,6 +337,15 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
         if (offlineShieldManager != null && teamManager != null) {
             com.guildcore.teams.Team playerTeam = teamManager.getPlayerTeam(player.getUniqueId());
             if (playerTeam != null) offlineShieldManager.onPlayerJoin(player.getUniqueId(), playerTeam.getId());
+        }
+
+        // Refresh all custom GuildCore items in inventory to ensure display name, glow & lore are restored
+        if (raidItemManager != null) {
+            for (ItemStack item : player.getInventory().getContents()) {
+                if (item != null && raidItemManager.isRaidItem(item)) {
+                    raidItemManager.refreshRaidItem(item);
+                }
+            }
         }
     }
 

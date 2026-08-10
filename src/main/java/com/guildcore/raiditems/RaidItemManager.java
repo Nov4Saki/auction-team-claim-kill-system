@@ -121,6 +121,31 @@ public class RaidItemManager {
     }
 
     /**
+     * Refreshes a raid item's display name, enchantments, and lore.
+     */
+    public void refreshRaidItem(ItemStack item) {
+        if (item == null || !item.hasItemMeta()) return;
+        RaidItemType type = getRaidItemType(item);
+        if (type == null) return;
+
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) return;
+
+        meta.displayName(TextUtil.format(getDisplayName(type)));
+        meta.addEnchant(Enchantment.UNBREAKING, 1, true);
+        meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+        meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
+        meta.addItemFlags(ItemFlag.HIDE_ADDITIONAL_TOOLTIP);
+        meta.addItemFlags(ItemFlag.HIDE_DYE);
+
+        int durability = getDurability(item);
+        if (durability <= 0) durability = getDurabilityForType(type);
+
+        updateLore(meta, type, durability);
+        item.setItemMeta(meta);
+    }
+
+    /**
      * Creates a raid item with specific durability.
      */
     public ItemStack createItem(RaidItemType type, int amount, int durability) {
@@ -141,10 +166,7 @@ public class RaidItemManager {
             pdc.set(RAID_MAX_DURABILITY_KEY, PersistentDataType.INTEGER, durability);
         }
 
-        // Hide ALL vanilla attributes
-        hideAllAttributes(meta);
-
-        // Add glow effect
+        // Add glow effect & flags
         meta.addEnchant(Enchantment.UNBREAKING, 1, true);
         meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
         meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
@@ -238,35 +260,6 @@ public class RaidItemManager {
         int currentDurability = getDurability(item);
         updateLore(meta, type, currentDurability);
         item.setItemMeta(meta);
-    }
-
-    /**
-     * Hides all vanilla attributes from the item.
-     */
-    private void hideAllAttributes(ItemMeta meta) {
-        // Remove all attribute modifiers
-        if (meta.getAttributeModifiers() != null) {
-            for (Attribute attribute : Attribute.values()) {
-                meta.removeAttributeModifier(attribute);
-            }
-        }
-
-        // For tools/weapons, explicitly zero out attack stats
-        meta.addAttributeModifier(Attribute.ATTACK_DAMAGE,
-                new AttributeModifier(
-                        new NamespacedKey("guildcore", "hidden_damage"),
-                        0,
-                        AttributeModifier.Operation.ADD_NUMBER,
-                        EquipmentSlotGroup.MAINHAND
-                ));
-
-        meta.addAttributeModifier(Attribute.ATTACK_SPEED,
-                new AttributeModifier(
-                        new NamespacedKey("guildcore", "hidden_speed"),
-                        0,
-                        AttributeModifier.Operation.ADD_NUMBER,
-                        EquipmentSlotGroup.MAINHAND
-                ));
     }
 
     /**

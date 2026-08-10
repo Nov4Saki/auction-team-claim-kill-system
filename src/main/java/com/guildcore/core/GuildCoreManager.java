@@ -35,6 +35,11 @@ public class GuildCoreManager {
     private final SettingsManager settingsManager;
     private final SchedulerWrapper scheduler;
     private EconomyManager economyManager;
+    private com.guildcore.claims.ClaimChestManager claimChestManager;
+
+    public void setClaimChestManager(com.guildcore.claims.ClaimChestManager claimChestManager) {
+        this.claimChestManager = claimChestManager;
+    }
 
     private final Map<Integer, GuildCoreBlock> coresByTeamId = new ConcurrentHashMap<>();
     private final Map<String, Integer> teamIdByLocationKey = new ConcurrentHashMap<>();
@@ -160,6 +165,9 @@ public class GuildCoreManager {
 
                 if (claimManager != null) {
                     claimManager.removeAllTeamClaims(teamId);
+                }
+                if (claimChestManager != null) {
+                    claimChestManager.unregisterChestData(teamId);
                 }
 
                 if (team != null) {
