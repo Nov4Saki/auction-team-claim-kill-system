@@ -217,6 +217,7 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
 
         LockPickListener lockPickListener = new LockPickListener(raidItemManager, claimManager, offlineShieldManager, settingsManager, scheduler);
         lockPickListener.setTeamManager(teamManager);
+        lockPickListener.setClaimChestManager(claimChestManager);
         pm.registerEvents(lockPickListener, this);
 
         SledgeHammerListener sledgeHammerListener = new SledgeHammerListener(raidItemManager, guildCoreManager, offlineShieldManager, settingsManager);

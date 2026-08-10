@@ -46,6 +46,12 @@ public class LockPickListener implements Listener {
         this.teamManager = teamManager;
     }
 
+    private com.guildcore.claims.ClaimChestManager claimChestManager;
+
+    public void setClaimChestManager(com.guildcore.claims.ClaimChestManager claimChestManager) {
+        this.claimChestManager = claimChestManager;
+    }
+
     @EventHandler(priority = EventPriority.LOW, ignoreCancelled = false)
     public void onPlayerInteract(PlayerInteractEvent event) {
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
@@ -69,6 +75,14 @@ public class LockPickListener implements Listener {
                 type != RaidItemManager.RaidItemType.LOCK_PICK_REINFORCED) return;
 
         Block clicked = event.getClickedBlock();
+
+        // Protect Guild Claim Chest from lock picking
+        if (claimChestManager != null && claimChestManager.isClaimChest(clicked.getLocation())) {
+            event.setCancelled(true);
+            player.sendActionBar(TextUtil.format("<red>🚫 You cannot lockpick a Guild Claim Chest!</red>"));
+            return;
+        }
+
         Chunk chunk = clicked.getChunk();
         ClaimInfo claim = claimManager.getClaimAt(chunk);
 
@@ -106,7 +120,7 @@ public class LockPickListener implements Listener {
             return;
         }
 
-        if (isContainer(blockType)) {
+        if (isContainer(clicked)) {
             if (success) {
                 player.playSound(player.getLocation(), Sound.BLOCK_IRON_DOOR_OPEN, 1.0f, 1.5f);
                 player.sendActionBar(TextUtil.format("<green>🔓 Lock pick SUCCESS! Container opened.</green>"));
@@ -156,12 +170,17 @@ public class LockPickListener implements Listener {
         };
     }
 
-    private boolean isContainer(Material type) {
+    private boolean isContainer(Block block) {
+        if (block == null) return false;
+        if (block.getState() instanceof Container) return true;
+        Material type = block.getType();
         return type == Material.CHEST || type == Material.TRAPPED_CHEST ||
                 type == Material.BARREL || type == Material.HOPPER ||
                 type == Material.DROPPER || type == Material.DISPENSER ||
                 type == Material.FURNACE || type == Material.BLAST_FURNACE ||
-                type == Material.SMOKER || type.name().contains("SHULKER_BOX");
+                type == Material.SMOKER || type.name().contains("SHULKER_BOX") ||
+                type == Material.BREWING_STAND || type == Material.JUKEBOX ||
+                type == Material.CHISELED_BOOKSHELF || type == Material.DECORATED_POT;
     }
 
     private boolean isOpenable(Material type) {
