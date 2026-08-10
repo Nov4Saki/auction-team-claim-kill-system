@@ -270,18 +270,31 @@ public class RaidItemManager {
     }
 
     /**
-     * Gets the RaidItemType from an item's persistent data.
+     * Gets the RaidItemType from an item's persistent data with display name fallback.
      */
     public RaidItemType getRaidItemType(ItemStack item) {
         if (item == null || !item.hasItemMeta()) return null;
         PersistentDataContainer pdc = item.getItemMeta().getPersistentDataContainer();
         String typeStr = pdc.get(RAID_ITEM_KEY, PersistentDataType.STRING);
-        if (typeStr == null) return null;
-        try {
-            return RaidItemType.valueOf(typeStr);
-        } catch (IllegalArgumentException e) {
-            return null;
+        if (typeStr != null) {
+            try {
+                return RaidItemType.valueOf(typeStr);
+            } catch (IllegalArgumentException ignored) {}
         }
+
+        // Fallback: check display name if PDC key is missing
+        if (item.getItemMeta().hasDisplayName()) {
+            String plainName = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(item.getItemMeta().displayName()).toLowerCase();
+            if (plainName.contains("weak lock pick")) return RaidItemType.LOCK_PICK_WEAK;
+            if (plainName.contains("fast lock pick")) return RaidItemType.LOCK_PICK_FAST;
+            if (plainName.contains("reinforced lock pick")) return RaidItemType.LOCK_PICK_REINFORCED;
+            if (plainName.contains("lock pick")) return RaidItemType.LOCK_PICK_NORMAL;
+            if (plainName.contains("sledge hammer")) return RaidItemType.SLEDGE_HAMMER;
+            if (plainName.contains("raid tnt")) return RaidItemType.RAID_TNT;
+            if (plainName.contains("charged creeper")) return RaidItemType.CHARGED_CREEPER_EGG;
+        }
+
+        return null;
     }
 
     /**
@@ -336,15 +349,27 @@ public class RaidItemManager {
         current--;
 
         if (current <= 0) {
-            player.getInventory().setItemInMainHand(null);
+            if (item.getAmount() > 1) {
+                item.setAmount(item.getAmount() - 1);
+                int maxDur = getMaxDurability(item);
+                pdc.set(RAID_DURABILITY_KEY, PersistentDataType.INTEGER, maxDur);
+                updateLore(meta, type, maxDur);
+                item.setItemMeta(meta);
+            } else {
+                if (player.getInventory().getItemInMainHand().equals(item)) {
+                    player.getInventory().setItemInMainHand(null);
+                } else if (player.getInventory().getItemInOffHand().equals(item)) {
+                    player.getInventory().setItemInOffHand(null);
+                } else {
+                    item.setAmount(0);
+                }
+            }
             player.playSound(player.getLocation(), Sound.ENTITY_ITEM_BREAK, 1.0f, 1.0f);
             player.sendActionBar(TextUtil.format("<red>Your " + getPlainName(type) + " broke!</red>"));
             return false;
         }
 
         pdc.set(RAID_DURABILITY_KEY, PersistentDataType.INTEGER, current);
-
-        // Update lore to show new durability
         updateLore(meta, type, current);
         item.setItemMeta(meta);
 

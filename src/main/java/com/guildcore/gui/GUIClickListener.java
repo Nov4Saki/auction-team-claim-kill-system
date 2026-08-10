@@ -147,10 +147,34 @@ public class GUIClickListener implements Listener {
         if (!(event.getWhoClicked() instanceof Player player)) return;
 
         // === LOCKPICK CONFIG GUI ===
-        if (holder instanceof LockpickConfigHolder) {
+        if (holder instanceof LockpickConfigHolder configHolder) {
             event.setCancelled(true);
+            int slot = event.getSlot();
+            int page = configHolder.getPage();
+
+            if (slot == 45) {
+                if (page > 1) {
+                    SoundUtil.playClick(player);
+                    guiManager.openLockpickConfigGUI(player, page - 1);
+                }
+                return;
+            }
+            if (slot == 53) {
+                SoundUtil.playClick(player);
+                guiManager.openLockpickConfigGUI(player, page + 1);
+                return;
+            }
+            if (slot == 49) {
+                SoundUtil.playClick(player);
+                player.closeInventory();
+                return;
+            }
+
             ItemStack clickedItem = event.getCurrentItem();
-            if (clickedItem != null && !clickedItem.getType().isAir() && clickedItem.getType() != Material.BLACK_STAINED_GLASS_PANE) {
+            if (clickedItem != null && !clickedItem.getType().isAir() &&
+                    clickedItem.getType() != Material.BLACK_STAINED_GLASS_PANE &&
+                    clickedItem.getType() != Material.ARROW &&
+                    clickedItem.getType() != Material.BARRIER) {
                 Material mat = clickedItem.getType();
                 settingsManager.toggleLockpickProhibitedContainer(mat);
                 SoundUtil.playClick(player);
@@ -158,7 +182,7 @@ public class GUIClickListener implements Listener {
                 player.sendMessage(TextUtil.format(nowProhibited ?
                         "<red>✖ Lock picks are now PROHIBITED on " + mat.name() + "</red>" :
                         "<green>✔ Lock picks are now ALLOWED on " + mat.name() + "</green>"));
-                guiManager.openLockpickConfigGUI(player);
+                guiManager.openLockpickConfigGUI(player, page);
             }
             return;
         }

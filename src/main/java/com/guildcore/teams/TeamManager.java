@@ -445,6 +445,7 @@ public class TeamManager {
         }
 
         if (targetPlayer != null && targetPlayer.isOnline()) {
+            targetPlayer.closeInventory();
             targetPlayer.sendMessage(com.guildcore.util.TextUtil.format("<gradient:#FF416C:#FF4B2B><b>✖ You were kicked from team " + team.getName() + " by " + kicker.getName() + "!</b></gradient>"));
         }
 
@@ -532,6 +533,7 @@ public class TeamManager {
             e.printStackTrace();
         }
 
+        player.closeInventory();
         player.sendMessage(com.guildcore.util.TextUtil.format("<yellow>You left team " + team.getName() + ".</yellow>"));
         broadcastToTeam(team.getId(), com.guildcore.util.TextUtil.format("<gradient:#FF416C:#FF4B2B><b>🏰 [Guild] Member <yellow>" + player.getName() + "</yellow> has left the guild.</b></gradient>"));
         return true;

@@ -1871,9 +1871,12 @@ public class GUIManager {
     }
 
     public void openLockpickConfigGUI(Player player) {
+        openLockpickConfigGUI(player, 1);
+    }
+
+    public void openLockpickConfigGUI(Player player, int page) {
         if (player == null) return;
-        Inventory inv = Bukkit.createInventory(new LockpickConfigHolder(), 54,
-                TextUtil.format("<dark_red><b>🔑 Lockpick Container Config</b></dark_red>"));
+        if (page < 1) page = 1;
 
         List<Material> containers = List.of(
                 Material.CHEST, Material.TRAPPED_CHEST, Material.BARREL, Material.SHULKER_BOX,
@@ -1884,14 +1887,28 @@ public class GUIManager {
                 Material.BROWN_SHULKER_BOX, Material.GREEN_SHULKER_BOX, Material.RED_SHULKER_BOX,
                 Material.BLACK_SHULKER_BOX, Material.HOPPER, Material.DISPENSER, Material.DROPPER,
                 Material.FURNACE, Material.BLAST_FURNACE, Material.SMOKER, Material.BREWING_STAND,
-                Material.ANVIL, Material.JUKEBOX, Material.DECORATED_POT, Material.CHISELED_BOOKSHELF,
-                Material.CRAFTING_TABLE, Material.ENDER_CHEST, Material.OAK_DOOR, Material.IRON_DOOR,
-                Material.OAK_TRAPDOOR, Material.IRON_TRAPDOOR, Material.OAK_FENCE_GATE
+                Material.ANVIL, Material.CHIPPED_ANVIL, Material.DAMAGED_ANVIL, Material.JUKEBOX,
+                Material.DECORATED_POT, Material.CHISELED_BOOKSHELF, Material.CRAFTING_TABLE,
+                Material.ENDER_CHEST, Material.OAK_DOOR, Material.IRON_DOOR, Material.SPRUCE_DOOR,
+                Material.BIRCH_DOOR, Material.JUNGLE_DOOR, Material.ACACIA_DOOR, Material.DARK_OAK_DOOR,
+                Material.MANGROVE_DOOR, Material.CHERRY_DOOR, Material.BAMBOO_DOOR, Material.CRIMSON_DOOR,
+                Material.WARPED_DOOR, Material.COPPER_DOOR, Material.OAK_TRAPDOOR, Material.IRON_TRAPDOOR,
+                Material.OAK_FENCE_GATE
         );
 
+        int totalPages = (int) Math.ceil((double) containers.size() / 45);
+        if (totalPages < 1) totalPages = 1;
+        if (page > totalPages) page = totalPages;
+
+        Inventory inv = Bukkit.createInventory(new LockpickConfigHolder(page), 54,
+                TextUtil.format("<dark_red><b>🔑 Lockpick Config (Page " + page + "/" + totalPages + ")</b></dark_red>"));
+
+        int startIndex = (page - 1) * 45;
+        int endIndex = Math.min(startIndex + 45, containers.size());
+
         int slot = 0;
-        for (Material mat : containers) {
-            if (slot >= 45) break;
+        for (int i = startIndex; i < endIndex; i++) {
+            Material mat = containers.get(i);
             boolean isProhibited = settingsManager.isContainerLockpickProhibited(mat);
             ItemStack item = new ItemStack(mat);
             ItemMeta meta = item.getItemMeta();
@@ -1907,10 +1924,21 @@ public class GUIManager {
             inv.setItem(slot++, item);
         }
 
-        ItemStack border = new ItemStack(Material.BLACK_STAINED_GLASS_PANE);
-        ItemMeta bm = border.getItemMeta();
-        if (bm != null) { bm.displayName(Component.empty()); border.setItemMeta(bm); }
-        for (int i = 45; i < 54; i++) inv.setItem(i, border);
+        fillBorder54(inv, Material.BLACK_STAINED_GLASS_PANE);
+
+        if (page > 1) {
+            inv.setItem(45, new GUIItemBuilder(Material.ARROW)
+                    .name("<yellow><b>◀ Previous Page (Page " + (page - 1) + ")</b></yellow>").build());
+        }
+
+        inv.setItem(49, new GUIItemBuilder(Material.BARRIER)
+                .name("<red><b>Close Menu</b></red>")
+                .lore("<gray>Page " + page + " of " + totalPages + "</gray>").build());
+
+        if (page < totalPages) {
+            inv.setItem(53, new GUIItemBuilder(Material.ARROW)
+                    .name("<yellow><b>Next Page (Page " + (page + 1) + ") ▶</b></yellow>").build());
+        }
 
         player.openInventory(inv);
     }
