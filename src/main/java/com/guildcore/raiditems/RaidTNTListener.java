@@ -22,10 +22,12 @@ import org.bukkit.block.Block;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.TNTPrimed;
+import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
+import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
@@ -64,7 +66,22 @@ public class RaidTNTListener implements Listener {
     public void setRaidTagManager(RaidTagManager raidTagManager) { this.raidTagManager = raidTagManager; }
     public void setTeamManager(TeamManager teamManager) { this.teamManager = teamManager; }
 
-    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = false)
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
+    public void onBlockPlace(BlockPlaceEvent event) {
+        ItemStack item = event.getItemInHand();
+        if (item == null || raidItemManager.getRaidItemType(item) != RaidItemManager.RaidItemType.RAID_TNT) {
+            item = event.getPlayer().getInventory().getItemInMainHand();
+            if (raidItemManager.getRaidItemType(item) != RaidItemManager.RaidItemType.RAID_TNT) {
+                item = event.getPlayer().getInventory().getItemInOffHand();
+            }
+        }
+        if (raidItemManager != null && raidItemManager.getRaidItemType(item) == RaidItemManager.RaidItemType.RAID_TNT) {
+            event.setCancelled(true);
+            event.setBuild(false);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
     public void onPlayerInteract(PlayerInteractEvent event) {
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
         if (event.getClickedBlock() == null) return;
@@ -82,6 +99,8 @@ public class RaidTNTListener implements Listener {
 
         // ALWAYS cancel the event to prevent vanilla TNT placement
         event.setCancelled(true);
+        event.setUseItemInHand(Event.Result.DENY);
+        event.setUseInteractedBlock(Event.Result.DENY);
 
         Block clicked = event.getClickedBlock();
         Chunk chunk = clicked.getChunk();
@@ -112,9 +131,10 @@ public class RaidTNTListener implements Listener {
         // Consume 1 item
         item.setAmount(item.getAmount() - 1);
 
-        // Spawn primed TNT
+        // Spawn primed TNT at the target block face location
         double fuseSeconds = settingsManager.getDouble("raidtnt.fuse_seconds", 3.0);
-        Location spawnLoc = clicked.getLocation().add(0.5, 1.0, 0.5);
+        Block targetBlock = clicked.getRelative(event.getBlockFace());
+        Location spawnLoc = targetBlock.getLocation().add(0.5, 0.0, 0.5);
 
         final int finalTeamId = defendingTeamId;
         TNTPrimed tnt = clicked.getWorld().spawn(spawnLoc, TNTPrimed.class, t -> {
@@ -138,22 +158,49 @@ public class RaidTNTListener implements Listener {
                 " (team: " + defendingTeamId + ")");
     }
 
-    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
     public void onEntityExplode(EntityExplodeEvent event) {
         Entity entity = event.getEntity();
-        if (!trackedTntUuids.remove(entity.getUniqueId())) return;
+        if (entity == null) return;
 
-        // No player damage
+        boolean isRaidTNT = trackedTntUuids.remove(entity.getUniqueId()) ||
+                entity.getPersistentDataContainer().has(TNT_MARKER, PersistentDataType.BOOLEAN);
+        if (!isRaidTNT) return;
+
+        // Un-cancel event if it was cancelled by claim protection plugins so Raid TNT handles block transformations
+        event.setCancelled(false);
         event.setYield(0);
 
         int defendingTeamId = entity.getPersistentDataContainer()
                 .getOrDefault(TNT_TEAM_KEY, PersistentDataType.INTEGER, -1);
 
         Location explosionCenter = event.getLocation();
+        World world = explosionCenter.getWorld();
+        if (world == null) return;
 
-        // Apply block transformation chain
-        List<Block> blocksToTransform = new ArrayList<>(event.blockList());
-        event.blockList().clear();
+        // Collect blocks from event + scan 3D sphere for high blast resistance blocks (Reinforced Deepslate, Obsidian, Crying Obsidian)
+        double radius = settingsManager.getDouble("raidtnt.radius", 3.5);
+        int radiusCeil = (int) Math.ceil(radius);
+
+        Set<Block> blocksToTransform = new LinkedHashSet<>(event.blockList());
+
+        for (int x = -radiusCeil; x <= radiusCeil; x++) {
+            for (int y = -radiusCeil; y <= radiusCeil; y++) {
+                for (int z = -radiusCeil; z <= radiusCeil; z++) {
+                    if (x * x + y * y + z * z <= radius * radius) {
+                        Block b = world.getBlockAt(explosionCenter.getBlockX() + x,
+                                explosionCenter.getBlockY() + y,
+                                explosionCenter.getBlockZ() + z);
+                        if (getTransformation(b.getType()) != null) {
+                            blocksToTransform.add(b);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Remove transformed/protected blocks from vanilla blockList so NMS explosion doesn't set them to AIR
+        event.blockList().removeAll(blocksToTransform);
 
         for (Block block : blocksToTransform) {
             // Always protect claim chests
@@ -167,31 +214,20 @@ public class RaidTNTListener implements Listener {
             }
 
             Material blockType = block.getType();
+            if (isUnbreakable(blockType)) continue;
+
             Material transformed = getTransformation(blockType);
             if (transformed == null) continue;
 
-            final Location loc = block.getLocation();
-            final Block targetBlock = block;
-            final Material targetMat = transformed;
-            final Material origMat = blockType;
+            Location loc = block.getLocation();
+            block.setType(transformed, true);
 
-            Runnable transformTask = () -> {
-                targetBlock.setType(targetMat);
-                World w = loc.getWorld();
-                if (w != null) {
-                    if (targetMat != Material.AIR) {
-                        w.spawnParticle(Particle.BLOCK_CRUMBLE, loc.clone().add(0.5, 0.5, 0.5), 12, 0.3, 0.3, 0.3, targetMat.createBlockData());
-                        w.playSound(loc, Sound.BLOCK_STONE_BREAK, 0.8f, 0.9f);
-                    } else {
-                        w.spawnParticle(Particle.BLOCK_CRUMBLE, loc.clone().add(0.5, 0.5, 0.5), 8, 0.3, 0.3, 0.3, origMat.createBlockData());
-                    }
-                }
-            };
-
-            if (scheduler != null) {
-                scheduler.runSync(loc, transformTask);
+            if (transformed != Material.AIR) {
+                world.spawnParticle(Particle.BLOCK_CRUMBLE, loc.clone().add(0.5, 0.5, 0.5), 12, 0.3, 0.3, 0.3, transformed.createBlockData());
+                world.playSound(loc, Sound.BLOCK_STONE_BREAK, 0.8f, 0.9f);
             } else {
-                transformTask.run();
+                world.spawnParticle(Particle.BLOCK_CRUMBLE, loc.clone().add(0.5, 0.5, 0.5), 8, 0.3, 0.3, 0.3, blockType.createBlockData());
+                world.playSound(loc, Sound.BLOCK_STONE_HIT, 0.7f, 1.1f);
             }
         }
 
@@ -213,7 +249,6 @@ public class RaidTNTListener implements Listener {
 
     private boolean isClaimChest(Block block) {
         try {
-            Class<?> ccmClass = Class.forName("com.guildcore.claims.ClaimChestManager");
             Object plugin = com.guildcore.GuildCorePlugin.getInstance();
             if (plugin != null) {
                 java.lang.reflect.Method m = plugin.getClass().getMethod("getClaimChestManager");
@@ -227,18 +262,36 @@ public class RaidTNTListener implements Listener {
         return false;
     }
 
+    private boolean isUnbreakable(Material type) {
+        if (type == null || type.isAir()) return true;
+        return type == Material.BEDROCK ||
+                type == Material.BARRIER ||
+                type == Material.END_PORTAL_FRAME ||
+                type == Material.END_PORTAL ||
+                type == Material.NETHER_PORTAL ||
+                type == Material.COMMAND_BLOCK ||
+                type == Material.CHAIN_COMMAND_BLOCK ||
+                type == Material.REPEATING_COMMAND_BLOCK ||
+                type == Material.STRUCTURE_BLOCK ||
+                type == Material.LIGHT;
+    }
+
     private Material getTransformation(Material type) {
-        if (type == null || type.isAir()) return null;
+        if (type == null || type.isAir() || isUnbreakable(type)) return null;
         String name = type.name();
 
         if (type == Material.REINFORCED_DEEPSLATE) return Material.OBSIDIAN;
         if (type == Material.OBSIDIAN) return Material.CRYING_OBSIDIAN;
         if (type == Material.CRYING_OBSIDIAN) return Material.COBBLESTONE;
+
         if (type == Material.ANVIL || type == Material.CHIPPED_ANVIL || type == Material.DAMAGED_ANVIL) return Material.IRON_BLOCK;
+        if (type == Material.IRON_BLOCK || type == Material.GOLD_BLOCK || type == Material.DIAMOND_BLOCK || type == Material.NETHERITE_BLOCK || type == Material.EMERALD_BLOCK) return Material.COBBLESTONE;
+
         if (name.contains("DEEPSLATE") && !name.contains("COBBLED")) return Material.COBBLED_DEEPSLATE;
-        if (type == Material.COBBLED_DEEPSLATE) return Material.AIR;
+        if (type == Material.COBBLED_DEEPSLATE) return Material.COBBLESTONE;
+
         if (name.contains("STONE_BRICK") || name.contains("SMOOTH_STONE") || name.contains("BLACKSTONE") || type == Material.STONE) return Material.COBBLESTONE;
-        if (type == Material.COBBLESTONE) return Material.AIR;
+        if (name.contains("NETHER_BRICK")) return Material.NETHERRACK;
 
         return Material.AIR;
     }

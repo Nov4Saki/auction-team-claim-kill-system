@@ -221,6 +221,13 @@ public class DatabaseSetup {
                     "action VARCHAR(16) NOT NULL, " +
                     "timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP);");
 
+            // Pending Combat Log Deaths (for offline slain combat log NPCs)
+            stmt.execute("CREATE TABLE IF NOT EXISTS pending_combat_log_deaths (" +
+                    "player_uuid VARCHAR(36) PRIMARY KEY, " +
+                    "killer_name VARCHAR(64), " +
+                    "reason VARCHAR(128), " +
+                    "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);");
+
             stmt.execute("CREATE TABLE IF NOT EXISTS claim_chests (" +
                     "team_id INTEGER PRIMARY KEY, " +
                     "world VARCHAR(64) NOT NULL, " +

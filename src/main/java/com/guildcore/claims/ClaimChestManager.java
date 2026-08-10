@@ -92,6 +92,12 @@ public class ClaimChestManager {
         if (mat == null) mat = Material.CHEST;
 
         ItemStack item = new ItemStack(mat);
+        refreshClaimChestItem(item);
+        return item;
+    }
+
+    public void refreshClaimChestItem(ItemStack item) {
+        if (item == null) return;
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
             meta.displayName(TextUtil.format("<gradient:#FFD700:#FFA500><b>🏰 Guild Claim Chest</b></gradient>"));
@@ -102,16 +108,11 @@ public class ClaimChestManager {
             lore.add(TextUtil.format("<red>⚠ Removing this chest will destroy ALL claims</red>"));
             meta.lore(lore);
 
-            // Hide all vanilla attributes
-            meta.setAttributeModifiers(null);
-
             // Tag the item with PDC before setItemMeta
             meta.getPersistentDataContainer().set(CLAIM_CHEST_KEY, org.bukkit.persistence.PersistentDataType.BOOLEAN, true);
 
             item.setItemMeta(meta);
         }
-
-        return item;
     }
 
     public boolean isClaimChestItem(ItemStack item) {

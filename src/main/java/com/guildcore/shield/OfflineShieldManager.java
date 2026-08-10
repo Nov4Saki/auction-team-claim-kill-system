@@ -329,11 +329,37 @@ public class OfflineShieldManager {
                 "Saved " + shieldChargeMinutes.size() + " shield records to database.");
     }
 
+    public void removeShieldData(int teamId) {
+        shieldChargeMinutes.remove(teamId);
+        lastAllOfflineTime.remove(teamId);
+        shieldActive.remove(teamId);
+        onlineTeamMembers.remove(teamId);
+
+        dbManager.executeAsync(() -> {
+            try (Connection conn = dbManager.getConnection();
+                 PreparedStatement ps = conn.prepareStatement("DELETE FROM offline_shields WHERE team_id = ?")) {
+                ps.setInt(1, teamId);
+                ps.executeUpdate();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
+    }
+
     public void saveShield(int teamId) {
         dbManager.executeAsync(() -> saveShieldSync(teamId));
     }
 
     private void saveShieldSync(int teamId) {
+        // Prevent foreign key constraint failure if team was deleted/disbanded
+        if (teamManager != null && teamManager.getTeam(teamId) == null) {
+            shieldChargeMinutes.remove(teamId);
+            lastAllOfflineTime.remove(teamId);
+            shieldActive.remove(teamId);
+            onlineTeamMembers.remove(teamId);
+            return;
+        }
+
         try (Connection conn = dbManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(
                      "INSERT OR REPLACE INTO offline_shields " +

@@ -24,6 +24,11 @@ public class TeamManager {
     private com.guildcore.core.GuildCoreManager guildCoreManager;
     private com.guildcore.scheduler.SchedulerWrapper scheduler;
     private com.guildcore.economy.EconomyManager economyManager;
+    private com.guildcore.shield.OfflineShieldManager offlineShieldManager;
+
+    public void setOfflineShieldManager(com.guildcore.shield.OfflineShieldManager offlineShieldManager) {
+        this.offlineShieldManager = offlineShieldManager;
+    }
     private final Map<Integer, Team> teamsById = new ConcurrentHashMap<>();
     private final Map<String, Integer> teamIdByName = new ConcurrentHashMap<>();
     private final Map<UUID, Integer> playerTeamMap = new ConcurrentHashMap<>();
@@ -784,6 +789,10 @@ public class TeamManager {
                 playerTeamMap.remove(entry.getKey());
                 playerRoleMap.remove(entry.getKey());
             }
+        }
+
+        if (offlineShieldManager != null) {
+            offlineShieldManager.removeShieldData(teamId);
         }
 
         if (claimChestManager != null) {

@@ -323,6 +323,87 @@ public class RaidTagManager implements Listener {
         player.sendActionBar(TextUtil.format("<red>You cannot place blocks in claimed territory while raid tagged!</red>"));
     }
 
+    private final Set<UUID> pendingDeaths = ConcurrentHashMap.newKeySet();
+
+    /**
+     * Records a pending death for an offline player whose combat log NPC was slain or expired.
+     */
+    public void recordPendingDeath(UUID playerUuid, String playerName, String killerName, String reason) {
+        pendingDeaths.add(playerUuid);
+
+        // Broadcast server-wide
+        if (killerName != null && !killerName.isEmpty()) {
+            Bukkit.broadcast(TextUtil.format(
+                    "<red><b>⚔ COMBAT LOG SLAIN!</b> <white>" + playerName + "</white>'s combat log NPC was slain by <yellow>" + killerName + "</yellow>!</red>"));
+        } else {
+            Bukkit.broadcast(TextUtil.format(
+                    "<red><b>⚔ COMBAT LOG EXPIRED!</b> <white>" + playerName + "</white> combat logged and lost their items!</red>"));
+        }
+
+        // Persist to SQLite DB asynchronously
+        scheduler.runAsync(() -> {
+            try (java.sql.Connection conn = com.guildcore.GuildCorePlugin.getInstance()
+                    .getDatabaseManager().getConnection();
+                 java.sql.PreparedStatement ps = conn.prepareStatement(
+                         "INSERT OR REPLACE INTO pending_combat_log_deaths (player_uuid, killer_name, reason) VALUES (?, ?, ?)")) {
+                ps.setString(1, playerUuid.toString());
+                ps.setString(2, killerName != null ? killerName : "Unknown");
+                ps.setString(3, reason != null ? reason : "COMBAT_LOG_SLAIN");
+                ps.executeUpdate();
+            } catch (Exception e) {
+                DebugManager.log(DebugFlag.RAID_TAG, "Failed to save pending combat log death for " + playerUuid + ": " + e.getMessage());
+            }
+        });
+    }
+
+    /**
+     * Checks if a joining player has a pending death penalty and applies force-kill & inventory clear.
+     */
+    public void checkAndApplyPendingDeath(Player player) {
+        if (player == null) return;
+        UUID uuid = player.getUniqueId();
+
+        boolean isPending = pendingDeaths.remove(uuid);
+        if (!isPending) {
+            // Check database if not in memory cache (e.g. after server restart)
+            try (java.sql.Connection conn = com.guildcore.GuildCorePlugin.getInstance()
+                    .getDatabaseManager().getConnection();
+                 java.sql.PreparedStatement ps = conn.prepareStatement(
+                         "SELECT killer_name FROM pending_combat_log_deaths WHERE player_uuid = ?")) {
+                ps.setString(1, uuid.toString());
+                try (java.sql.ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        isPending = true;
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+
+        if (isPending) {
+            // Remove from database asynchronously
+            scheduler.runAsync(() -> {
+                try (java.sql.Connection conn = com.guildcore.GuildCorePlugin.getInstance()
+                        .getDatabaseManager().getConnection();
+                     java.sql.PreparedStatement ps = conn.prepareStatement(
+                             "DELETE FROM pending_combat_log_deaths WHERE player_uuid = ?")) {
+                    ps.setString(1, uuid.toString());
+                    ps.executeUpdate();
+                } catch (Exception ignored) {}
+            });
+
+            // Execute clear inventory & force kill on player sync thread
+            scheduler.runSync(player, () -> {
+                player.getInventory().clear();
+                player.getEquipment().clear();
+                player.setHealth(0.0);
+                player.sendMessage(TextUtil.format(
+                        "<red><b>☠ You were killed because your combat log NPC was slain while you were offline!</b></red>"));
+            });
+
+            DebugManager.log(DebugFlag.RAID_TAG, "Applied pending combat log death to " + player.getName());
+        }
+    }
+
     @EventHandler(priority = EventPriority.MONITOR)
     public void onPlayerQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
@@ -372,7 +453,7 @@ public class RaidTagManager implements Listener {
             int remaining = disconnectTimer - (int) elapsed;
 
             if (remaining <= 0) {
-                // Time's up - drop inventory
+                // Time's up - drop inventory & apply death penalty
                 logEntry.resolved = true;
                 resolveCombatLog(logEntry, state);
                 combatLogEntries.remove(uuid);
@@ -407,16 +488,21 @@ public class RaidTagManager implements Listener {
     public void onPlayerJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
         UUID uuid = player.getUniqueId();
+
         CombatLogEntry entry = combatLogEntries.remove(uuid);
-        if (entry == null || entry.resolved) return;
+        if (entry != null && !entry.resolved) {
+            entry.resolved = true;
+            killCombatLogStand(entry);
 
-        entry.resolved = true;
-        killCombatLogStand(entry);
+            // Restore raid tag
+            player.sendMessage(TextUtil.format("<yellow>⚔ You reconnected during a raid tag. Your tag has been restored.</yellow>"));
+            DebugManager.log(DebugFlag.RAID_TAG, player.getName() + " reconnected during combat log. Tag restored.");
+            logRaidTagAction(uuid, entry.defendingTeamId, "RECONNECT");
+            return;
+        }
 
-        // Restore raid tag
-        player.sendMessage(TextUtil.format("<yellow>⚔ You reconnected during a raid tag. Your tag has been restored.</yellow>"));
-        DebugManager.log(DebugFlag.RAID_TAG, player.getName() + " reconnected during combat log. Tag restored.");
-        logRaidTagAction(uuid, entry.defendingTeamId, "RECONNECT");
+        // Check if player has pending death from offline NPC slain / timer expiration
+        checkAndApplyPendingDeath(player);
     }
 
     @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
@@ -458,6 +544,9 @@ public class RaidTagManager implements Listener {
                 if (!logEntry.resolved) {
                     logEntry.resolved = true;
 
+                    // Suppress default armor stand item drops
+                    event.getDrops().clear();
+
                     // Drop inventory
                     if (logEntry.inventorySnapshot != null) {
                         World world = stand.getLocation().getWorld();
@@ -470,9 +559,19 @@ public class RaidTagManager implements Listener {
                         }
                     }
 
+                    Player killer = stand.getKiller();
+                    String killerName = killer != null ? killer.getName() : null;
+                    if (killerName == null && logEntry.lastDamagerUuid != null) {
+                        Player damager = Bukkit.getPlayer(logEntry.lastDamagerUuid);
+                        if (damager != null) killerName = damager.getName();
+                    }
+                    if (killerName == null) killerName = "An Attacker";
+
+                    recordPendingDeath(logEntry.playerUuid, logEntry.playerName, killerName, "NPC_SLAIN");
+
                     combatLogEntries.remove(entry.getKey());
                     taggedPlayers.remove(entry.getKey());
-                    DebugManager.log(DebugFlag.RAID_TAG, "Combat log stand killed for player " + entry.getKey() + ". Items dropped.");
+                    DebugManager.log(DebugFlag.RAID_TAG, "Combat log stand killed for player " + logEntry.playerName + ". Items dropped & pending death recorded.");
                 }
                 break;
             }
@@ -485,42 +584,24 @@ public class RaidTagManager implements Listener {
 
     private void resolveCombatLog(CombatLogEntry entry, RaidTagState state) {
         // Drop inventory at location
-        if (settingsManager.getBoolean("raidtag.drop_inv_on_expire", true)) {
-            if (entry.inventorySnapshot != null && entry.disconnectLocation != null && entry.disconnectLocation.getWorld() != null) {
-                Location loc = entry.disconnectLocation;
-                scheduler.runSync(loc, () -> {
-                    World world = loc.getWorld();
-                    if (world == null) return;
-                    for (ItemStack item : entry.inventorySnapshot) {
-                        if (item != null && item.getType() != Material.AIR) {
-                            world.dropItemNaturally(loc, item);
-                        }
+        if (entry.inventorySnapshot != null && entry.disconnectLocation != null && entry.disconnectLocation.getWorld() != null) {
+            Location loc = entry.disconnectLocation;
+            scheduler.runSync(loc, () -> {
+                World world = loc.getWorld();
+                if (world == null) return;
+                for (ItemStack item : entry.inventorySnapshot) {
+                    if (item != null && item.getType() != Material.AIR) {
+                        world.dropItemNaturally(loc, item);
                     }
-                });
-
-                // Clear the player's inventory if they're offline
-                Player offlinePlayer = Bukkit.getPlayer(entry.playerUuid);
-                if (offlinePlayer != null && offlinePlayer.isOnline()) {
-                    offlinePlayer.getInventory().clear();
-                } else {
-                    // Player is offline - clear inventory via database
-                    clearPlayerInventory(entry.playerUuid);
                 }
-            }
+            });
         }
 
         // Kill the armor stand
         killCombatLogStand(entry);
 
-        // Award kill credit
-        if (settingsManager.getBoolean("raidtag.award_kill_credit", true) && entry.lastDamagerUuid != null) {
-            Player killer = Bukkit.getPlayer(entry.lastDamagerUuid);
-            if (killer != null && killer.isOnline()) {
-                killer.sendMessage(TextUtil.format("<green>⚔ " + entry.playerName + " combat logged and their items were dropped!</green>"));
-            }
-            DebugManager.log(DebugFlag.RAID_TAG, "Combat log penalty applied to " + entry.playerName +
-                    " (kill credit to " + entry.lastDamagerUuid + ")");
-        }
+        // Record pending death and broadcast server-wide
+        recordPendingDeath(entry.playerUuid, entry.playerName, null, "TIMER_EXPIRED");
     }
 
     private void killCombatLogStand(CombatLogEntry entry) {

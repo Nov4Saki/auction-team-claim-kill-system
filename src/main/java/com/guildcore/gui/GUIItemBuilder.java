@@ -34,7 +34,7 @@ public class GUIItemBuilder {
 
     public GUIItemBuilder lore(List<String> loreLines) {
         ItemMeta meta = item.getItemMeta();
-        if (meta != null) {
+        if (meta != null && loreLines != null) {
             List<Component> loreComponents = new ArrayList<>();
             for (String line : loreLines) {
                 loreComponents.add(TextUtil.format(line));

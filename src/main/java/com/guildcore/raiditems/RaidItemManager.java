@@ -135,7 +135,6 @@ public class RaidItemManager {
         meta.addEnchant(Enchantment.UNBREAKING, 1, true);
         meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
         meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
-        meta.addItemFlags(ItemFlag.HIDE_ADDITIONAL_TOOLTIP);
         meta.addItemFlags(ItemFlag.HIDE_DYE);
 
         int durability = getDurability(item);
@@ -143,6 +142,27 @@ public class RaidItemManager {
 
         updateLore(meta, type, durability);
         item.setItemMeta(meta);
+    }
+
+    /**
+     * Refreshes all custom raid items in a player's inventory and updates inventory slots.
+     */
+    public void refreshPlayerInventory(Player player) {
+        if (player == null) return;
+        org.bukkit.inventory.Inventory inv = player.getInventory();
+        for (int i = 0; i < inv.getSize(); i++) {
+            ItemStack item = inv.getItem(i);
+            if (item != null && isRaidItem(item)) {
+                refreshRaidItem(item);
+                inv.setItem(i, item);
+            }
+        }
+        ItemStack offhand = player.getInventory().getItemInOffHand();
+        if (offhand != null && isRaidItem(offhand)) {
+            refreshRaidItem(offhand);
+            player.getInventory().setItemInOffHand(offhand);
+        }
+        player.updateInventory();
     }
 
     /**
@@ -170,7 +190,6 @@ public class RaidItemManager {
         meta.addEnchant(Enchantment.UNBREAKING, 1, true);
         meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
         meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
-        meta.addItemFlags(ItemFlag.HIDE_ADDITIONAL_TOOLTIP);
         meta.addItemFlags(ItemFlag.HIDE_DYE);
 
         // Build dynamic lore
@@ -274,19 +293,6 @@ public class RaidItemManager {
                 return RaidItemType.valueOf(typeStr);
             } catch (IllegalArgumentException ignored) {}
         }
-
-        // Fallback: check display name if PDC key is missing
-        if (item.getItemMeta().hasDisplayName()) {
-            String plainName = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(item.getItemMeta().displayName()).toLowerCase();
-            if (plainName.contains("weak lock pick")) return RaidItemType.LOCK_PICK_WEAK;
-            if (plainName.contains("fast lock pick")) return RaidItemType.LOCK_PICK_FAST;
-            if (plainName.contains("reinforced lock pick")) return RaidItemType.LOCK_PICK_REINFORCED;
-            if (plainName.contains("lock pick")) return RaidItemType.LOCK_PICK_NORMAL;
-            if (plainName.contains("sledge hammer")) return RaidItemType.SLEDGE_HAMMER;
-            if (plainName.contains("raid tnt")) return RaidItemType.RAID_TNT;
-            if (plainName.contains("charged creeper")) return RaidItemType.CHARGED_CREEPER_EGG;
-        }
-
         return null;
     }
 

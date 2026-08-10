@@ -159,6 +159,7 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
         this.teamManager.setEconomyManager(economyManager);
         this.teamManager.setGuildCoreManager(guildCoreManager);
         this.teamManager.setClaimChestManager(claimChestManager);
+        this.teamManager.setOfflineShieldManager(offlineShieldManager);
         this.teamManager.setScheduler(scheduler);
 
         this.claimManager.setTeamManager(teamManager);
@@ -337,15 +338,6 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
         if (offlineShieldManager != null && teamManager != null) {
             com.guildcore.teams.Team playerTeam = teamManager.getPlayerTeam(player.getUniqueId());
             if (playerTeam != null) offlineShieldManager.onPlayerJoin(player.getUniqueId(), playerTeam.getId());
-        }
-
-        // Refresh all custom GuildCore items in inventory to ensure display name, glow & lore are restored
-        if (raidItemManager != null) {
-            for (ItemStack item : player.getInventory().getContents()) {
-                if (item != null && raidItemManager.isRaidItem(item)) {
-                    raidItemManager.refreshRaidItem(item);
-                }
-            }
         }
     }
 

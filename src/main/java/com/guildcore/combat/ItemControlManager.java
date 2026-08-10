@@ -330,14 +330,19 @@ public class ItemControlManager implements Listener {
         Player player = event.getPlayer();
         UUID uuid = player.getUniqueId();
         PvPCombatLogEntry entry = pvpCombatLogEntries.remove(uuid);
-        if (entry == null || entry.resolved) return;
+        if (entry != null && !entry.resolved) {
+            entry.resolved = true;
+            killPvPCombatLogStand(entry);
 
-        entry.resolved = true;
-        killPvPCombatLogStand(entry);
+            player.sendMessage(TextUtil.format("<yellow>⚔ You reconnected during a PvP combat tag. Your tag has been restored.</yellow>"));
+            tagPlayer(player);
+            DebugManager.log(DebugFlag.ANTI_LOGOUT, player.getName() + " reconnected during PvP combat log.");
+            return;
+        }
 
-        player.sendMessage(TextUtil.format("<yellow>⚔ You reconnected during a PvP combat tag. Your tag has been restored.</yellow>"));
-        tagPlayer(player);
-        DebugManager.log(DebugFlag.ANTI_LOGOUT, player.getName() + " reconnected during PvP combat log.");
+        if (raidTagManager != null) {
+            raidTagManager.checkAndApplyPendingDeath(player);
+        }
     }
 
     @EventHandler(priority = EventPriority.NORMAL)
@@ -350,6 +355,9 @@ public class ItemControlManager implements Listener {
                 if (!logEntry.resolved) {
                     logEntry.resolved = true;
 
+                    // Suppress default armor stand item drops
+                    event.getDrops().clear();
+
                     if (logEntry.inventorySnapshot != null) {
                         World world = stand.getLocation().getWorld();
                         if (world != null) {
@@ -361,9 +369,21 @@ public class ItemControlManager implements Listener {
                         }
                     }
 
+                    Player killer = stand.getKiller();
+                    String killerName = killer != null ? killer.getName() : null;
+                    if (killerName == null && logEntry.lastDamagerUuid != null) {
+                        Player damager = Bukkit.getPlayer(logEntry.lastDamagerUuid);
+                        if (damager != null) killerName = damager.getName();
+                    }
+                    if (killerName == null) killerName = "An Attacker";
+
+                    if (raidTagManager != null) {
+                        raidTagManager.recordPendingDeath(logEntry.playerUuid, logEntry.playerName, killerName, "PVP_NPC_SLAIN");
+                    }
+
                     pvpCombatLogEntries.remove(entry.getKey());
                     pvpTaggedPlayers.remove(entry.getKey());
-                    DebugManager.log(DebugFlag.ANTI_LOGOUT, "PvP combat log stand killed for player " + entry.getKey() + ". Items dropped.");
+                    DebugManager.log(DebugFlag.ANTI_LOGOUT, "PvP combat log stand killed for player " + logEntry.playerName + ". Items dropped.");
                 }
                 break;
             }
@@ -371,35 +391,23 @@ public class ItemControlManager implements Listener {
     }
 
     private void resolvePvPCombatLog(PvPCombatLogEntry entry) {
-        if (settingsManager.getBoolean("raidtag.drop_inv_on_expire", true)) {
-            if (entry.inventorySnapshot != null && entry.disconnectLocation != null && entry.disconnectLocation.getWorld() != null) {
-                Location loc = entry.disconnectLocation;
-                scheduler.runSync(loc, () -> {
-                    World world = loc.getWorld();
-                    if (world == null) return;
-                    for (ItemStack item : entry.inventorySnapshot) {
-                        if (item != null && item.getType() != Material.AIR) {
-                            world.dropItemNaturally(loc, item);
-                        }
+        if (entry.inventorySnapshot != null && entry.disconnectLocation != null && entry.disconnectLocation.getWorld() != null) {
+            Location loc = entry.disconnectLocation;
+            scheduler.runSync(loc, () -> {
+                World world = loc.getWorld();
+                if (world == null) return;
+                for (ItemStack item : entry.inventorySnapshot) {
+                    if (item != null && item.getType() != Material.AIR) {
+                        world.dropItemNaturally(loc, item);
                     }
-                });
-
-                Player offlinePlayer = Bukkit.getPlayer(entry.playerUuid);
-                if (offlinePlayer != null && offlinePlayer.isOnline()) {
-                    offlinePlayer.getInventory().clear();
                 }
-            }
+            });
         }
 
         killPvPCombatLogStand(entry);
 
-        if (settingsManager.getBoolean("raidtag.award_kill_credit", true) && entry.lastDamagerUuid != null) {
-            Player killer = Bukkit.getPlayer(entry.lastDamagerUuid);
-            if (killer != null && killer.isOnline()) {
-                killer.sendMessage(TextUtil.format("<green>⚔ " + entry.playerName + " combat logged and their items were dropped!</green>"));
-            }
-            DebugManager.log(DebugFlag.ANTI_LOGOUT, "PvP combat log penalty applied to " + entry.playerName +
-                    " (kill credit to " + entry.lastDamagerUuid + ")");
+        if (raidTagManager != null) {
+            raidTagManager.recordPendingDeath(entry.playerUuid, entry.playerName, null, "PVP_TIMER_EXPIRED");
         }
     }
 
