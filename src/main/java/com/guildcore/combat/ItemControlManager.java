@@ -300,14 +300,17 @@ public class ItemControlManager implements Listener {
                 return false;
             }
 
-            if (logEntry.armorStandUuid != null && logEntry.disconnectLocation.getWorld() != null) {
-                for (Entity entity : logEntry.disconnectLocation.getWorld().getNearbyEntities(
-                        logEntry.disconnectLocation, 5, 5, 5)) {
-                    if (entity instanceof ArmorStand as && entity.getUniqueId().equals(logEntry.armorStandUuid)) {
-                        as.customName(TextUtil.format("<red><b>⚔ COMBAT LOG: " + playerName + " (" + remaining + "s)</b></red>"));
-                        break;
+            if (logEntry.armorStandUuid != null && logEntry.disconnectLocation != null && logEntry.disconnectLocation.getWorld() != null) {
+                Location locUpdate = logEntry.disconnectLocation;
+                scheduler.runSync(locUpdate, () -> {
+                    if (locUpdate.getWorld() == null) return;
+                    for (Entity entity : locUpdate.getWorld().getNearbyEntities(locUpdate, 5, 5, 5)) {
+                        if (entity instanceof ArmorStand as && entity.getUniqueId().equals(logEntry.armorStandUuid)) {
+                            as.customName(TextUtil.format("<red><b>⚔ COMBAT LOG: " + playerName + " (" + remaining + "s)</b></red>"));
+                            break;
+                        }
                     }
-                }
+                });
             }
             return true;
         }, 20L, 20L);
@@ -369,13 +372,17 @@ public class ItemControlManager implements Listener {
 
     private void resolvePvPCombatLog(PvPCombatLogEntry entry) {
         if (settingsManager.getBoolean("raidtag.drop_inv_on_expire", true)) {
-            if (entry.inventorySnapshot != null && entry.disconnectLocation.getWorld() != null) {
-                World world = entry.disconnectLocation.getWorld();
-                for (ItemStack item : entry.inventorySnapshot) {
-                    if (item != null && item.getType() != Material.AIR) {
-                        world.dropItemNaturally(entry.disconnectLocation, item);
+            if (entry.inventorySnapshot != null && entry.disconnectLocation != null && entry.disconnectLocation.getWorld() != null) {
+                Location loc = entry.disconnectLocation;
+                scheduler.runSync(loc, () -> {
+                    World world = loc.getWorld();
+                    if (world == null) return;
+                    for (ItemStack item : entry.inventorySnapshot) {
+                        if (item != null && item.getType() != Material.AIR) {
+                            world.dropItemNaturally(loc, item);
+                        }
                     }
-                }
+                });
 
                 Player offlinePlayer = Bukkit.getPlayer(entry.playerUuid);
                 if (offlinePlayer != null && offlinePlayer.isOnline()) {
@@ -398,15 +405,19 @@ public class ItemControlManager implements Listener {
 
     private void killPvPCombatLogStand(PvPCombatLogEntry entry) {
         if (entry.armorStandUuid == null || entry.disconnectLocation == null) return;
-        World world = entry.disconnectLocation.getWorld();
+        Location loc = entry.disconnectLocation;
+        World world = loc.getWorld();
         if (world == null) return;
 
-        for (Entity entity : world.getNearbyEntities(entry.disconnectLocation, 5, 5, 5)) {
-            if (entity instanceof ArmorStand && entity.getUniqueId().equals(entry.armorStandUuid)) {
-                entity.remove();
-                break;
+        scheduler.runSync(loc, () -> {
+            if (loc.getWorld() == null) return;
+            for (Entity entity : loc.getWorld().getNearbyEntities(loc, 5, 5, 5)) {
+                if (entity instanceof ArmorStand && entity.getUniqueId().equals(entry.armorStandUuid)) {
+                    entity.remove();
+                    break;
+                }
             }
-        }
+        });
     }
 
     // ═══════════════════════════════════════════════
