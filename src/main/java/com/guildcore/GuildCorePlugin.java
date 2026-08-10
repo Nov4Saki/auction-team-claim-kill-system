@@ -148,6 +148,7 @@ public class GuildCorePlugin extends JavaPlugin implements Listener {
 
         // 8. Claim Chest Manager
         this.claimChestManager = new ClaimChestManager(databaseManager, teamManager, claimManager, guildCoreManager, settingsManager);
+        this.claimChestManager.setScheduler(scheduler);
         this.claimChestManager.loadClaimChests();
 
         // Cross-wire dependencies

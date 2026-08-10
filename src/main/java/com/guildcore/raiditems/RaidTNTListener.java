@@ -2,6 +2,7 @@
 package com.guildcore.raiditems;
 
 import com.guildcore.claims.ClaimInfo;
+import java.util.*;
 import com.guildcore.claims.ClaimManager;
 import com.guildcore.config.SettingsManager;
 import com.guildcore.core.GuildCoreBlock;
@@ -151,39 +152,46 @@ public class RaidTNTListener implements Listener {
         Location explosionCenter = event.getLocation();
 
         // Apply block transformation chain
-        Iterator<Block> it = event.blockList().iterator();
-        while (it.hasNext()) {
-            Block block = it.next();
+        List<Block> blocksToTransform = new ArrayList<>(event.blockList());
+        event.blockList().clear();
 
+        for (Block block : blocksToTransform) {
             // Always protect claim chests
-            if (isClaimChest(block)) {
-                it.remove();
-                continue;
-            }
+            if (isClaimChest(block)) continue;
 
             // Protect core blocks
             GuildCoreBlock core = guildCoreManager.getCoreAtLocation(block.getLocation());
             if (core != null) {
                 defendingTeamId = core.getTeamId();
-                it.remove();
                 continue;
             }
 
-            // Apply transformation chain
             Material blockType = block.getType();
             Material transformed = getTransformation(blockType);
-            it.remove();
+            if (transformed == null) continue;
 
-            if (transformed != null) {
-                block.setType(transformed);
-                World w = block.getWorld();
-                Location loc = block.getLocation();
-                if (transformed != Material.AIR) {
-                    w.spawnParticle(Particle.BLOCK_CRUMBLE, loc.clone().add(0.5, 0.5, 0.5), 12, 0.3, 0.3, 0.3, transformed.createBlockData());
-                    w.playSound(loc, Sound.BLOCK_STONE_BREAK, 0.8f, 0.9f);
-                } else {
-                    w.spawnParticle(Particle.BLOCK_CRUMBLE, loc.clone().add(0.5, 0.5, 0.5), 8, 0.3, 0.3, 0.3, blockType.createBlockData());
+            final Location loc = block.getLocation();
+            final Block targetBlock = block;
+            final Material targetMat = transformed;
+            final Material origMat = blockType;
+
+            Runnable transformTask = () -> {
+                targetBlock.setType(targetMat);
+                World w = loc.getWorld();
+                if (w != null) {
+                    if (targetMat != Material.AIR) {
+                        w.spawnParticle(Particle.BLOCK_CRUMBLE, loc.clone().add(0.5, 0.5, 0.5), 12, 0.3, 0.3, 0.3, targetMat.createBlockData());
+                        w.playSound(loc, Sound.BLOCK_STONE_BREAK, 0.8f, 0.9f);
+                    } else {
+                        w.spawnParticle(Particle.BLOCK_CRUMBLE, loc.clone().add(0.5, 0.5, 0.5), 8, 0.3, 0.3, 0.3, origMat.createBlockData());
+                    }
                 }
+            };
+
+            if (scheduler != null) {
+                scheduler.runSync(loc, transformTask);
+            } else {
+                transformTask.run();
             }
         }
 
@@ -226,9 +234,10 @@ public class RaidTNTListener implements Listener {
         if (type == Material.REINFORCED_DEEPSLATE) return Material.OBSIDIAN;
         if (type == Material.OBSIDIAN) return Material.CRYING_OBSIDIAN;
         if (type == Material.CRYING_OBSIDIAN) return Material.COBBLESTONE;
+        if (type == Material.ANVIL || type == Material.CHIPPED_ANVIL || type == Material.DAMAGED_ANVIL) return Material.IRON_BLOCK;
         if (name.contains("DEEPSLATE") && !name.contains("COBBLED")) return Material.COBBLED_DEEPSLATE;
         if (type == Material.COBBLED_DEEPSLATE) return Material.AIR;
-        if (name.contains("STONE_BRICK") || name.contains("SMOOTH_STONE") || type == Material.STONE) return Material.COBBLESTONE;
+        if (name.contains("STONE_BRICK") || name.contains("SMOOTH_STONE") || name.contains("BLACKSTONE") || type == Material.STONE) return Material.COBBLESTONE;
         if (type == Material.COBBLESTONE) return Material.AIR;
 
         return Material.AIR;

@@ -779,6 +779,7 @@ public class GUIClickListener implements Listener {
                 if (event.isRightClick()) { ChatInputListener.requestInput(player, "creeper.explosion_power", p -> guiManager.openAdminRaidToolSettings(p)); }
                 else { ChatInputListener.requestInput(player, "creeper.fuse_seconds", p -> guiManager.openAdminRaidToolSettings(p)); }
             }
+            else if (slot == 31) { guiManager.openLockpickConfigGUI(player); }
             else if (slot == 49) { guiManager.openAdminSettings(player); }
             return;
         }

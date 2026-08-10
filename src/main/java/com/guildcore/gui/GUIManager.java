@@ -405,6 +405,14 @@ public class GUIManager {
                 .name("<green><b>Charged Creeper Egg</b></green>")
                 .lore("<gray>▪ Fuse: <yellow>" + String.format("%.1f", creeperFuse) + "s</yellow></gray>", "<gray>▪ Explosion Power: <yellow>" + String.format("%.1f", creeperPower) + "</yellow></gray>", "<gray>▪ Player Damage: <yellow>" + String.format("%.1f", creeperPlayerDamage) + "x</yellow></gray>", "", "<yellow>▶ Left-Click to edit fuse</yellow>", "<yellow>▶ Right-Click to edit power</yellow>").build());
 
+        inv.setItem(31, new GUIItemBuilder(Material.CHEST)
+                .name("<gold><b>🔑 Lockpick Container Permissions Config</b></gold>")
+                .lore(
+                        "<gray>Configure which container types lockpicks can or cannot interact with.</gray>",
+                        "",
+                        "<yellow>▶ Click to open container permissions editor!</yellow>"
+                ).build());
+
         inv.setItem(49, new GUIItemBuilder(Material.BARRIER).name("<red><b>◀ Return to High Sovereign Panel</b></red>").build());
         player.openInventory(inv);
     }

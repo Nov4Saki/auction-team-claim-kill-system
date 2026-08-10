@@ -253,6 +253,12 @@ public class ClaimChestManager {
         return true;
     }
 
+    private com.guildcore.scheduler.SchedulerWrapper scheduler;
+
+    public void setScheduler(com.guildcore.scheduler.SchedulerWrapper scheduler) {
+        this.scheduler = scheduler;
+    }
+
     public void removeClaimChest(int teamId) {
         String locKey = placedChests.get(teamId);
         if (locKey != null) {
@@ -266,27 +272,34 @@ public class ClaimChestManager {
                 World world = Bukkit.getWorld(worldName);
                 if (world != null) {
                     Location loc = new Location(world, x, y, z);
+                    Runnable removeTask = () -> {
+                        try {
+                            // Remove chest block
+                            Block block = world.getBlockAt(loc);
+                            block.setType(Material.AIR);
 
-                    // Remove chest block
-                    Block block = world.getBlockAt(loc);
-                    if (block.getType() == Material.CHEST) {
-                        block.setType(Material.AIR);
-                    }
-
-                    // Remove armor stand
-                    UUID standUuid = chestStands.remove(locKey);
-                    if (standUuid != null) {
-                        for (Entity entity : world.getNearbyEntities(loc.clone().add(0.5, 0.5, 0.5), 2, 2, 2)) {
-                            if (entity.getUniqueId().equals(standUuid)) {
-                                entity.remove();
-                                break;
+                            // Remove armor stand
+                            UUID standUuid = chestStands.remove(locKey);
+                            if (standUuid != null) {
+                                for (Entity entity : world.getNearbyEntities(loc.clone().add(0.5, 0.5, 0.5), 3, 3, 3)) {
+                                    if (entity.getUniqueId().equals(standUuid)) {
+                                        entity.remove();
+                                        break;
+                                    }
+                                }
                             }
-                        }
-                    }
 
-                    // Effects
-                    world.playSound(loc, Sound.BLOCK_BEACON_DEACTIVATE, 1.0f, 0.5f);
-                    world.spawnParticle(Particle.LARGE_SMOKE, loc.clone().add(0.5, 0.5, 0.5), 30, 0.5, 0.5, 0.5, 0.05);
+                            // Effects
+                            world.playSound(loc, Sound.BLOCK_BEACON_DEACTIVATE, 1.0f, 0.5f);
+                            world.spawnParticle(Particle.LARGE_SMOKE, loc.clone().add(0.5, 0.5, 0.5), 30, 0.5, 0.5, 0.5, 0.05);
+                        } catch (Exception ignored) {}
+                    };
+
+                    if (scheduler != null) {
+                        scheduler.runSync(loc, removeTask);
+                    } else {
+                        removeTask.run();
+                    }
                 }
             }
 
